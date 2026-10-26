@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangleIcon, ExternalLinkIcon } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangleIcon, CheckCircle2Icon, ClockIcon, ExternalLinkIcon } from "lucide-react";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, DateInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
-import { fileOutsideResult, markOutsideResultInError, outsideResultLink } from "@/app/(staff)/patients/outside-result-actions";
-import type { OutsideResult } from "@/lib/api/types";
+import { fileOutsideResult, markOutsideResultInError, outsideResultLink, reviewOutsideResult } from "@/app/(staff)/patients/outside-result-actions";
+import type { OutsideResult, UnreviewedOutsideResult } from "@/lib/api/types";
 import { BLANK_OUTSIDE_RESULT, type OutsideResultForm, RECEIVED_FROM_LABEL, SOURCE_KIND_LABEL } from "@/lib/outside-result-form";
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 
@@ -19,11 +20,14 @@ export function OutsideResultList({
   patientId,
   results,
   canRecord,
+  canReview = false,
   linkedRecords,
 }: {
   patientId: string;
   results: OutsideResult[];
   canRecord: boolean;
+  /** May record that a report was read (outside-result.review). */
+  canReview?: boolean;
   linkedRecords?: ReadonlyArray<{ id: string; patientNumber: string }>;
 }) {
   const filedUnder = filedUnderLookup(linkedRecords);
@@ -31,7 +35,14 @@ export function OutsideResultList({
   return (
     <ul className="flex flex-col divide-y rounded-md border">
       {results.map((r) => (
-        <OutsideResultRow key={r.id} result={r} patientId={patientId} canRecord={canRecord} filedUnder={filedUnderText(filedUnder(r.patientId))} />
+        <OutsideResultRow
+          key={r.id}
+          result={r}
+          patientId={patientId}
+          canRecord={canRecord}
+          canReview={canReview}
+          filedUnder={filedUnderText(filedUnder(r.patientId))}
+        />
       ))}
     </ul>
   );
@@ -41,16 +52,22 @@ function OutsideResultRow({
   result: r,
   patientId,
   canRecord,
+  canReview,
   filedUnder,
+  patient,
 }: {
   result: OutsideResult;
   patientId: string;
   canRecord: boolean;
+  canReview: boolean;
   filedUnder: string | null;
+  /** Shown above the entry in lists that span patients. */
+  patient?: { id: string; patientNumber: string; displayName: string };
 }) {
   const router = useRouter();
-  const [mode, setMode] = React.useState<"none" | "error">("none");
+  const [mode, setMode] = React.useState<"none" | "error" | "review">("none");
   const [reason, setReason] = React.useState("");
+  const [note, setNote] = React.useState("");
   const [pending, startTransition] = React.useTransition();
   const inError = r.enteredInError !== null;
   const open = () =>
@@ -71,8 +88,28 @@ function OutsideResultRow({
       } else toast.error(result.message);
     });
   };
+  const submitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    startTransition(async () => {
+      const result = await reviewOutsideResult({ patientId, outsideResultId: r.id, note });
+      if (result.ok) {
+        toast.success("Marked as reviewed");
+        setMode("none");
+        setNote("");
+        router.refresh();
+      } else toast.error(result.message);
+    });
+  };
   return (
     <li className="flex flex-col gap-1 p-2.5">
+      {patient ? (
+        <p className="text-table font-medium">
+          <Link href={`/patients/${patient.id}/outside-results`} className="text-primary hover:underline">
+            {patient.displayName}
+          </Link>{" "}
+          <span className="font-mono text-meta text-muted-foreground">{patient.patientNumber}</span>
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-1.5">
         <span className={inError ? "text-body line-through" : "text-body font-medium"}>
           {clinicalDate(r.performedOn)} · {r.tests}
@@ -80,6 +117,16 @@ function OutsideResultRow({
         <Badge variant="outline">{SOURCE_KIND_LABEL[r.sourceKind]}</Badge>
         <Badge variant="info">Outside result</Badge>
         {inError ? <Badge variant="danger">Entered in error</Badge> : null}
+        {!inError && r.review ? (
+          <Badge variant="success">
+            <CheckCircle2Icon aria-hidden /> Reviewed
+          </Badge>
+        ) : null}
+        {!inError && !r.review ? (
+          <Badge variant="warning">
+            <ClockIcon aria-hidden /> Awaiting review
+          </Badge>
+        ) : null}
         {filedUnder ? <span className="text-meta text-muted-foreground">· {filedUnder}</span> : null}
       </div>
       <p className="text-meta text-muted-foreground">
@@ -93,6 +140,12 @@ function OutsideResultRow({
           .join(" · ")}
       </p>
       {r.notes ? <p className="text-meta">Note: {r.notes}</p> : null}
+      {r.review ? (
+        <p className="text-meta">
+          Reviewed{r.review.byName ? ` by ${r.review.byName}` : ""}, {clinicalDateTime(r.review.at)}
+          {r.review.note ? ` — ${r.review.note}` : ""}
+        </p>
+      ) : null}
       {r.enteredInError ? (
         <p className="text-meta">
           Entered in error: {r.enteredInError.reason}
@@ -104,12 +157,34 @@ function OutsideResultRow({
           <Button type="button" size="xs" variant="outline" disabled={pending} onClick={open}>
             <ExternalLinkIcon aria-hidden /> Open report
           </Button>
+          {canReview && !inError && !r.review ? (
+            <Button type="button" size="xs" variant="ghost" onClick={() => setMode("review")}>
+              Mark as reviewed…
+            </Button>
+          ) : null}
           {canRecord && !inError ? (
             <Button type="button" size="xs" variant="ghost" onClick={() => setMode("error")}>
               Entered in error…
             </Button>
           ) : null}
         </div>
+      ) : mode === "review" ? (
+        <form className="flex flex-wrap items-center gap-1.5" onSubmit={submitReview}>
+          <Input
+            aria-label="Review note (optional)"
+            placeholder="Note (optional), e.g. discussed with the patient"
+            className="h-7 w-80"
+            value={note}
+            maxLength={500}
+            onChange={(e) => setNote(e.target.value)}
+          />
+          <Button type="submit" size="xs" disabled={pending}>
+            I have read this report
+          </Button>
+          <Button type="button" size="xs" variant="ghost" onClick={() => setMode("none")}>
+            Cancel
+          </Button>
+        </form>
       ) : (
         <form className="flex flex-wrap items-center gap-1.5" onSubmit={submit}>
           <Input
@@ -216,5 +291,17 @@ export function FileOutsideResult({ patientId }: { patientId: string }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** The filings still awaiting a clinician, oldest first, each with its patient; reviewing removes it from the list. */
+export function UnreviewedOutsideResultList({ items }: { items: UnreviewedOutsideResult[] }) {
+  if (items.length === 0) return <p className="text-body text-muted-foreground">Nothing is waiting for review.</p>;
+  return (
+    <ul className="flex flex-col divide-y rounded-md border">
+      {items.map((r) => (
+        <OutsideResultRow key={r.id} result={r} patientId={r.patient.id} canRecord={false} canReview filedUnder={null} patient={r.patient} />
+      ))}
+    </ul>
   );
 }

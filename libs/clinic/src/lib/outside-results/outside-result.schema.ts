@@ -23,6 +23,9 @@ export const outsideResult = pgTable("outside_result", {
   enteredInErrorReason: text("entered_in_error_reason"),
   enteredInErrorBy: uuid("entered_in_error_by"),
   enteredInErrorAt: timestamp("entered_in_error_at", { withTimezone: true }),
+  reviewedBy: uuid("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  reviewNote: text("review_note"),
   recordedBy: uuid("recorded_by").notNull(),
   recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -159,6 +159,7 @@ export const PERMISSIONS = [
   // Results from outside laboratories and hospitals filed on a patient's record (migration 0128).
   "outside-result.read",
   "outside-result.record",
+  "outside-result.review",
   // Patient history: past procedures and conditions, family and social history (migration 0082). Substance use and
   // sexual history also need encounter.write.
   "history.read",

@@ -72,7 +72,13 @@ export default async function PatientOutsideResultsPage({ params }: { params: Pr
           <CardTitle>Filed reports</CardTitle>
         </CardHeader>
         <CardContent>
-          <OutsideResultList patientId={id} results={results} canRecord={canRecord} linkedRecords={patient.mergedRecords} />
+          <OutsideResultList
+            patientId={id}
+            results={results}
+            canRecord={canRecord}
+            canReview={can(session, "outside-result.review")}
+            linkedRecords={patient.mergedRecords}
+          />
         </CardContent>
       </Card>
     </ModulePage>

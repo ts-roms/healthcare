@@ -37,6 +37,8 @@ Rules enforced by the database: composite same-organization foreign keys (patien
 | `GET /patients/:id/outside-results`          | `outside-result.read`   | Includes records merged into the patient (`filedAsPatient`); entries in error marked; audited `outside-result.view`                                |
 | `GET /outside-results/:id/download-url`      | `outside-result.read`   | Short-lived signed link; audited by the documents service (`document.download`)                                                                    |
 | `POST /outside-results/:id/entered-in-error` | `outside-result.record` | Reason of at least 3 characters; once                                                                                                              |
+| `POST /outside-results/:id/review`           | `outside-result.review` | Optional note; once; see Review                                                                                                                    |
+| `GET /outside-results/unreviewed`            | `outside-result.review` | The queue across patients; see Review                                                                                                              |
 
 The report is uploaded with the ordinary two-step document flow (`POST /documents` with category `outside_result` and the patient, PUT, `/complete`), so the checksum and malware scan apply and an infected file is quarantined and cannot be filed.
 
@@ -44,12 +46,23 @@ Roles: `org_admin`, `physician`, `nurse`, `receptionist` and `records_officer` r
 
 ## Events and audit
 
-`OutsideResultFiled` (ids only). Audit: `outside-result.record`, `outside-result.view`, `outside-result.entered-in-error`, plus `document.download` when the report is opened.
+`OutsideResultFiled` and `OutsideResultReviewed` (ids only). Audit: `outside-result.record`, `outside-result.view`, `outside-result.entered-in-error`, `outside-result.review`, plus `document.download` when the report is opened.
 
 ## Staff screens
 
 - `/patients/[id]/outside-results`: file a report (file, source, kind, day, tests, how it reached the clinic, notes) and the list with **Open report** and **Entered in error…**.
 - The patient record's **Labs** tab shows the latest five under "Results from other laboratories and hospitals".
+
+## Review
+
+A filed report waits until a clinician has recorded that they read it (migration `0129`).
+
+- **What it records:** who, when and an optional note (500 characters, staff-only). It says nothing about what the report shows, changes nothing else in the record and is not a sign-off of the patient's care.
+- **Who:** permission `outside-result.review` (physician, dentist). Nurses, receptionists and the records office file but cannot review. The filer may review their own filing.
+- **Once:** a filing is reviewed once and a filing marked entered in error is never reviewed (`already_reviewed`, `already_entered_in_error`); the database trigger refuses any later change of the review. Filings made before the migration are unreviewed.
+- **Routes:** `POST /outside-results/:id/review` (audited `outside-result.review`, event `OutsideResultReviewed` with ids only); `GET /outside-results/unreviewed` (oldest first, at most 100, the selected facility's and those filed without a facility; each listed patient is audited `outside-result.view`); the count behind the tab is `outsideResultsUnreviewed` in `GET /me/badges`.
+- **Where it shows:** the patient's list ("Awaiting review", or "Reviewed by … on …" with the note), the timeline row ("Awaiting review" / "Reviewed"; never who or the note), the Patient 360 panel (a reviewed flag only) and the staff page `/clinic/outside-results`, the **Outside results** tab of Consultations with its count.
+- **Not built:** reminders for reports left unreviewed, reassigning a report to a particular clinician and a second review. Nothing blocks care while a report is unreviewed.
 
 ## Patient timeline and Patient 360
 
@@ -59,7 +72,6 @@ Roles: `org_admin`, `physician`, `nurse`, `receptionist` and `records_officer` r
 ## Limits and follow-ups
 
 - Not yet in the FHIR export, MyHealth or the copy of the record. Add each as its own change; none should present the filing as a laboratory result.
-- Staff acknowledgement that a clinician reviewed the report is not recorded.
 - Structured values for outside results (so a value could be seen beside trends) would need a labelled, separate store that is never merged into this laboratory's trends, as with imported FHIR history.
 - Patients cannot yet send a result for the clinic to file from MyHealth; the reuse of the records office review queue is the likely design.
 - The report itself may contain personal data of other people (a family member's name, a referral); retention follows the documents' category schedule (`/records/retention`), which the organization sets.

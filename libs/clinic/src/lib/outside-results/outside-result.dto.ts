@@ -18,5 +18,9 @@ export const recordOutsideResultSchema = z.object({
 });
 export class RecordOutsideResultDto extends createZodDto(recordOutsideResultSchema) {}
 
+/** A clinician records that they read the filed report; the note is optional and says nothing the platform acts on. */
+export const reviewOutsideResultSchema = z.object({ note: z.string().trim().min(1).max(500).optional() });
+export class ReviewOutsideResultDto extends createZodDto(reviewOutsideResultSchema) {}
+
 export const outsideResultInErrorSchema = z.object({ reason: z.string().trim().min(3, "Give a reason").max(500) });
 export class OutsideResultInErrorDto extends createZodDto(outsideResultInErrorSchema) {}

@@ -14,6 +14,8 @@ import {
   type LucideIcon,
   PillIcon,
   StethoscopeIcon,
+  CheckCircle2Icon,
+  ClockIcon,
   FileInputIcon,
   SyringeIcon,
   HandIcon,
@@ -561,6 +563,15 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
                     <span className="flex flex-wrap items-center gap-1.5">
                       <span className="font-medium">{o.tests}</span>
                       <Badge variant="info">Outside result</Badge>
+                      {o.reviewed ? (
+                        <Badge variant="success">
+                          <CheckCircle2Icon aria-hidden /> Reviewed
+                        </Badge>
+                      ) : (
+                        <Badge variant="warning">
+                          <ClockIcon aria-hidden /> Awaiting review
+                        </Badge>
+                      )}
                     </span>
                     <span className="text-meta text-muted-foreground">
                       {[`from ${o.sourceName}`, clinicalDate(o.performedOn), o.facility?.name, filedUnderText(o.filedUnder)].filter(Boolean).join(" · ")}

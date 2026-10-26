@@ -310,6 +310,8 @@ Needs `outside-result.record` and `document.upload` (doctors, nurses, receptioni
 3. Enter the laboratory or hospital as written on the report, what kind it is, the day the test was done, and the tests as the report names them.
 4. Say how it reached the clinic (the patient brought it or the provider sent it), add a staff note if useful, then click **File outside result**.
 
+A filed report shows **Awaiting review** until a doctor or dentist has read it. They open it with **Open report**, then click **Mark as reviewed…** (optionally adding a note) and **I have read this report**: the page then shows who reviewed it and when. Reviewing records that it was read; it says nothing about what the report shows, and it can be done only once. Doctors and dentists see everything still waiting under **Consultations › Outside results**.
+
 Open a filed report with **Open report**. If you filed it on the wrong patient or the wrong details, click **Entered in error…** and give a reason: the entry stays listed, struck through, and nothing is deleted. File the report again on the right record.
 
 ## How to manage the catalog

@@ -154,6 +154,8 @@ export interface PatientWorkspace {
     performedOn: string;
     tests: string;
     receivedFrom: "patient" | "provider" | "other";
+    /** Whether a clinician has recorded that they read it. */
+    reviewed: boolean;
     recordedAt: string;
   }> | null;
   /**

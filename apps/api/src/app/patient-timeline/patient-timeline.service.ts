@@ -440,7 +440,13 @@ export class PatientTimelineService {
         return (await this.outsideResults.timeline(organizationId, patientId, window)).map((o) =>
           row("outside_result", o, {
             title: `Outside result: ${o.tests}`,
-            detail: [`From ${o.sourceName}`, `Done ${occurrenceText({ date: o.performedOn, precision: "day", at: null })}`].join(" · "),
+            detail: [
+              `From ${o.sourceName}`,
+              `Done ${occurrenceText({ date: o.performedOn, precision: "day", at: null })}`,
+              o.enteredInErrorAt ? null : o.reviewedAt ? "Reviewed" : "Awaiting review",
+            ]
+              .filter(Boolean)
+              .join(" · "),
             status: o.enteredInErrorAt ? "entered_in_error" : "filed",
             link: { type: "patient_outside_results", id: patientId },
             sourceIds: { outsideResultId: o.id, documentId: o.documentId },

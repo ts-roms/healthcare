@@ -20,7 +20,7 @@ import {
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, isNull, or } from "drizzle-orm";
 import type { z } from "zod";
 import { found } from "../clinic-support";
 import { HISTORY_STAFF_NAMES, type HistoryStaffNames } from "../history/ports";
@@ -42,8 +42,15 @@ export interface OutsideResultView {
   receivedFrom: OutsideResultRecord["receivedFrom"];
   notes: string | null;
   enteredInError: { at: string; reason: string; byName: string | null } | null;
+  /** Null until a clinician records that they read it (never for an entry in error). */
+  review: { at: string; byName: string | null; note: string | null } | null;
   recordedAt: string;
   recordedByName: string | null;
+}
+
+/** A filing awaiting review, with the patient it is filed for. */
+export interface UnreviewedOutsideResult extends OutsideResultView {
+  patient: { id: string; patientNumber: string; displayName: string };
 }
 
 /**
@@ -156,6 +163,7 @@ export class OutsideResultService {
       performedOn: r.performedOn,
       tests: r.tests,
       receivedFrom: r.receivedFrom,
+      reviewed: r.reviewedAt !== null,
       recordedAt: r.recordedAt.toISOString(),
     }));
   }
@@ -177,6 +185,7 @@ export class OutsideResultService {
         performedOn: outsideResult.performedOn,
         tests: outsideResult.tests,
         enteredInErrorAt: outsideResult.enteredInErrorAt,
+        reviewedAt: outsideResult.reviewedAt,
       })
       .from(outsideResult)
       .where(
@@ -189,6 +198,96 @@ export class OutsideResultService {
       )
       .orderBy(desc(at), desc(outsideResult.id))
       .limit(window.limit);
+  }
+
+  /**
+   * Records that a clinician read the report, once; never on an entry in error. It says nothing about what the report
+   * shows and changes nothing else.
+   */
+  async review(actor: Actor, outsideResultId: string, note?: string): Promise<OutsideResultView> {
+    const row = await this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(outsideResult)
+        .where(and(eq(outsideResult.organizationId, actor.organizationId), eq(outsideResult.id, outsideResultId)))
+        .for("update");
+      const filed = found(current, "Outside result");
+      if (filed.enteredInErrorAt) throw new BusinessRuleError("The record is marked entered in error", "already_entered_in_error");
+      if (filed.reviewedAt) throw new BusinessRuleError("This report has already been reviewed", "already_reviewed");
+      const [updated] = await tx
+        .update(outsideResult)
+        .set({ reviewedAt: new Date(), reviewedBy: actor.userId, reviewNote: note ?? null })
+        .where(eq(outsideResult.id, outsideResultId))
+        .returning();
+      await this.audit.record(tx, actor, {
+        action: "outside-result.review",
+        resourceType: "outside_result",
+        resourceId: outsideResultId,
+        patientId: filed.patientId,
+        metadata: { documentId: filed.documentId, withNote: Boolean(note) },
+      });
+      await this.events.record(tx, {
+        type: "OutsideResultReviewed",
+        organizationId: actor.organizationId,
+        aggregateType: "outside_result",
+        aggregateId: outsideResultId,
+        facilityId: filed.facilityId,
+        patientId: filed.patientId,
+        payload: { outsideResultId, documentId: filed.documentId },
+      });
+      return found(updated, "Outside result");
+    });
+    return (await this.views(actor.organizationId, [row]))[0]!;
+  }
+
+  /**
+   * Filings awaiting review across patients, oldest first (at most 100; the selected facility's and those filed without
+   * one). Each listed patient's access is audited.
+   */
+  async unreviewed(actor: Actor): Promise<UnreviewedOutsideResult[]> {
+    const rows = await this.db
+      .select()
+      .from(outsideResult)
+      .where(
+        and(
+          eq(outsideResult.organizationId, actor.organizationId),
+          isNull(outsideResult.reviewedAt),
+          isNull(outsideResult.enteredInErrorAt),
+          actor.facilityId ? or(eq(outsideResult.facilityId, actor.facilityId), isNull(outsideResult.facilityId)) : undefined,
+        ),
+      )
+      .orderBy(asc(outsideResult.recordedAt), asc(outsideResult.id))
+      .limit(100);
+    const patientIds = [...new Set(rows.map((r) => r.patientId))];
+    const [views, briefs] = await Promise.all([this.views(actor.organizationId, rows), this.patients.summaries(actor.organizationId, patientIds)]);
+    for (const patientId of patientIds) {
+      await this.audit.recordStandalone(actor, {
+        action: "outside-result.view",
+        resourceType: "outside_result",
+        patientId,
+        metadata: { queue: "unreviewed" },
+      });
+    }
+    return views.flatMap((v) => {
+      const brief = briefs.get(v.patientId);
+      return brief ? [{ ...v, patient: { id: v.patientId, patientNumber: brief.patientNumber, displayName: brief.displayName } }] : [];
+    });
+  }
+
+  /** How many filings await review (the selected facility's and those filed without one). A count only: nothing is audited. */
+  async countUnreviewed(actor: Actor): Promise<number> {
+    const [row] = await this.db
+      .select({ n: count() })
+      .from(outsideResult)
+      .where(
+        and(
+          eq(outsideResult.organizationId, actor.organizationId),
+          isNull(outsideResult.reviewedAt),
+          isNull(outsideResult.enteredInErrorAt),
+          actor.facilityId ? or(eq(outsideResult.facilityId, actor.facilityId), isNull(outsideResult.facilityId)) : undefined,
+        ),
+      );
+    return row?.n ?? 0;
   }
 
   /** A short-lived link to the report (the documents service audits it). */
@@ -229,7 +328,7 @@ export class OutsideResultService {
   }
 
   private async views(organizationId: string, rows: OutsideResultRecord[]): Promise<OutsideResultView[]> {
-    const userIds = [...new Set(rows.flatMap((r) => [r.recordedBy, r.enteredInErrorBy]).filter((id): id is string => Boolean(id)))];
+    const userIds = [...new Set(rows.flatMap((r) => [r.recordedBy, r.enteredInErrorBy, r.reviewedBy]).filter((id): id is string => Boolean(id)))];
     const [names, facilities] = await Promise.all([
       userIds.length ? this.staff.staffNames(organizationId, userIds) : Promise.resolve(new Map<string, string>()),
       rows.some((r) => r.facilityId) ? this.organizations.listFacilities(organizationId) : Promise.resolve([]),
@@ -254,6 +353,7 @@ export class OutsideResultService {
               byName: r.enteredInErrorBy ? (names.get(r.enteredInErrorBy) ?? null) : null,
             }
           : null,
+      review: r.reviewedAt ? { at: r.reviewedAt.toISOString(), byName: r.reviewedBy ? (names.get(r.reviewedBy) ?? null) : null, note: r.reviewNote } : null,
       recordedAt: r.recordedAt.toISOString(),
       recordedByName: names.get(r.recordedBy) ?? null,
     }));

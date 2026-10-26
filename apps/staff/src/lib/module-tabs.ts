@@ -65,10 +65,17 @@ const MODULES: ModuleDefinition[] = [
   },
   {
     label: "Consultations",
-    prefixes: ["/clinic/encounters", "/clinic/prescriptions"],
+    prefixes: ["/clinic/encounters", "/clinic/prescriptions", "/clinic/outside-results"],
     tabs: [
       { label: "Consultations", href: "/clinic/encounters", permissions: ["encounter.read"] },
       { label: "Prescriptions", href: "/clinic/prescriptions", permissions: ["prescription.read"] },
+      {
+        label: "Outside results",
+        href: "/clinic/outside-results",
+        permissions: ["outside-result.review"],
+        count: (b) => b.outsideResultsUnreviewed,
+        alert: true,
+      },
     ],
   },
   {

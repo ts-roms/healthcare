@@ -22,6 +22,7 @@ describe("outside results", () => {
   let tenant: Tenant;
   let admin: string;
   let nurse: string;
+  let doctor: string;
   let cashier: string;
   let outsider: string;
   let patientId: string;
@@ -59,9 +60,12 @@ describe("outside results", () => {
     const other = await createTenant(ctx.pool, "outres-other");
     await createStaff(ctx.pool, tenant, "admin@outres.ph", ["org_admin"]);
     await createClinician(ctx, tenant, "nurse@outres.ph", ["nurse"], "nurse");
+    await createClinician(ctx, tenant, "doctor@outres.ph", ["physician"]);
     await createStaff(ctx.pool, tenant, "cashier@outres.ph", ["cashier"]);
     await createStaff(ctx.pool, other, "admin@outres-other.ph", ["org_admin"]);
-    [admin, nurse, cashier] = await Promise.all(["admin", "nurse", "cashier"].map(async (u) => (await login(ctx, `${u}@outres.ph`)).accessToken));
+    [admin, nurse, doctor, cashier] = await Promise.all(
+      ["admin", "nurse", "doctor", "cashier"].map(async (u) => (await login(ctx, `${u}@outres.ph`)).accessToken),
+    );
     outsider = (await login(ctx, "admin@outres-other.ph")).accessToken;
     patientId = (await staff(admin).post("/patients", juan).expect(201)).body.id;
     otherPatientId = (
@@ -220,5 +224,70 @@ describe("outside results", () => {
     const forCashier = (await staff(cashier).get(`/patients/${patientId}/workspace`).expect(200)).body;
     expect(forCashier.outsideResults).toBeNull();
     expect(forCashier.withheld).toContain("outside_results");
+  });
+
+  it("lists filings awaiting review, and a physician records who read each one and when, once", async () => {
+    const list = async (token: string) =>
+      (await staff(token).get("/outside-results/unreviewed").expect(200)).body as Array<{
+        id: string;
+        patient: { id: string; patientNumber: string };
+        review: unknown;
+      }>;
+    const waiting = await list(doctor);
+    const filing = waiting.find((w) => w.patient.id === patientId);
+    expect(filing).toBeDefined();
+    expect(filing?.review).toBeNull();
+    expect(waiting.map((w) => w.id)).not.toContain(ids.result); // the entry in error is never awaiting review
+    expect(
+      (await auditRows(ctx.pool, "action = 'outside-result.view' AND patient_id = $1 AND metadata->>'queue' = 'unreviewed'", [patientId])).length,
+    ).toBeGreaterThan(0);
+
+    // Reading is not reviewing: nurses file, only clinicians with the review permission sign off.
+    await staff(nurse).get("/outside-results/unreviewed").expect(403);
+    await staff(nurse).post(`/outside-results/${filing!.id}/review`, {}).expect(403);
+    await staff(cashier).post(`/outside-results/${filing!.id}/review`, {}).expect(403);
+    await staff(doctor).post(`/outside-results/${filing!.id}/review`, { note: "" }).expect(400);
+
+    const reviewed = await staff(doctor).post(`/outside-results/${filing!.id}/review`, { note: "Discussed HbA1c with the patient" }).expect(200);
+    expect(reviewed.body.review).toMatchObject({ note: "Discussed HbA1c with the patient", byName: expect.any(String), at: expect.any(String) });
+    await staff(doctor)
+      .post(`/outside-results/${filing!.id}/review`, {})
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("already_reviewed"));
+    expect((await list(doctor)).map((w) => w.id)).not.toContain(filing!.id);
+
+    const record: OutsideResult[] = (await staff(nurse).get(`/patients/${patientId}/outside-results`).expect(200)).body;
+    expect(record.find((r) => r.id === filing!.id)).toMatchObject({ review: { note: "Discussed HbA1c with the patient" } });
+    expect((await auditRows(ctx.pool, "action = 'outside-result.review' AND resource_id = $1", [filing!.id])).length).toBe(1);
+    const events = await ctx.pool.query(`SELECT payload FROM domain_event WHERE event_type = 'OutsideResultReviewed' AND organization_id = $1`, [
+      tenant.organizationId,
+    ]);
+    expect(events.rows.map((r) => r.payload)).toEqual([{ outsideResultId: filing!.id, documentId: expect.any(String) }]);
+
+    // Never changed afterwards, and never reviewed once marked in error.
+    await expect(ctx.pool.query(`UPDATE outside_result SET review_note = 'Edited' WHERE id = $1`, [filing!.id])).rejects.toThrow(
+      /only marking entered in error or a review/,
+    );
+    await expect(
+      ctx.pool.query(`UPDATE outside_result SET reviewed_at = NULL, reviewed_by = NULL, review_note = NULL WHERE id = $1`, [filing!.id]),
+    ).rejects.toThrow();
+    await staff(doctor)
+      .post(`/outside-results/${ids.result}/review`, {})
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("already_entered_in_error"));
+  });
+
+  it("shows the review state in the timeline and Patient 360 without who read it or the note", async () => {
+    const timeline = (await staff(nurse).get(`/patients/${patientId}/timeline?kinds=outside_result`).expect(200)).body.items as Array<{
+      detail: string;
+      marker: string | null;
+    }>;
+    const live = timeline.filter((e) => e.marker !== "entered_in_error");
+    expect(live).toHaveLength(1);
+    expect(live[0]?.detail).toContain("Reviewed");
+    expect(timeline.find((e) => e.marker === "entered_in_error")?.detail).not.toMatch(/review/i);
+    const workspace = (await staff(nurse).get(`/patients/${patientId}/workspace`).expect(200)).body;
+    expect(workspace.outsideResults[0]).toMatchObject({ reviewed: true });
+    expect(JSON.stringify([timeline, workspace.outsideResults])).not.toMatch(/Discussed HbA1c/);
   });
 });

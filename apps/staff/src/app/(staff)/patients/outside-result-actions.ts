@@ -14,6 +14,7 @@ const uuid = z.uuid();
 function refresh(patientId: string) {
   revalidatePath(`/patients/${patientId}`);
   revalidatePath(`/patients/${patientId}/outside-results`);
+  revalidatePath("/clinic/outside-results");
 }
 
 /**
@@ -72,4 +73,19 @@ export async function markOutsideResultInError(input: z.input<typeof correctionS
 export async function outsideResultLink(outsideResultId: string): Promise<ActionResult<{ url: string }>> {
   if (!uuid.safeParse(outsideResultId).success) return { ok: false, message: "Unknown report." };
   return actionResult(async () => ({ url: (await api<{ url: string }>(`/outside-results/${outsideResultId}/download-url`)).url }));
+}
+
+const reviewSchema = z.object({
+  patientId: z.uuid(),
+  outsideResultId: z.uuid(),
+  note: z.string().trim().max(500, "Keep the note under 500 characters."),
+});
+/** Records that you read the filed report (outside-result.review), once; says nothing about what it shows. */
+export async function reviewOutsideResult(input: z.input<typeof reviewSchema>): Promise<ActionResult<OutsideResult>> {
+  const parsed = reviewSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  const { patientId, outsideResultId, note } = parsed.data;
+  const result = await actionResult(() => api<OutsideResult>(`/outside-results/${outsideResultId}/review`, { method: "POST", body: note ? { note } : {} }));
+  if (result.ok) refresh(patientId);
+  return result;
 }

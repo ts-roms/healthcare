@@ -4666,8 +4666,15 @@ export interface OutsideResult {
   receivedFrom: "patient" | "provider" | "other";
   notes: string | null;
   enteredInError: { at: string; reason: string; byName: string | null } | null;
+  /** Null until a clinician records that they read it; never set on an entry in error. */
+  review: { at: string; byName: string | null; note: string | null } | null;
   recordedAt: string;
   recordedByName: string | null;
+}
+
+/** A filing awaiting review, with the patient it is filed for (GET /outside-results/unreviewed). */
+export interface UnreviewedOutsideResult extends OutsideResult {
+  patient: { id: string; patientNumber: string; displayName: string };
 }
 
 export interface ImmunizationRecord {
@@ -4739,6 +4746,8 @@ export interface WorkspaceOutsideResult {
   performedOn: string;
   tests: string;
   receivedFrom: "patient" | "provider" | "other";
+  /** Whether a clinician has recorded that they read it. */
+  reviewed: boolean;
   recordedAt: string;
 }
 
@@ -5299,6 +5308,7 @@ export interface StaffBadges {
   criticalResults: number | null;
   recordsRequests: number | null;
   caseReports: number | null;
+  outsideResultsUnreviewed: number | null;
 }
 
 // ---- procedures performed at the clinic (docs/domains/clinic.md, "Procedures") ------------------------------------
