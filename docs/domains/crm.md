@@ -138,6 +138,18 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
 - Not built: variables beyond these two (a clinic phone number is not offered because a campaign is not tied to one facility; type it in
   the wording), a choice of channel order, per-patient channel preference.
 
+## Approval nudges and the test send
+
+- **Nudges** (migration `0133`). Submitting a campaign records `CrmCampaignSubmitted`; the people who hold `crm.campaign.approve` get an
+  in-app `outreach.campaign-notice` ("waiting for your approval"), except the author and whoever submitted it. A campaign still
+  waiting two days after submission reminds them **once** (`CrmApprovalReminders`, hourly in the API under an advisory lock;
+  `crm_campaign.approval_reminded_at`). Approval records `CrmCampaignApproved` and tells the author and the submitter. The notices
+  carry the campaign's name and a link, never anything about a patient.
+- **Test send** (`POST /outreach/campaigns/:id/test-send`, `crm.campaign.manage`, audited `crm.campaign.test-send`). The wording as a sample
+  patient ("Maria") would get it, with `[Test]` in the subject and a line saying it is a test, goes to the caller's own notifications and
+  email, and to nobody else: no patient, no delivery row, nothing counted against a cap. Only a campaign that has not gone out. Text
+  messages and push cannot be tried this way (staff have no number or app on file for it): check their length in the form.
+
 ## Open questions / assumptions
 
 - **Compliance dependency.** The platform enforces an explicit opt-in per channel, a second person's approval, the

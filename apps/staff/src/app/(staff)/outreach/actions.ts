@@ -158,3 +158,15 @@ export async function saveOutreachSettings(input: z.input<typeof settingsSchema>
   }
   return result;
 }
+
+/** Puts the campaign's wording, as a sample patient would get it, in the caller's own notifications and email (nothing goes to a patient). */
+export async function testSendCampaign(
+  campaignId: string,
+): Promise<ActionResult<{ sent: Array<{ channel: "in_app" | "email"; status: string; reason: string | null }> }>> {
+  if (!id.safeParse(campaignId).success) return { ok: false, message: "Unknown campaign." };
+  return actionResult(() =>
+    api<{ sent: Array<{ channel: "in_app" | "email"; status: string; reason: string | null }> }>(`/outreach/campaigns/${campaignId}/test-send`, {
+      method: "POST",
+    }),
+  );
+}

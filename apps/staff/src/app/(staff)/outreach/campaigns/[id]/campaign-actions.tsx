@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { OutreachCampaign, OutreachSegment } from "@/lib/api/types";
-import { cancelCampaign, moveCampaign } from "../../actions";
+import { cancelCampaign, moveCampaign, testSendCampaign } from "../../actions";
 import { CampaignForm } from "../../campaign-list";
 
 export function CampaignActions({
@@ -51,6 +51,23 @@ export function CampaignActions({
               Change
             </Button>
           </>
+        ) : null}
+        {canManage && ["draft", "submitted", "approved"].includes(campaign.status) ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            title="Puts the message, as a sample patient would get it, in your own notifications and email. Nothing goes to a patient."
+            onClick={() =>
+              startTransition(async () => {
+                const result = await testSendCampaign(campaign.id);
+                if (result.ok) toast.success("A test was put in your notifications and emailed to you. Nobody else received it.");
+                else toast.error(result.message);
+              })
+            }
+          >
+            Send a test to me
+          </Button>
         ) : null}
         {canManage && campaign.status === "submitted" ? (
           <Button size="sm" variant="outline" onClick={() => move("reopen", "Back to draft")} disabled={pending}>

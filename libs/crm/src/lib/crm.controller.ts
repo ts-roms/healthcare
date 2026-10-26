@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Put } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, PlatformScope, Public, RequirePermissions } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
@@ -140,6 +141,16 @@ export class CrmController {
   @ApiOperation({ summary: "Change a draft campaign; the caller becomes its author" })
   updateCampaign(@CurrentActor() actor: Actor, @Param("id") id: string, @Body() body: CampaignUpdateDto) {
     return this.crm.updateCampaign(actor, id, body);
+  }
+
+  @Post("campaigns/:id/test-send")
+  @RequirePermissions("crm.campaign.manage")
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
+  @ApiOperation({
+    summary: "Send the campaign's wording, as a sample patient would get it, to the caller's own notifications and email (nothing goes to a patient)",
+  })
+  testSend(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.crm.testSend(actor, id);
   }
 
   @Post("campaigns/:id/submit")

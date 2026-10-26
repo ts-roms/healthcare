@@ -49,6 +49,8 @@ export const crmCampaign = pgTable(
     cancelledBy: uuid("cancelled_by"),
     cancelledAt: ts("cancelled_at"),
     cancelReason: text("cancel_reason"),
+    /** When the approvers were reminded that it still waits (once; migration 0133). */
+    approvalRemindedAt: ts("approval_reminded_at"),
     startedAt: ts("started_at"),
     completedAt: ts("completed_at"),
     version: integer("version").notNull().default(1),

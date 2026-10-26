@@ -1,4 +1,5 @@
 import {
+  approvalReminderDue,
   bookingLinkText,
   bookingLinkUrl,
   canApprove,
@@ -187,5 +188,18 @@ describe("one message per patient", () => {
       ],
       none: 1,
     });
+  });
+});
+
+describe("approval reminders", () => {
+  const submitted = new Date("2026-10-20T08:00:00Z");
+  const waiting = { status: "submitted", submittedAt: submitted, approvalRemindedAt: null };
+
+  it("reminds once, after two days, only for a campaign still waiting", () => {
+    expect(approvalReminderDue(waiting, new Date("2026-10-21T08:00:00Z"))).toBe(false);
+    expect(approvalReminderDue(waiting, new Date("2026-10-22T08:00:00Z"))).toBe(true);
+    expect(approvalReminderDue({ ...waiting, approvalRemindedAt: new Date("2026-10-22T09:00:00Z") }, new Date("2026-10-30T08:00:00Z"))).toBe(false);
+    expect(approvalReminderDue({ ...waiting, status: "approved" }, new Date("2026-10-30T08:00:00Z"))).toBe(false);
+    expect(approvalReminderDue({ ...waiting, status: "draft", submittedAt: null }, new Date("2026-10-30T08:00:00Z"))).toBe(false);
   });
 });

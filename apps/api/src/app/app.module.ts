@@ -80,6 +80,7 @@ import { PortalMfaPolicyNotices } from "./portal/portal-mfa-policy-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
 import { StaffSecurityNotices } from "./staff-security-notices";
 import { PatientMessageReminders } from "./portal/patient-message-reminders";
+import { CrmApprovalNotices, CrmApprovalReminders } from "./outreach/crm-approval-notices";
 import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
@@ -304,6 +305,8 @@ export class AppModule implements NestModule {
         StaffSecurityNotices,
         PatientMessageNotices,
         PatientMessageReminders,
+        CrmApprovalNotices,
+        CrmApprovalReminders,
         // Rate limiting applies to every route, including the public login endpoints. The storage is a provider so
         // its Redis connection closes with the application.
         { provide: RedisThrottlerStorage, useValue: rateLimits },

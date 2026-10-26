@@ -4,6 +4,7 @@ import {
   BusinessRuleError,
   DATABASE,
   type Database,
+  DomainEventPublisher,
   ForbiddenError,
   NotFoundError,
   randomToken,
@@ -22,6 +23,7 @@ import {
   canApprove,
   canTransition,
   capReached,
+  approvalReminderDue,
   type ChannelReach,
   type DeliveryMode,
   firstAvailableChannel,
@@ -146,6 +148,7 @@ export class CrmService {
     private readonly audit: AuditService,
     private readonly portalBase: string | undefined,
     @Inject(CRM_REACH_SOURCE) private readonly reachSource: CrmReachSource,
+    private readonly events: DomainEventPublisher,
   ) {}
 
   // ---- segments ------------------------------------------------------------------------------------------------------
@@ -558,9 +561,92 @@ export class CrmService {
         changes: { status: { from: current.status, to } },
         ...(to === "cancelled" ? { reason: row!.cancelReason ?? undefined } : {}),
       });
+      // The approvers are told when a campaign waits for them, and its author when it is approved (ids only).
+      if (to === "submitted" || to === "approved") {
+        await this.events.record(tx, {
+          type: to === "submitted" ? "CrmCampaignSubmitted" : "CrmCampaignApproved",
+          organizationId: actor.organizationId,
+          aggregateType: "crm_campaign",
+          aggregateId: campaignId,
+          payload: { campaignId },
+        });
+      }
       const [segment] = await tx.select({ name: crmSegment.name }).from(crmSegment).where(eq(crmSegment.id, row!.segmentId));
       return { ...row!, segmentName: segment?.name ?? "", summary: null };
     });
+  }
+
+  // ---- approval nudges and the test send ---------------------------------------------------------------------------------
+
+  /** Campaigns still waiting for approval past the reminder time that nobody was reminded about yet (all organizations: the hourly job). */
+  async approvalRemindersDue(
+    now = new Date(),
+  ): Promise<Array<{ id: string; organizationId: string; name: string; createdBy: string; submittedBy: string | null }>> {
+    const rows = await this.db.select().from(crmCampaign).where(eq(crmCampaign.status, "submitted"));
+    return rows
+      .filter((c) => approvalReminderDue(c, now))
+      .map((c) => ({ id: c.id, organizationId: c.organizationId, name: c.name, createdBy: c.createdBy, submittedBy: c.submittedBy }));
+  }
+
+  /** The few fields a notice needs about a campaign (by id, any status); null when it is gone. */
+  async campaignForNotice(
+    organizationId: string,
+    campaignId: string,
+  ): Promise<{ id: string; organizationId: string; name: string; createdBy: string; submittedBy: string | null } | null> {
+    const [row] = await this.db
+      .select({
+        id: crmCampaign.id,
+        organizationId: crmCampaign.organizationId,
+        name: crmCampaign.name,
+        createdBy: crmCampaign.createdBy,
+        submittedBy: crmCampaign.submittedBy,
+      })
+      .from(crmCampaign)
+      .where(and(eq(crmCampaign.organizationId, organizationId), eq(crmCampaign.id, campaignId)));
+    return row ?? null;
+  }
+
+  async markApprovalReminded(campaignId: string, now = new Date()): Promise<void> {
+    await this.db
+      .update(crmCampaign)
+      .set({ approvalRemindedAt: now })
+      .where(and(eq(crmCampaign.id, campaignId), isNull(crmCampaign.approvalRemindedAt)));
+  }
+
+  /**
+   * A test of the campaign for the person who asked: the wording as one sample patient ("Maria") would get it, put in their
+   * own notifications and emailed to them. Nothing goes to a patient, no delivery is recorded and nothing is counted against
+   * a cap. Text messages and push cannot be tried (staff have no phone number or app on file here): check their length in the
+   * form. Only a campaign that has not gone out.
+   */
+  async testSend(actor: Actor, campaignId: string): Promise<{ sent: Array<{ channel: "in_app" | "email"; status: string; reason: string | null }> }> {
+    const campaign = await this.getCampaign(actor, campaignId);
+    if (!["draft", "submitted", "approved"].includes(campaign.status))
+      throw new BusinessRuleError("Only a campaign that has not gone out can be tested", "campaign_sent");
+    const organization = await this.organizations.getOrganization(actor.organizationId);
+    const values = { firstName: "Maria", clinicName: organization.name };
+    const note = "\n\n— This is a test, sent only to you.";
+    const subject = `[Test] ${campaign.subject ? renderWording(campaign.subject, values) : `A message from ${organization.name}`}`.slice(0, 120);
+    const body = `${renderWording(campaign.body, values)}${note}`.slice(0, 2000);
+    const bookingLink = campaign.includeBookingLink && this.portalBaseUrl ? bookingLinkUrl(this.portalBaseUrl) : undefined;
+    const sent: Array<{ channel: "in_app" | "email"; status: string; reason: string | null }> = [];
+    for (const channel of ["in_app", "email"] as const) {
+      const view = await this.notifications.send(actor, {
+        recipient: { type: "user", userId: actor.userId },
+        channel,
+        templateKey: "outreach.campaign",
+        variables: { organizationName: organization.name, subject, body, bookingLink },
+        idempotencyKey: `crm-test:${campaignId}:${actor.userId}:${channel}:${Date.now()}`,
+      });
+      sent.push({ channel, status: view.status, reason: view.suppressionReason });
+    }
+    await this.audit.recordStandalone(actor, {
+      action: "crm.campaign.test-send",
+      resourceType: "crm_campaign",
+      resourceId: campaignId,
+      metadata: { channels: sent.map((s) => s.channel) },
+    });
+    return { sent };
   }
 
   // ---- sending (the runner) ------------------------------------------------------------------------------------------

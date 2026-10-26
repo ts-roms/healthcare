@@ -526,6 +526,29 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "outreach.campaign-notice",
+    version: 1,
+    category: "administrative",
+    // In-app to staff who approve or write outreach campaigns. The campaign's name and a pointer to it; never patient detail.
+    channels: ["in_app"],
+    variables: z.object({ kind: z.enum(["awaiting-approval", "reminder", "approved"]), campaignId: z.uuid(), name: shortText }),
+    render: (v) => ({
+      subject:
+        v.kind === "approved"
+          ? `Campaign approved: ${v.name}`
+          : v.kind === "reminder"
+            ? `Still waiting for approval: ${v.name}`
+            : `Campaign waiting for your approval: ${v.name}`,
+      text:
+        v.kind === "approved"
+          ? "Your campaign was approved and will be sent at its time, or within a minute."
+          : v.kind === "reminder"
+            ? "This campaign has waited for approval for two days. Read it and approve it, or ask the author to change it."
+            : "A campaign was submitted and needs a second person to approve it. Read the wording and the segment, then approve it.",
+      href: `/outreach/campaigns/${v.campaignId}`,
+    }),
+  }),
+  defineTemplate({
     key: "records.outside-result-new",
     version: 1,
     category: "administrative",
@@ -825,6 +848,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
   "records.outside-result-new": "Outside result sent by a patient (staff)",
+  "outreach.campaign-notice": "Outreach campaign notice (staff)",
   "document.quarantine-notice": "File quarantined (staff)",
   "document.integrity-notice": "Document integrity finding (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",

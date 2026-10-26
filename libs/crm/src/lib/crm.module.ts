@@ -1,6 +1,6 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { APP_CONFIG, type AppConfig, DATABASE, type Database } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, DATABASE, type Database, DomainEventPublisher } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationModule, OrganizationService } from "@healthcare/organization";
 import { CrmCampaignRuns } from "./crm-campaign-runs";
@@ -32,7 +32,17 @@ export class CrmModule {
         { provide: CRM_REACH_SOURCE, useClass: options.reachSource },
         {
           provide: CrmService,
-          inject: [DATABASE, CRM_SEGMENT_SOURCE, CRM_PREFERENCES, NotificationService, OrganizationService, AuditService, APP_CONFIG, CRM_REACH_SOURCE],
+          inject: [
+            DATABASE,
+            CRM_SEGMENT_SOURCE,
+            CRM_PREFERENCES,
+            NotificationService,
+            OrganizationService,
+            AuditService,
+            APP_CONFIG,
+            CRM_REACH_SOURCE,
+            DomainEventPublisher,
+          ],
           useFactory: (
             db: Database,
             source: CrmSegmentSource,
@@ -42,7 +52,8 @@ export class CrmModule {
             audit: AuditService,
             config: AppConfig,
             reach: CrmReachSource,
-          ) => new CrmService(db, source, preferences, notifications, organizations, audit, config.PORTAL_BASE_URL, reach),
+            events: DomainEventPublisher,
+          ) => new CrmService(db, source, preferences, notifications, organizations, audit, config.PORTAL_BASE_URL, reach, events),
         },
         CrmCampaignRuns,
       ],

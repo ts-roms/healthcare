@@ -62,7 +62,8 @@ export function wordingProblems(input: {
   for (const token of unknownPlaceholders(`${input.subject ?? ""}\n${body}`)) {
     problems.push({ channel: "body", message: `{{${token}}} is not a placeholder you can use. Use ${PLACEHOLDERS.map((p) => `{{${p}}}`).join(" or ")}.` });
   }
-  if (input.subject && renderedLength(input.subject, input.clinicName ?? "") > SUBJECT_MAX) problems.push({ channel: "subject", message: `The subject is longer than ${SUBJECT_MAX} characters` });
+  if (input.subject && renderedLength(input.subject, input.clinicName ?? "") > SUBJECT_MAX)
+    problems.push({ channel: "subject", message: `The subject is longer than ${SUBJECT_MAX} characters` });
   const length = renderedLength(body, input.clinicName ?? "") + (input.reservedChars ?? 0);
   for (const channel of input.channels) {
     if (length > BODY_LIMITS[channel])
@@ -235,7 +236,9 @@ export function firstNameOf(givenName: string | null | undefined): string {
 
 /** The wording with each placeholder filled in for one patient (an unknown one is left as written). */
 export function renderWording(text: string, values: { firstName: string; clinicName: string }): string {
-  return text.replace(PLACEHOLDER_PATTERN, (whole, name: string) => (name === "firstName" ? values.firstName : name === "clinicName" ? values.clinicName.slice(0, CLINIC_NAME_MAX) : whole));
+  return text.replace(PLACEHOLDER_PATTERN, (whole, name: string) =>
+    name === "firstName" ? values.firstName : name === "clinicName" ? values.clinicName.slice(0, CLINIC_NAME_MAX) : whole,
+  );
 }
 
 /** The longest the wording can be once filled in: a first name of the greatest length, the organization's own name. */
@@ -274,4 +277,22 @@ export function plannedChannels(
     else none += 1;
   }
   return { byChannel: prioritized(channels).map((channel) => ({ channel, total: counts.get(channel) ?? 0 })), none };
+}
+
+// ---- approval nudges -------------------------------------------------------------------------------------------------
+
+/** A campaign still waiting for approval this many days after it was submitted reminds its approvers once. */
+export const APPROVAL_REMINDER_DAYS = 2;
+
+export function approvalReminderDue(
+  campaign: { status: string; submittedAt: Date | null; approvalRemindedAt: Date | null },
+  now: Date,
+  days: number = APPROVAL_REMINDER_DAYS,
+): boolean {
+  return (
+    campaign.status === "submitted" &&
+    campaign.submittedAt !== null &&
+    campaign.approvalRemindedAt === null &&
+    campaign.submittedAt.getTime() <= now.getTime() - days * 86_400_000
+  );
 }

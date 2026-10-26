@@ -1,5 +1,6 @@
 import { CrmCampaignRuns } from "@healthcare/crm";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
+import { CrmApprovalReminders } from "../src/app/outreach/crm-approval-notices";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 /**
  * Outreach (docs/domains/crm.md): segments from non-clinical criteria, campaigns approved by a second person, sent
@@ -471,5 +472,87 @@ describe("outreach segments and campaigns", () => {
     ).toBe(0);
     // Running it again sends nothing more.
     expect(await runs.tick(new Date("2026-10-27T04:05:00Z"))).toEqual({ campaigns: 0, deliveries: 0 });
+  });
+
+  it("tells the approvers when a campaign is submitted, reminds them once after two days, and tells the author when it is approved", async () => {
+    const inbox = async (token: string) =>
+      (
+        (await ctx.http().get("/api/v1/me/notifications").set(as(token, tenant.facilityId)).expect(200)).body as Array<{
+          subject: string;
+          href: string;
+          templateKey: string;
+        }>
+      ).filter((n) => n.templateKey === "outreach.campaign-notice");
+    const mine = async (token: string) => (await inbox(token)).filter((n) => n.subject.includes("Needs approval"));
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", { segmentId: reachSegment, name: "Needs approval", channels: ["sms"], body: "A message that waits for a second person." })
+        .expect(201)
+    ).body;
+    const submitted = (await api(admin).post(`/outreach/campaigns/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    await drainEvents(ctx);
+    // The other approver is asked; the author, who submitted it, is not.
+    const asked = await mine(approver);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatchObject({ subject: "Campaign waiting for your approval: Needs approval", href: `/outreach/campaigns/${draft.id}` });
+    expect(await mine(admin)).toEqual([]);
+
+    // Two days later it reminds, once.
+    await ctx.pool.query("UPDATE crm_campaign SET submitted_at = now() - interval '3 days' WHERE id = $1", [draft.id]);
+    const reminders = underPlatform(ctx.app.get(CrmApprovalReminders));
+    expect(await reminders.run()).toBe(1);
+    expect(await reminders.run()).toBe(0);
+    expect((await mine(approver)).map((n) => n.subject)).toEqual(expect.arrayContaining(["Still waiting for approval: Needs approval"]));
+    expect(await mine(approver)).toHaveLength(2);
+
+    // Approved: the author is told.
+    await api(approver).post(`/outreach/campaigns/${draft.id}/approve`, { version: submitted.version }).expect(201);
+    await drainEvents(ctx);
+    expect((await mine(admin)).map((n) => n.subject)).toEqual(["Campaign approved: Needs approval"]);
+    // Not sent in this test: leave it approved but cancel nothing; the next send tick would take it, so cancel it.
+    const approved = (await api(admin).get(`/outreach/campaigns/${draft.id}`).expect(200)).body;
+    await api(admin).post(`/outreach/campaigns/${draft.id}/cancel`, { version: approved.version, reason: "Only a test of the notices" }).expect(201);
+  });
+
+  it("sends a test of a campaign to the person who asked, and to nobody else", async () => {
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", {
+          segmentId: reachSegment,
+          name: "Try me",
+          channels: ["sms"],
+          body: "Hello {{firstName}}, {{clinicName}} has flu shots this month.",
+        })
+        .expect(201)
+    ).body;
+    const result = (await api(admin).post(`/outreach/campaigns/${draft.id}/test-send`).expect(201)).body;
+    expect(result.sent.map((s: { channel: string }) => s.channel)).toEqual(["in_app", "email"]);
+    const rows = await ctx.pool.query<{ channel: string; status: string; variables: { subject: string; body: string } }>(
+      "SELECT channel, status, variables FROM notification WHERE template_key = 'outreach.campaign' AND recipient_user_id = $1 ORDER BY channel",
+      [adminId],
+    );
+    expect(rows.rows.map((r) => r.channel)).toEqual(["email", "in_app"]);
+    for (const row of rows.rows) {
+      expect(row.variables.subject.startsWith("[Test] ")).toBe(true);
+      expect(row.variables.body).toContain("Hello Maria,");
+      expect(row.variables.body).toContain("This is a test, sent only to you.");
+    }
+    // Nothing reached a patient or the other approver, and nothing was recorded as a delivery.
+    expect((await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign_delivery WHERE campaign_id = $1", [draft.id])).rows[0].n).toBe(0);
+    expect(
+      (await ctx.pool.query("SELECT count(*)::int AS n FROM notification WHERE template_key = 'outreach.campaign' AND recipient_user_id <> $1", [adminId]))
+        .rows[0].n,
+    ).toBe(0);
+    expect(await auditRows(ctx.pool, `action = 'crm.campaign.test-send' AND resource_id = $1`, [draft.id])).toHaveLength(1);
+    // Only a campaign that has not gone out; and only those who write campaigns.
+    const gone = await sendCampaign(
+      { segmentId: reachSegment, name: "Already out", channels: ["sms"], body: "A message that has already gone out." },
+      new Date("2026-10-27T04:00:00Z"),
+    );
+    await api(admin)
+      .post(`/outreach/campaigns/${gone.id}/test-send`)
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("campaign_sent"));
+    await api(auditor).post(`/outreach/campaigns/${draft.id}/test-send`).expect(403);
   });
 });

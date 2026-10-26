@@ -488,6 +488,11 @@ Records officers can read segments and campaigns.
 and why the others cannot (no opt-in, opted out, no mobile number or email address, no MyHealth account). On a draft, **Check reach** on the campaign
 page shows the same for the campaign's own channels, and how many patients the frequency cap would hold back. Nothing is sent and only counts are shown.
 
+**Approval.** When you submit a campaign, the other people who can approve campaigns are told in their notifications (the bell); if it is still waiting
+after two days they are reminded once. You are told when it is approved. **Send a test to me** on a campaign that has not gone out puts the message,
+as a sample patient would get it, in your own notifications and emails it to you; nobody else receives it. Text messages and push cannot be tested
+this way: check their length in the form.
+
 **Personal touches.** In the message you can use **Insert first name** and **Insert clinic name** (written `{{firstName}}` and `{{clinicName}}`): each
 patient's message has their own first name and your clinic's name in their place, and the screen shows how it reads for a sample patient. Nothing else can
 be filled in, so a message can never carry anything about a person's health. The length limit is checked with the longest first name, so a message that is

@@ -17,6 +17,7 @@ import { AppModule } from "./app/app.module";
 import { configureApp } from "./app/configure-app";
 import { LaboratoryQualityReminders } from "./app/laboratory-quality-reminders";
 import { PatientMessageReminders } from "./app/portal/patient-message-reminders";
+import { CrmApprovalReminders } from "./app/outreach/crm-approval-notices";
 import { ManagementReportRuns } from "./app/management-dashboard/management-report-runs";
 
 async function bootstrap(): Promise<void> {
@@ -42,6 +43,8 @@ async function bootstrap(): Promise<void> {
   app.get(LaboratoryQualityReminders).start();
   // Hourly: MyHealth conversations past the clinic's response target (one in-app reminder per breach; docs/domains/patient-messaging.md).
   app.get(PatientMessageReminders).start();
+  // Hourly: outreach campaigns still waiting for approval two days after submission (one in-app reminder to the approvers).
+  app.get(CrmApprovalReminders).start();
   // Hourly: scheduled management reports whose period has ended (CSV files stored, recipients told).
   app.get(ManagementReportRuns).start();
   // Every minute: approved outreach campaigns whose time has come (docs/domains/crm.md).
