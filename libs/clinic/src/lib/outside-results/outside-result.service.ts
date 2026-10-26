@@ -1,0 +1,205 @@
+import { Inject, Injectable } from "@nestjs/common";
+import { AuditService } from "@healthcare/audit";
+import {
+  type Actor,
+  asPgError,
+  BusinessRuleError,
+  DATABASE,
+  type Database,
+  DomainEventPublisher,
+  filedAsPatient,
+  isFiledAs,
+  localDate,
+  NotFoundError,
+  PgErrorCode,
+  PH_TIMEZONE,
+} from "@healthcare/core";
+import { DocumentsService } from "@healthcare/documents";
+import { OrganizationService } from "@healthcare/organization";
+import { and, desc, eq } from "drizzle-orm";
+import type { z } from "zod";
+import { found } from "../clinic-support";
+import { HISTORY_STAFF_NAMES, type HistoryStaffNames } from "../history/ports";
+import { PATIENT_DIRECTORY, type PatientDirectory } from "../ports";
+import type { recordOutsideResultSchema } from "./outside-result.dto";
+import { outsideResult, type OutsideResultRecord } from "./outside-result.schema";
+
+/** One filed outside result as staff see it. */
+export interface OutsideResultView {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  facility: { id: string; name: string } | null;
+  documentId: string;
+  sourceName: string;
+  sourceKind: OutsideResultRecord["sourceKind"];
+  performedOn: string;
+  tests: string;
+  receivedFrom: OutsideResultRecord["receivedFrom"];
+  notes: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/**
+ * Results from outside laboratories and hospitals (docs/domains/outside-results.md): the uploaded report filed on the
+ * patient's record with its source, the day it was done and the tests as the report names them. Never one of this
+ * laboratory's results: nothing is entered, verified, released, flagged, converted or trended, and the report's content
+ * is not read. Records are immutable; a mistake is marked entered in error with a reason (never deleted).
+ */
+@Injectable()
+export class OutsideResultService {
+  constructor(
+    @Inject(DATABASE) private readonly db: Database,
+    private readonly audit: AuditService,
+    private readonly events: DomainEventPublisher,
+    private readonly documents: DocumentsService,
+    private readonly organizations: OrganizationService,
+    @Inject(HISTORY_STAFF_NAMES) private readonly staff: HistoryStaffNames,
+    @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
+  ) {}
+
+  /** Files an uploaded report on the patient's record. */
+  async record(actor: Actor, patientId: string, input: z.output<typeof recordOutsideResultSchema>): Promise<OutsideResultView> {
+    if (!(await this.patients.summaries(actor.organizationId, [patientId])).has(patientId)) throw new NotFoundError("Patient");
+    const timeZone = actor.facilityId ? (await this.organizations.getFacility(actor.organizationId, actor.facilityId)).timezone : PH_TIMEZONE;
+    if (input.performedOn > localDate(new Date(), timeZone)) throw new BusinessRuleError("The date given is in the future", "performed_on_in_future");
+    const doc = (await this.documents.describe(actor.organizationId, [input.documentId])).get(input.documentId);
+    if (!doc || doc.category !== "outside_result" || !doc.patientId || !(await isFiledAs(this.db, doc.patientId, patientId))) {
+      throw new BusinessRuleError("Upload the report for this patient first", "document_not_of_patient");
+    }
+    if (doc.status !== "available") throw new BusinessRuleError("The report has not finished uploading", "document_unavailable");
+
+    let row: OutsideResultRecord;
+    try {
+      row = await this.db.transaction(async (tx) => {
+        const [inserted] = await tx
+          .insert(outsideResult)
+          .values({
+            organizationId: actor.organizationId,
+            patientId,
+            facilityId: actor.facilityId ?? null,
+            documentId: input.documentId,
+            sourceName: input.sourceName,
+            sourceKind: input.sourceKind,
+            performedOn: input.performedOn,
+            tests: input.tests,
+            receivedFrom: input.receivedFrom,
+            notes: input.notes ?? null,
+            recordedBy: actor.userId,
+          })
+          .returning();
+        const created = found(inserted, "Outside result");
+        await this.audit.record(tx, actor, {
+          action: "outside-result.record",
+          resourceType: "outside_result",
+          resourceId: created.id,
+          patientId,
+          metadata: { documentId: created.documentId, sourceKind: created.sourceKind, receivedFrom: created.receivedFrom },
+        });
+        await this.events.record(tx, {
+          type: "OutsideResultFiled",
+          organizationId: actor.organizationId,
+          aggregateType: "outside_result",
+          aggregateId: created.id,
+          facilityId: created.facilityId,
+          patientId,
+          payload: { outsideResultId: created.id, documentId: created.documentId },
+        });
+        return created;
+      });
+    } catch (error) {
+      const pg = asPgError(error);
+      if (pg?.code === PgErrorCode.uniqueViolation) throw new BusinessRuleError("This report is already filed", "outside_result_exists");
+      throw error;
+    }
+    return (await this.views(actor.organizationId, [row]))[0]!;
+  }
+
+  /** The patient's filed outside results (and those of records merged into it), latest first; entries in error included, marked. */
+  async list(actor: Actor, patientId: string): Promise<OutsideResultView[]> {
+    if (!(await this.patients.summaries(actor.organizationId, [patientId])).has(patientId)) throw new NotFoundError("Patient");
+    const rows = await this.db
+      .select()
+      .from(outsideResult)
+      .where(and(eq(outsideResult.organizationId, actor.organizationId), filedAsPatient(outsideResult.patientId, patientId)))
+      .orderBy(desc(outsideResult.performedOn), desc(outsideResult.recordedAt))
+      .limit(500);
+    await this.audit.recordStandalone(actor, {
+      action: "outside-result.view",
+      resourceType: "outside_result",
+      patientId,
+      metadata: { count: rows.length },
+    });
+    return this.views(actor.organizationId, rows);
+  }
+
+  /** A short-lived link to the report (the documents service audits it). */
+  async downloadUrl(actor: Actor, outsideResultId: string): Promise<{ url: string; expiresAt: string }> {
+    const [row] = await this.db
+      .select()
+      .from(outsideResult)
+      .where(and(eq(outsideResult.organizationId, actor.organizationId), eq(outsideResult.id, outsideResultId)));
+    return this.documents.downloadUrl(actor, found(row, "Outside result").documentId);
+  }
+
+  /** Marks a filing entered in error with a reason (never deleted; the report stays in storage). */
+  async markEnteredInError(actor: Actor, outsideResultId: string, reason: string): Promise<OutsideResultView> {
+    const row = await this.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(outsideResult)
+        .where(and(eq(outsideResult.organizationId, actor.organizationId), eq(outsideResult.id, outsideResultId)))
+        .for("update");
+      const filed = found(current, "Outside result");
+      if (filed.enteredInErrorAt) throw new BusinessRuleError("The record is already marked entered in error", "already_entered_in_error");
+      const [updated] = await tx
+        .update(outsideResult)
+        .set({ enteredInErrorAt: new Date(), enteredInErrorBy: actor.userId, enteredInErrorReason: reason })
+        .where(eq(outsideResult.id, outsideResultId))
+        .returning();
+      await this.audit.record(tx, actor, {
+        action: "outside-result.entered-in-error",
+        resourceType: "outside_result",
+        resourceId: outsideResultId,
+        patientId: filed.patientId,
+        reason,
+        changes: { status: { from: "filed", to: "entered_in_error" } },
+      });
+      return found(updated, "Outside result");
+    });
+    return (await this.views(actor.organizationId, [row]))[0]!;
+  }
+
+  private async views(organizationId: string, rows: OutsideResultRecord[]): Promise<OutsideResultView[]> {
+    const userIds = [...new Set(rows.flatMap((r) => [r.recordedBy, r.enteredInErrorBy]).filter((id): id is string => Boolean(id)))];
+    const [names, facilities] = await Promise.all([
+      userIds.length ? this.staff.staffNames(organizationId, userIds) : Promise.resolve(new Map<string, string>()),
+      rows.some((r) => r.facilityId) ? this.organizations.listFacilities(organizationId) : Promise.resolve([]),
+    ]);
+    const facilityName = new Map(facilities.map((f) => [f.id, f.name]));
+    return rows.map((r) => ({
+      id: r.id,
+      patientId: r.patientId,
+      facility: r.facilityId ? { id: r.facilityId, name: facilityName.get(r.facilityId) ?? "" } : null,
+      documentId: r.documentId,
+      sourceName: r.sourceName,
+      sourceKind: r.sourceKind,
+      performedOn: r.performedOn,
+      tests: r.tests,
+      receivedFrom: r.receivedFrom,
+      notes: r.notes,
+      enteredInError:
+        r.enteredInErrorAt && r.enteredInErrorReason
+          ? {
+              at: r.enteredInErrorAt.toISOString(),
+              reason: r.enteredInErrorReason,
+              byName: r.enteredInErrorBy ? (names.get(r.enteredInErrorBy) ?? null) : null,
+            }
+          : null,
+      recordedAt: r.recordedAt.toISOString(),
+      recordedByName: names.get(r.recordedBy) ?? null,
+    }));
+  }
+}

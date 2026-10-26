@@ -156,6 +156,9 @@ export const PERMISSIONS = [
   // Immunization history (migration 0081); the vaccine catalogue is managed with clinic.configure.
   "immunization.read",
   "immunization.record",
+  // Results from outside laboratories and hospitals filed on a patient's record (migration 0128).
+  "outside-result.read",
+  "outside-result.record",
   // Patient history: past procedures and conditions, family and social history (migration 0082). Substance use and
   // sexual history also need encounter.write.
   "history.read",

@@ -299,6 +299,19 @@ laboratory sends an amended report, enter it with **Correct…**.
 
 The **Closed** view lists finished send-outs with their outcome.
 
+## File a result from another laboratory or hospital
+
+A patient may bring a result from elsewhere, or another provider may send one. File the report on the patient's record so the doctor finds it. This is not one of your laboratory's results: it is not verified or released here, the system does not read it, and it does not appear in your trends. The doctor reads the report itself.
+
+Needs `outside-result.record` and `document.upload` (doctors, nurses, receptionists, the records office and administrators).
+
+1. Open the patient record, go to the **Labs** tab and click **Open and file** under "Results from other laboratories and hospitals".
+2. Attach the report (a PDF or a photo, up to 10 MB).
+3. Enter the laboratory or hospital as written on the report, what kind it is, the day the test was done, and the tests as the report names them.
+4. Say how it reached the clinic (the patient brought it or the provider sent it), add a staff note if useful, then click **File outside result**.
+
+Open a filed report with **Open report**. If you filed it on the wrong patient or the wrong details, click **Entered in error…** and give a reason: the entry stays listed, struck through, and nothing is deleted. File the report again on the right record.
+
 ## How to manage the catalog
 
 Open **Laboratory → Catalog** (`/laboratory/catalog`). Everyone with `lab.order.read` can look. To change anything you need `lab.catalog.manage`

@@ -4646,6 +4646,25 @@ export interface Vaccine {
   updatedAt: string;
 }
 
+/** A result from an outside laboratory or hospital filed on the patient's record (never one of this laboratory's results). */
+export interface OutsideResult {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  facility: { id: string; name: string } | null;
+  documentId: string;
+  sourceName: string;
+  sourceKind: "laboratory" | "hospital" | "clinic" | "other";
+  /** YYYY-MM-DD, as stated on the report. */
+  performedOn: string;
+  tests: string;
+  receivedFrom: "patient" | "provider" | "other";
+  notes: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
 export interface ImmunizationRecord {
   id: string;
   /** The record it is filed under (the patient, or a record merged into it). */

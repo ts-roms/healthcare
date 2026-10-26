@@ -35,6 +35,8 @@ import { PATIENT_DIRECTORY, type PatientDirectory } from "./ports";
 import { ImmunizationController } from "./immunizations/immunization.controller";
 import { ImmunizationService } from "./immunizations/immunization.service";
 import { IMMUNIZATION_CONTEXT, type ImmunizationContext } from "./immunizations/ports";
+import { OutsideResultController } from "./outside-results/outside-result.controller";
+import { OutsideResultService } from "./outside-results/outside-result.service";
 import { PatientHistoryController } from "./history/history.controller";
 import { PatientHistoryPortalService } from "./history/history-portal.service";
 import { PatientHistoryService } from "./history/history.service";
@@ -82,6 +84,7 @@ export class ClinicModule {
         ExternalHistoryController,
         MedicalCertificateController,
         ImmunizationController,
+        OutsideResultController,
         ReferralController,
         PatientHistoryController,
         ClinicProcedureController,
@@ -117,6 +120,7 @@ export class ClinicModule {
         VisitService,
         { provide: PATIENT_DIRECTORY, useClass: options.patientDirectory },
         ImmunizationService,
+        OutsideResultService,
         { provide: IMMUNIZATION_CONTEXT, useClass: options.immunizationContext },
         PatientHistoryService,
         PatientHistoryPortalService,

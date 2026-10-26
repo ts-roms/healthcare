@@ -70,7 +70,9 @@ import { PatientTimelineView, WithheldNote } from "@/components/patient-timeline
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
 import { MergedRecords } from "./merged-records";
 import { ImmunizationHistory } from "@/components/immunizations/immunization-panel";
-import type { ClinicProcedure, ImmunizationRecord } from "@/lib/api/types";
+import type { ClinicProcedure, ImmunizationRecord, OutsideResult } from "@/lib/api/types";
+import { OutsideResultList } from "@/components/outside-results/outside-results-panel";
+import { loadOutsideResults } from "@/lib/api/outside-results";
 import { HistorySummary } from "@/components/history/history-panels";
 import { loadPatientHistory } from "@/lib/api/history";
 
@@ -307,6 +309,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     externalHistory,
     labResults,
     labArchives,
+    outsideResults,
     eligibility,
     yakap,
     portal,
@@ -323,6 +326,7 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
     tab === "clinical" ? loadExternalHistory(id) : none<ExternalHistoryEntry[]>(),
     tab === "labs" ? loadLabResults(id) : none<PatientLabResult[]>(),
     tab === "labs" ? loadArchivedLabReports(id) : none<LabReportArchiveEntry[]>(),
+    tab === "labs" && !merged ? loadOutsideResults(id) : none<OutsideResult[]>(),
     tab === "coverage" ? loadEligibility(id) : none<EligibilityOverview>(),
     tab === "coverage" ? loadYakap(id) : none<{ overview: YakapRegistrationOverview | null; consultations: YakapConsultationList | null }>(),
     tab === "portal" ? loadPortalAccount(id) : none<PortalAccountStatus>(),
@@ -735,6 +739,22 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
               </CardHeader>
               <CardContent>
                 <ArchivedLabReports archives={labArchives} />
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {outsideResults ? (
+            <Card id="outside-results">
+              <CardHeader>
+                <FileInputIcon className="size-4 text-muted-foreground" aria-hidden />
+                <CardTitle>Results from other laboratories and hospitals</CardTitle>
+                <Button asChild size="sm" variant="ghost" className="ml-auto">
+                  <Link href={`/patients/${p.id}/outside-results`}>{can(session, "outside-result.record") ? "Open and file" : "Open"}</Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-2">
+                <OutsideResultList patientId={p.id} results={outsideResults.slice(0, 5)} canRecord={false} linkedRecords={p.mergedRecords} />
+                {outsideResults.length > 5 ? <p className="text-meta text-muted-foreground">{outsideResults.length - 5} more in the full list.</p> : null}
               </CardContent>
             </Card>
           ) : null}
