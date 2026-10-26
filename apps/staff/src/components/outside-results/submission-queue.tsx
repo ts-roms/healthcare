@@ -89,7 +89,7 @@ function SubmissionRow({ submission: s }: { submission: OutsideResultSubmission 
       {s.notes ? <p className="text-meta">The patient wrote: {s.notes}</p> : null}
       {mode === "none" ? (
         <div className="flex flex-wrap gap-1">
-          <ReportPreview load={() => submissionReportLink(s.id, true)} />
+          <ReportPreview load={() => submissionReportLink(s.id, true)} title={`${s.tests} — from ${s.sourceName}`} />
           <Button type="button" size="xs" variant="outline" disabled={pending} onClick={open}>
             <ExternalLinkIcon aria-hidden /> Open report
           </Button>

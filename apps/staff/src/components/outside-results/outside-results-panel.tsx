@@ -155,7 +155,7 @@ function OutsideResultRow({
       ) : null}
       {mode === "none" ? (
         <div className="flex flex-wrap gap-1">
-          <ReportPreview load={() => outsideResultLink(r.id, true)} />
+          <ReportPreview load={() => outsideResultLink(r.id, true)} title={`${r.tests} — from ${r.sourceName}`} />
           <Button type="button" size="xs" variant="outline" disabled={pending} onClick={open}>
             <ExternalLinkIcon aria-hidden /> Open report
           </Button>
