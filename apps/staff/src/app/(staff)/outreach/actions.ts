@@ -29,6 +29,10 @@ const criteriaSchema = z.object({
   noVisitForMonths: optionalNumber,
   carePlanActivityDueWithinDays: optionalNumber,
   optedInChannel: z.enum(["sms", "email", "push", "in_app"]).optional(),
+  birthMonth: optionalNumber,
+  myHealth: z.enum(["active", "not_active"]).optional(),
+  registeredFacilityId: z.uuid().optional(),
+  identifierOnFile: z.enum(["philhealth_pin", "hmo_member_id"]).optional(),
 });
 const segmentSchema = z.object({
   name: z.string().trim().min(2, "Give the segment a name.").max(120),

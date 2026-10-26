@@ -3371,6 +3371,10 @@ export interface OutreachSegmentCriteria {
   noVisitForMonths?: number;
   carePlanActivityDueWithinDays?: number;
   optedInChannel?: OutreachChannel;
+  birthMonth?: number;
+  myHealth?: "active" | "not_active";
+  registeredFacilityId?: string;
+  identifierOnFile?: "philhealth_pin" | "hmo_member_id";
 }
 
 export interface OutreachSegment {

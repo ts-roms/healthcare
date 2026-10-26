@@ -56,6 +56,24 @@ describe("outreach rules", () => {
   });
 });
 
+describe("segment criteria beyond age and place", () => {
+  it("accepts a birth month, a MyHealth state, a registering facility and a number on file", () => {
+    expect(segmentCriteriaSchema.safeParse({ birthMonth: 5 }).success).toBe(true);
+    expect(segmentCriteriaSchema.safeParse({ myHealth: "not_active" }).success).toBe(true);
+    expect(segmentCriteriaSchema.safeParse({ identifierOnFile: "philhealth_pin", myHealth: "active" }).success).toBe(true);
+    expect(segmentCriteriaSchema.safeParse({ registeredFacilityId: "3f1c7f0e-6a55-4d3e-9a62-1b0f2c8a9d11" }).success).toBe(true);
+  });
+
+  it("refuses anything that is not one of them: a month out of range, another number, a facility that is not an id", () => {
+    expect(segmentCriteriaSchema.safeParse({ birthMonth: 13 }).success).toBe(false);
+    expect(segmentCriteriaSchema.safeParse({ birthMonth: 0 }).success).toBe(false);
+    expect(segmentCriteriaSchema.safeParse({ identifierOnFile: "passport" }).success).toBe(false);
+    expect(segmentCriteriaSchema.safeParse({ myHealth: "maybe" }).success).toBe(false);
+    expect(segmentCriteriaSchema.safeParse({ registeredFacilityId: "main" }).success).toBe(false);
+    expect(segmentCriteriaSchema.safeParse({ birthYear: 1980 }).success).toBe(false);
+  });
+});
+
 describe("outreach limits and reach", () => {
   const night = { start: "22:00", end: "07:00" };
 

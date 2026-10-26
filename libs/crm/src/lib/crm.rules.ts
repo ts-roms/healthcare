@@ -24,6 +24,14 @@ export const segmentCriteriaSchema = z
     carePlanActivityDueWithinDays: z.number().int().min(0).max(365).optional(),
     /** Only patients who opted in to outreach on this channel (the send still re-checks every channel). */
     optedInChannel: z.enum(["sms", "email", "push", "in_app"]).optional(),
+    /** Born in this month (1 to 12), for a birthday greeting. Never the year or the exact day. */
+    birthMonth: z.number().int().min(1).max(12).optional(),
+    /** MyHealth: has an active account, or has none that is active (never signed up, only invited, or disabled). */
+    myHealth: z.enum(["active", "not_active"]).optional(),
+    /** Registered at this facility of the organization. */
+    registeredFacilityId: z.uuid().optional(),
+    /** Has this kind of number on file (PhilHealth or an HMO membership). Never the number itself. */
+    identifierOnFile: z.enum(["philhealth_pin", "hmo_member_id"]).optional(),
   })
   .strict()
   .refine((c) => c.ageMin === undefined || c.ageMax === undefined || c.ageMin <= c.ageMax, { message: "ageMin must not exceed ageMax", path: ["ageMax"] })

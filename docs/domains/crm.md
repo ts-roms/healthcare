@@ -17,7 +17,10 @@ Library `libs/crm` (`scope:crm`, `type:feature`); the composition root answers w
   `active | archived`, version. Criteria are **non-clinical**: age range, sex, city/municipality or province of the
   primary address, registered between dates, last completed consultation on or before a date, no completed
   consultation for N months (never seen included), an open care-plan activity due within N days (overdue included),
-  opted in to outreach on a channel. At least one criterion. No diagnosis, result or medication criterion exists:
+  opted in to outreach on a channel, **born in a month** (`birthMonth`, never the year or day), **MyHealth** (`myHealth`: has an active
+  account, or has none that is active), **registered at a facility** (`registeredFacilityId`, which must be a facility of the
+  organization) and **a number on file** (`identifierOnFile`: a PhilHealth or an HMO membership number; whether one exists, never the
+  number). At least one criterion. No diagnosis, result or medication criterion exists:
   selecting people by health data for outreach is a compliance decision first (compliance register).
 - `crm_campaign` — segment, name, channels (`sms`, `email`, `push`, `in_app`), the organization's own wording
   (`subject` for email and MyHealth, one plain-text `body` for every channel, checked against each channel's length:

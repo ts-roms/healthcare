@@ -4,7 +4,15 @@ import { encounter } from "@healthcare/clinic";
 import { ageInYears, DATABASE, type Database } from "@healthcare/core";
 import type { CrmPreferenceWriter, CrmReachSource, CrmSegmentSource, OutreachChannel, SegmentCriteria, SegmentMember } from "@healthcare/crm";
 import { RECIPIENT_DIRECTORY, type RecipientDirectory } from "@healthcare/notification";
-import { displayName, patient, patientAddress, patientCommunicationPreference, PatientRecordService } from "@healthcare/patient";
+import {
+  displayName,
+  patient,
+  patientAddress,
+  patientCommunicationPreference,
+  patientIdentifier,
+  patientPortalAccount,
+  PatientRecordService,
+} from "@healthcare/patient";
 import { and, eq, exists, gte, lte, notExists, sql } from "drizzle-orm";
 
 /**
@@ -69,6 +77,28 @@ export class AppCrmSegmentSource implements CrmSegmentSource {
                 sql`${carePlanActivity.status} IN ('planned', 'scheduled')`,
                 sql`${carePlanActivity.dueDate} IS NOT NULL AND ${carePlanActivity.dueDate} <= ${until}`,
               ),
+            ),
+        ),
+      );
+    }
+    // Who the patient is and how the clinic knows them: nothing clinical.
+    if (criteria.birthMonth !== undefined) conditions.push(sql`extract(month from ${patient.birthDate}) = ${criteria.birthMonth}`);
+    if (criteria.registeredFacilityId) conditions.push(eq(patient.registeredFacilityId, criteria.registeredFacilityId));
+    if (criteria.myHealth) {
+      const activeAccount = this.db
+        .select({ one: sql`1` })
+        .from(patientPortalAccount)
+        .where(and(eq(patientPortalAccount.patientId, patient.id), eq(patientPortalAccount.status, "active")));
+      conditions.push(criteria.myHealth === "active" ? exists(activeAccount) : notExists(activeAccount));
+    }
+    if (criteria.identifierOnFile) {
+      conditions.push(
+        exists(
+          this.db
+            .select({ one: sql`1` })
+            .from(patientIdentifier)
+            .where(
+              and(eq(patientIdentifier.patientId, patient.id), eq(patientIdentifier.type, criteria.identifierOnFile), eq(patientIdentifier.status, "active")),
             ),
         ),
       );

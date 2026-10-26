@@ -555,4 +555,40 @@ describe("outreach segments and campaigns", () => {
       .expect((r) => expect(r.body.error.code).toBe("campaign_sent"));
     await api(auditor).post(`/outreach/campaigns/${draft.id}/test-send`).expect(403);
   });
+
+  it("selects patients by birth month, MyHealth account, registering facility and a PhilHealth or HMO number on file", async () => {
+    const preview = async (criteria: object) => {
+      const segment = (
+        await api(admin)
+          .post("/outreach/segments", { name: `Filter ${Math.random().toString(36).slice(2, 8)}`, criteria })
+          .expect(201)
+      ).body;
+      return (await api(admin).get(`/outreach/segments/${segment.id}/preview`).expect(200)).body as { total: number; members: Array<{ patientId: string }> };
+    };
+    // Maria was born in May, Ana in January; the third patient on another day.
+    expect((await preview({ birthMonth: 5 })).members.map((m) => m.patientId)).toEqual([optedIn]);
+    expect((await preview({ birthMonth: 1 })).members.map((m) => m.patientId)).toEqual([notOptedIn]);
+    expect((await preview({ birthMonth: 7 })).total).toBe(0);
+    // Nobody has a MyHealth account yet.
+    expect((await preview({ myHealth: "active" })).total).toBe(0);
+    expect((await preview({ myHealth: "not_active" })).total).toBe(3);
+    // Every patient was registered at the organization's facility; a facility of another organization is refused.
+    expect((await preview({ registeredFacilityId: tenant.facilityId })).total).toBe(3);
+    const other = await createTenant(ctx.pool, "crm-other");
+    await api(admin)
+      .post("/outreach/segments", { name: "Somebody else's facility", criteria: { registeredFacilityId: other.facilityId } })
+      .expect(404);
+    // A PhilHealth number on file (the number itself is never shown).
+    await ctx.pool.query(
+      `INSERT INTO patient_identifier (organization_id, patient_id, type, value, value_normalized, created_by) VALUES ($1, $2, 'philhealth_pin', '12-345678901-2', '123456789012', $3)`,
+      [tenant.organizationId, notOptedIn, adminId],
+    );
+    const withPin = await preview({ identifierOnFile: "philhealth_pin" });
+    expect(withPin.members.map((m) => m.patientId)).toEqual([notOptedIn]);
+    expect(JSON.stringify(withPin)).not.toContain("12-345678901");
+    expect((await preview({ identifierOnFile: "hmo_member_id" })).total).toBe(0);
+    // Filters combine: every one must hold.
+    expect((await preview({ birthMonth: 1, identifierOnFile: "philhealth_pin", myHealth: "not_active" })).total).toBe(1);
+    expect((await preview({ birthMonth: 5, identifierOnFile: "philhealth_pin" })).total).toBe(0);
+  });
 });

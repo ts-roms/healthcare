@@ -159,6 +159,7 @@ export class CrmService {
 
   async createSegment(actor: Actor, input: SegmentInput): Promise<SegmentView> {
     const criteria = parseCriteria(input.criteria);
+    await this.checkFacility(actor.organizationId, criteria);
     return this.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(crmSegment)
@@ -178,6 +179,7 @@ export class CrmService {
 
   async updateSegment(actor: Actor, segmentId: string, input: SegmentInput & { version: number }): Promise<SegmentView> {
     const criteria = parseCriteria(input.criteria);
+    await this.checkFacility(actor.organizationId, criteria);
     return this.db.transaction(async (tx) => {
       const current = await this.lockSegment(tx, actor.organizationId, segmentId);
       if (current.version !== input.version) throw new VersionConflictError("Segment", current.version);
@@ -202,6 +204,11 @@ export class CrmService {
       });
       return row!;
     });
+  }
+
+  /** A facility named in the criteria must be one of this organization's (a stranger's id would otherwise just match nobody). */
+  private async checkFacility(organizationId: string, criteria: SegmentCriteria): Promise<void> {
+    if (criteria.registeredFacilityId) await this.organizations.getFacility(organizationId, criteria.registeredFacilityId);
   }
 
   async archiveSegment(actor: Actor, segmentId: string, version: number): Promise<SegmentView> {

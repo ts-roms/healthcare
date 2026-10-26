@@ -29,8 +29,12 @@ export const SUPPRESSION_LABEL: Record<string, string> = {
   frequency_cap: "Already reached by other campaigns recently",
 };
 
-/** "Age 50–64 · Female · Makati City · No visit for 12 months". */
-export function describeCriteria(c: OutreachSegmentCriteria): string {
+export const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
+export const MY_HEALTH_LABEL = { active: "Has an active MyHealth account", not_active: "No active MyHealth account" } as const;
+export const IDENTIFIER_LABEL = { philhealth_pin: "PhilHealth number on file", hmo_member_id: "HMO membership number on file" } as const;
+
+/** "Age 50–64 · Female · Makati City · No visit for 12 months". Facility names are looked up by id (a facility not listed reads "a facility"). */
+export function describeCriteria(c: OutreachSegmentCriteria, facilityNames: Record<string, string> = {}): string {
   const parts: string[] = [];
   if (c.ageMin !== undefined || c.ageMax !== undefined) parts.push(`Age ${c.ageMin ?? 0}–${c.ageMax ?? "any"}`);
   if (c.sex) parts.push(c.sex === "female" ? "Female" : "Male");
@@ -41,6 +45,10 @@ export function describeCriteria(c: OutreachSegmentCriteria): string {
   if (c.noVisitForMonths !== undefined) parts.push(`No visit for ${c.noVisitForMonths} months`);
   if (c.carePlanActivityDueWithinDays !== undefined) parts.push(`Care-plan activity due within ${c.carePlanActivityDueWithinDays} days`);
   if (c.optedInChannel) parts.push(`Opted in to ${CHANNEL_LABEL[c.optedInChannel].toLowerCase()}`);
+  if (c.birthMonth !== undefined) parts.push(`Born in ${MONTH_NAMES[c.birthMonth - 1] ?? c.birthMonth}`);
+  if (c.myHealth) parts.push(MY_HEALTH_LABEL[c.myHealth]);
+  if (c.registeredFacilityId) parts.push(`Registered at ${facilityNames[c.registeredFacilityId] ?? "a facility"}`);
+  if (c.identifierOnFile) parts.push(IDENTIFIER_LABEL[c.identifierOnFile]);
   return parts.join(" · ") || "No criteria";
 }
 

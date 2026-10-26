@@ -476,7 +476,9 @@ Records officers can read segments and campaigns.
 
 1. Open **Outreach** in the menu (`/outreach`).
 2. Under **Segments**, select **New segment** and choose who matches: age range, sex, city or province, when they registered, when they last
-   visited (or no visit for a number of months), a care-plan activity due soon, or an opt-in to a channel. Every filled criterion must hold.
+   visited (or no visit for a number of months), a care-plan activity due soon, an opt-in to a channel, the month they were born in (for birthday
+   greetings), whether they have an active MyHealth account (to invite those who have not set it up), the facility they registered at, or whether a PhilHealth
+   or HMO membership number is on file (the number itself is never shown). Every filled criterion must hold.
    **Preview** shows how many patients match today and a short work list; every preview is recorded in the audit trail.
 3. Under **Campaigns**, select **New campaign**: the segment, the channels, a subject (for email and MyHealth), the message in plain text, and
    optionally when to send. The screen shows the length allowed for the chosen channels. Save the draft and select **Submit for approval**.

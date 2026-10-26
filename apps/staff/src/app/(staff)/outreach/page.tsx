@@ -2,7 +2,7 @@ import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { api } from "@/lib/api/client";
-import { can, getSession } from "@/lib/api/session";
+import { can, getFacilities, getSession } from "@/lib/api/session";
 import type { OutreachCampaign, OutreachSegment, OutreachSettings } from "@/lib/api/types";
 import { CampaignList } from "./campaign-list";
 import { SegmentList } from "./segment-list";
@@ -13,10 +13,11 @@ export const metadata = { title: "Outreach" };
 export default async function OutreachPage() {
   const session = await getSession();
   if (!can(session, "crm.read")) redirect("/");
-  const [segments, campaigns, settings] = await Promise.all([
+  const [segments, campaigns, settings, facilities] = await Promise.all([
     api<OutreachSegment[]>("/outreach/segments"),
     api<OutreachCampaign[]>("/outreach/campaigns"),
     api<OutreachSettings>("/outreach/settings"),
+    getFacilities(),
   ]);
   const limits = [
     settings.frequencyCap
@@ -35,7 +36,7 @@ export default async function OutreachPage() {
           {can(session, "crm.campaign.approve") ? "Change limits" : "See limits"}
         </Link>
       </p>
-      <SegmentList segments={segments} canManage={can(session, "crm.segment.manage")} />
+      <SegmentList segments={segments} canManage={can(session, "crm.segment.manage")} facilities={facilities.map((f) => ({ id: f.id, name: f.name }))} />
       <CampaignList
         campaigns={campaigns}
         segments={segments.filter((s) => s.status === "active")}
