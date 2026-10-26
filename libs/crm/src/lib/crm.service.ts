@@ -15,8 +15,24 @@ import {
 import { AuditService } from "@healthcare/audit";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
-import { and, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
-import { canApprove, canTransition, isDueToSend, OPT_OUT_TOKEN_DAYS, type SegmentCriteria, segmentCriteriaSchema, wordingProblems } from "./crm.rules";
+import { and, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
+import {
+  bookingLinkText,
+  bookingLinkUrl,
+  canApprove,
+  canTransition,
+  capReached,
+  type FrequencyCap,
+  isDueToSend,
+  OPT_OUT_TOKEN_DAYS,
+  type QuietHours,
+  quietHoldUntil,
+  type ReachSummary,
+  type SegmentCriteria,
+  segmentCriteriaSchema,
+  summarizeReach,
+  wordingProblems,
+} from "./crm.rules";
 import {
   type CampaignStatus,
   crmCampaign,
@@ -25,10 +41,20 @@ import {
   crmOptOutToken,
   crmSegment,
   type CrmSegmentRecord,
+  crmSetting,
   type DeliveryOutcome,
+  OUTREACH_CHANNELS,
   type OutreachChannel,
 } from "./crm.schema";
-import { CRM_PREFERENCES, CRM_SEGMENT_SOURCE, type CrmPreferenceWriter, type CrmSegmentSource, type SegmentMember } from "./ports";
+import {
+  CRM_PREFERENCES,
+  CRM_REACH_SOURCE,
+  CRM_SEGMENT_SOURCE,
+  type CrmPreferenceWriter,
+  type CrmReachSource,
+  type CrmSegmentSource,
+  type SegmentMember,
+} from "./ports";
 
 export interface SegmentInput {
   name: string;
@@ -43,12 +69,38 @@ export interface CampaignInput {
   subject?: string | null;
   body: string;
   sendAt?: string | null;
+  /** End the message with a link to book a visit in MyHealth. */
+  includeBookingLink?: boolean;
 }
 
 export interface CampaignSummary {
   patients: number;
+  /** Messages queued to go out when quiet hours end (not yet sent). */
+  heldForQuietHours: number;
   byChannel: Array<{ channel: OutreachChannel; queued: number; delivered: number; suppressed: number; failed: number }>;
   suppressedByReason: Array<{ reason: string; total: number }>;
+}
+
+/** The organization's limits on how often and when outreach goes out (off until an administrator sets them). */
+export interface CrmSettingsView {
+  frequencyCap: FrequencyCap | null;
+  quietHours: { enabled: boolean; start: string | null; end: string | null; channels: Array<"sms" | "email" | "push"> };
+  /** 0 until first saved. */
+  version: number;
+  updatedAt: string | null;
+}
+
+export interface CrmSettingsInput {
+  frequencyCap: FrequencyCap | null;
+  quietHours: { enabled: boolean; start: string | null; end: string | null; channels: Array<"sms" | "email" | "push"> };
+  version: number;
+}
+
+/** Who a draft campaign can reach now, and what the organization's limits would do to it. */
+export interface CampaignReach extends ReachSummary {
+  frequencyCap: (FrequencyCap & { heldBack: number }) | null;
+  quietHours: { start: string; end: string; channels: OutreachChannel[]; holdingNow: boolean; until: string | null } | null;
+  includeBookingLink: boolean;
 }
 
 export type SegmentView = CrmSegmentRecord;
@@ -56,6 +108,12 @@ export type CampaignView = CrmCampaignRecord & { segmentName: string; summary: C
 
 const PREVIEW_LIMIT = 200;
 const SEND_BATCH = 100;
+/** Patients whose reach is checked in one preview (each check runs the same consent test a send does). */
+const REACH_LIMIT = 2000;
+const REACH_CONCURRENCY = 20;
+/** The delivery reasons the cap and quiet hours leave in the append-only record. */
+export const REASON_FREQUENCY_CAP = "frequency_cap";
+export const REASON_QUIET_HOURS = "held_for_quiet_hours";
 
 /**
  * Outreach the organization plans (docs/domains/crm.md): segments from non-clinical criteria, campaigns a second
@@ -75,6 +133,7 @@ export class CrmService {
     private readonly organizations: OrganizationService,
     private readonly audit: AuditService,
     private readonly portalBase: string | undefined,
+    @Inject(CRM_REACH_SOURCE) private readonly reachSource: CrmReachSource,
   ) {}
 
   // ---- segments ------------------------------------------------------------------------------------------------------
@@ -151,16 +210,159 @@ export class CrmService {
   }
 
   /** Who matches now: a count and the first members as a work list (number, name, sex, age). Audited. */
-  async previewSegment(actor: Actor, segmentId: string): Promise<{ total: number; members: SegmentMember[]; truncated: boolean }> {
+  async previewSegment(actor: Actor, segmentId: string): Promise<{ total: number; members: SegmentMember[]; truncated: boolean; reach: ReachSummary }> {
     const segment = await this.getSegment(actor.organizationId, segmentId);
     const members = await this.source.evaluate(actor.organizationId, segment.criteria, todayInPhilippines());
+    // Who of them can actually be messaged, on each channel, by the same checks a send makes.
+    const reach = await this.reachOf(actor.organizationId, members, [...OUTREACH_CHANNELS]);
     await this.audit.recordStandalone(actor, {
       action: "crm.segment.preview",
       resourceType: "crm_segment",
       resourceId: segmentId,
-      metadata: { total: members.length, listed: Math.min(members.length, PREVIEW_LIMIT) },
+      metadata: { total: members.length, listed: Math.min(members.length, PREVIEW_LIMIT), reachableOnAny: reach.reachableOnAny },
     });
-    return { total: members.length, members: members.slice(0, PREVIEW_LIMIT), truncated: members.length > PREVIEW_LIMIT };
+    return { total: members.length, members: members.slice(0, PREVIEW_LIMIT), truncated: members.length > PREVIEW_LIMIT, reach };
+  }
+
+  /**
+   * Who this campaign can reach, on its own channels, and what the organization's limits would do to it now: patients the
+   * frequency cap would hold back, and whether quiet hours would hold the text messages and push notices. Counts only.
+   */
+  async campaignReach(actor: Actor, campaignId: string): Promise<CampaignReach> {
+    const campaign = await this.getCampaign(actor, campaignId);
+    const segment = await this.getSegment(actor.organizationId, campaign.segmentId);
+    const now = new Date();
+    const members = await this.source.evaluate(actor.organizationId, segment.criteria, todayInPhilippines(now));
+    const reach = await this.reachOf(actor.organizationId, members, campaign.channels);
+    const { cap, quiet } = await this.loadLimits(actor.organizationId);
+    let frequencyCap: CampaignReach["frequencyCap"] = null;
+    if (cap) {
+      const recent = await this.recentCampaignCounts(
+        actor.organizationId,
+        members.slice(0, REACH_LIMIT).map((m) => m.patientId),
+        cap.windowDays,
+        campaign.id,
+        now,
+      );
+      frequencyCap = { ...cap, heldBack: [...recent.values()].filter((n) => capReached(n, cap)).length };
+    }
+    let quietHours: CampaignReach["quietHours"] = null;
+    if (quiet) {
+      const channels = campaign.channels.filter((c) => quiet.channels.includes(c as "sms" | "email" | "push"));
+      if (channels.length > 0) {
+        const until = quietHoldUntil(now, quiet);
+        quietHours = { start: quiet.start, end: quiet.end, channels, holdingNow: until !== null, until: until ? until.toISOString() : null };
+      }
+    }
+    await this.audit.recordStandalone(actor, {
+      action: "crm.campaign.reach",
+      resourceType: "crm_campaign",
+      resourceId: campaignId,
+      metadata: { total: members.length, reachableOnAny: reach.reachableOnAny, heldByCap: frequencyCap?.heldBack ?? 0 },
+    });
+    return { ...reach, frequencyCap, quietHours, includeBookingLink: campaign.includeBookingLink };
+  }
+
+  private async reachOf(organizationId: string, members: SegmentMember[], channels: OutreachChannel[]): Promise<ReachSummary> {
+    const checked = members.slice(0, REACH_LIMIT);
+    const results: Array<Partial<Record<OutreachChannel, { allowed: true } | { allowed: false; reason: string }>>> = [];
+    for (let i = 0; i < checked.length; i += REACH_CONCURRENCY) {
+      const chunk = await this.reachSource.reach(
+        organizationId,
+        checked.slice(i, i + REACH_CONCURRENCY).map((m) => m.patientId),
+        channels,
+      );
+      results.push(...chunk.map((c) => c.channels));
+    }
+    return summarizeReach(channels, results, members.length);
+  }
+
+  // ---- limits on how often and when -------------------------------------------------------------------------------------
+
+  async getSettings(actor: Actor): Promise<CrmSettingsView> {
+    const [row] = await this.db.select().from(crmSetting).where(eq(crmSetting.organizationId, actor.organizationId));
+    return settingsView(row);
+  }
+
+  /** Saves the organization's frequency cap and quiet hours (optimistic version; 0 before the first save). Audited. */
+  async updateSettings(actor: Actor, input: CrmSettingsInput): Promise<CrmSettingsView> {
+    const quiet = input.quietHours;
+    if (quiet.enabled && (!quiet.start || !quiet.end || quiet.start === quiet.end || quiet.channels.length === 0)) {
+      throw new BusinessRuleError("Quiet hours need a start, a different end and at least one channel", "quiet_hours_invalid");
+    }
+    return this.db.transaction(async (tx) => {
+      const [current] = await tx.select().from(crmSetting).where(eq(crmSetting.organizationId, actor.organizationId)).for("update");
+      if ((current?.version ?? 0) !== input.version) throw new VersionConflictError("Outreach settings", current?.version ?? 0);
+      const values = {
+        capMaxCampaigns: input.frequencyCap?.maxCampaigns ?? null,
+        capWindowDays: input.frequencyCap?.windowDays ?? null,
+        quietHoursEnabled: quiet.enabled,
+        quietStart: quiet.start,
+        quietEnd: quiet.end,
+        quietChannels: [...new Set(quiet.channels)],
+        updatedBy: actor.userId,
+        updatedAt: new Date(),
+      };
+      const [row] = current
+        ? await tx
+            .update(crmSetting)
+            .set({ ...values, version: current.version + 1 })
+            .where(eq(crmSetting.organizationId, actor.organizationId))
+            .returning()
+        : await tx
+            .insert(crmSetting)
+            .values({ organizationId: actor.organizationId, ...values })
+            .returning();
+      await this.audit.record(tx, actor, {
+        action: "crm.settings.update",
+        resourceType: "crm_setting",
+        resourceId: actor.organizationId,
+        changes: {
+          frequencyCap: { from: settingsView(current).frequencyCap, to: settingsView(row).frequencyCap },
+          quietHours: { from: settingsView(current).quietHours, to: settingsView(row).quietHours },
+        },
+      });
+      return settingsView(row);
+    });
+  }
+
+  private async loadLimits(
+    organizationId: string,
+  ): Promise<{ cap: FrequencyCap | null; quiet: (QuietHours & { channels: Array<"sms" | "email" | "push"> }) | null }> {
+    const [row] = await this.db.select().from(crmSetting).where(eq(crmSetting.organizationId, organizationId));
+    const view = settingsView(row);
+    return {
+      cap: view.frequencyCap,
+      quiet:
+        view.quietHours.enabled && view.quietHours.start && view.quietHours.end
+          ? { start: view.quietHours.start, end: view.quietHours.end, channels: view.quietHours.channels }
+          : null,
+    };
+  }
+
+  /** How many other outreach campaigns actually went to each patient in the window (queued or delivered, not held back). */
+  private async recentCampaignCounts(
+    organizationId: string,
+    patientIds: string[],
+    windowDays: number,
+    excludeCampaignId: string,
+    now: Date,
+  ): Promise<Map<string, number>> {
+    if (patientIds.length === 0) return new Map();
+    const rows = await this.db
+      .select({ patientId: crmCampaignDelivery.patientId, n: sql<number>`count(distinct ${crmCampaignDelivery.campaignId})::int` })
+      .from(crmCampaignDelivery)
+      .where(
+        and(
+          eq(crmCampaignDelivery.organizationId, organizationId),
+          inArray(crmCampaignDelivery.patientId, patientIds),
+          inArray(crmCampaignDelivery.outcome, ["queued", "delivered"]),
+          gte(crmCampaignDelivery.createdAt, new Date(now.getTime() - windowDays * 86_400_000)),
+          ne(crmCampaignDelivery.campaignId, excludeCampaignId),
+        ),
+      )
+      .groupBy(crmCampaignDelivery.patientId);
+    return new Map(rows.map((r) => [r.patientId, r.n]));
   }
 
   // ---- campaigns -----------------------------------------------------------------------------------------------------
@@ -187,7 +389,7 @@ export class CrmService {
   }
 
   async createCampaign(actor: Actor, input: CampaignInput): Promise<CampaignView> {
-    const wording = validateWording(input);
+    const wording = validateWording(input, this.portalBaseUrl);
     return this.db.transaction(async (tx) => {
       const segment = await this.getSegment(actor.organizationId, input.segmentId, tx);
       if (segment.status !== "active") throw new BusinessRuleError("The segment is archived", "segment_archived");
@@ -200,6 +402,7 @@ export class CrmService {
           channels: dedupe(input.channels),
           subject: wording.subject,
           body: wording.body,
+          includeBookingLink: input.includeBookingLink ?? false,
           sendAt: input.sendAt ? new Date(input.sendAt) : null,
           createdBy: actor.userId,
         })
@@ -216,7 +419,7 @@ export class CrmService {
 
   /** Only drafts change (a submitted campaign goes back to draft first); the change makes the caller the author. */
   async updateCampaign(actor: Actor, campaignId: string, input: CampaignInput & { version: number }): Promise<CampaignView> {
-    const wording = validateWording(input);
+    const wording = validateWording(input, this.portalBaseUrl);
     return this.db.transaction(async (tx) => {
       const current = await this.lockCampaign(tx, actor.organizationId, campaignId);
       if (current.version !== input.version) throw new VersionConflictError("Campaign", current.version);
@@ -231,6 +434,7 @@ export class CrmService {
           channels: dedupe(input.channels),
           subject: wording.subject,
           body: wording.body,
+          includeBookingLink: input.includeBookingLink ?? false,
           sendAt: input.sendAt ? new Date(input.sendAt) : null,
           createdBy: actor.userId,
           version: current.version + 1,
@@ -246,6 +450,7 @@ export class CrmService {
           body: { from: current.body, to: row!.body },
           subject: { from: current.subject, to: row!.subject },
           channels: { from: current.channels, to: row!.channels },
+          includeBookingLink: { from: current.includeBookingLink, to: row!.includeBookingLink },
           segmentId: { from: current.segmentId, to: row!.segmentId },
         },
       });
@@ -349,12 +554,29 @@ export class CrmService {
       ).map((d) => `${d.patientId}/${d.channel}`),
     );
     const actor = systemActor(campaign.organizationId, null, "outreach-campaign");
+    // The organization's limits are read once per run: a patient the frequency cap holds back is recorded, not messaged,
+    // and text messages and push notices that fall in quiet hours are queued for when the period ends.
+    const { cap, quiet } = await this.loadLimits(campaign.organizationId);
+    const holdUntil = (channel: OutreachChannel): Date | null =>
+      quiet && quiet.channels.includes(channel as "sms" | "email" | "push") ? quietHoldUntil(now, quiet) : null;
     let sent = 0;
     for (let i = 0; i < members.length; i += SEND_BATCH) {
-      for (const member of members.slice(i, i + SEND_BATCH)) {
+      const batch = members.slice(i, i + SEND_BATCH);
+      const recent = cap
+        ? await this.recentCampaignCounts(
+            campaign.organizationId,
+            batch.map((m) => m.patientId),
+            cap.windowDays,
+            campaign.id,
+            now,
+          )
+        : new Map<string, number>();
+      for (const member of batch) {
+        const held = capReached(recent.get(member.patientId) ?? 0, cap);
         for (const channel of campaign.channels) {
           if (done.has(`${member.patientId}/${channel}`)) continue;
-          await this.deliver(actor, campaign, organization.name, member.patientId, channel, now);
+          if (held) await this.recordHeldBack(campaign, member.patientId, channel);
+          else await this.deliver(actor, campaign, organization.name, member.patientId, channel, now, holdUntil(channel));
           sent += 1;
         }
       }
@@ -380,22 +602,25 @@ export class CrmService {
     patientId: string,
     channel: OutreachChannel,
     now: Date,
+    holdUntil: Date | null = null,
   ): Promise<void> {
     let outcome: DeliveryOutcome = "failed";
     let reason: string | null = null;
     let notificationId: string | null = null;
     try {
       const optOutLink = channel === "email" ? await this.optOutLink(campaign, patientId, channel, now) : undefined;
+      const bookingLink = campaign.includeBookingLink && this.portalBaseUrl ? bookingLinkUrl(this.portalBaseUrl) : undefined;
       const view = await this.notifications.send(actor, {
         recipient: { type: "patient", patientId },
         channel,
         templateKey: "outreach.campaign",
-        variables: { organizationName, subject: campaign.subject ?? undefined, body: campaign.body, optOutLink },
+        variables: { organizationName, subject: campaign.subject ?? undefined, body: campaign.body, optOutLink, bookingLink },
         idempotencyKey: `crm:${campaign.id}:${patientId}:${channel}`,
+        ...(holdUntil ? { scheduledFor: holdUntil.toISOString() } : {}),
       });
       notificationId = view.id;
       outcome = view.status === "suppressed" ? "suppressed" : view.status === "failed" ? "failed" : view.status === "delivered" ? "delivered" : "queued";
-      reason = view.suppressionReason;
+      reason = view.suppressionReason ?? (holdUntil && outcome === "queued" ? REASON_QUIET_HOURS : null);
     } catch (error) {
       reason = String(error).slice(0, 200);
       this.logger.warn({ event: "crm.delivery_failed", campaignId: campaign.id, channel, message: reason });
@@ -403,6 +628,22 @@ export class CrmService {
     await this.db
       .insert(crmCampaignDelivery)
       .values({ campaignId: campaign.id, organizationId: campaign.organizationId, patientId, channel, notificationId, outcome, reason })
+      .onConflictDoNothing();
+  }
+
+  /** The patient is within the organization's frequency cap already: nothing is sent, and the record says why. */
+  private async recordHeldBack(campaign: CrmCampaignRecord, patientId: string, channel: OutreachChannel): Promise<void> {
+    await this.db
+      .insert(crmCampaignDelivery)
+      .values({
+        campaignId: campaign.id,
+        organizationId: campaign.organizationId,
+        patientId,
+        channel,
+        notificationId: null,
+        outcome: "suppressed",
+        reason: REASON_FREQUENCY_CAP,
+      })
       .onConflictDoNothing();
   }
 
@@ -464,6 +705,7 @@ export class CrmService {
     }
     return {
       patients: patients ?? 0,
+      heldForQuietHours: rows.filter((r) => r.outcome === "queued" && r.reason === REASON_QUIET_HOURS).reduce((sum, r) => sum + r.total, 0),
       byChannel: [...byChannel.values()],
       suppressedByReason: [...byReason.entries()].map(([reason, total]) => ({ reason, total })).sort((a, b) => b.total - a.total),
     };
@@ -510,13 +752,27 @@ function parseCriteria(input: unknown): SegmentCriteria {
   return parsed.data;
 }
 
-function validateWording(input: CampaignInput): { subject: string | null; body: string } {
+function validateWording(input: CampaignInput, portalBase: string | undefined): { subject: string | null; body: string } {
   const subject = input.subject?.trim() || null;
   const body = input.body.trim();
-  const problems = wordingProblems({ channels: input.channels, subject, body });
+  if (input.includeBookingLink && !portalBase) {
+    throw new BusinessRuleError("MyHealth's address is not set up, so a booking link cannot be added", "portal_base_missing");
+  }
+  const reservedChars = input.includeBookingLink && portalBase ? bookingLinkText(portalBase).length : 0;
+  const problems = wordingProblems({ channels: input.channels, subject, body, reservedChars });
   if (problems.length > 0) throw new BusinessRuleError("The wording does not fit the chosen channels", "wording_invalid", problems);
   if (input.sendAt && Number.isNaN(Date.parse(input.sendAt))) throw new BusinessRuleError("sendAt is not a date", "invalid_send_at");
   return { subject, body };
+}
+
+function settingsView(row: typeof crmSetting.$inferSelect | undefined): CrmSettingsView {
+  if (!row) return { frequencyCap: null, quietHours: { enabled: false, start: null, end: null, channels: ["sms", "push"] }, version: 0, updatedAt: null };
+  return {
+    frequencyCap: row.capMaxCampaigns && row.capWindowDays ? { maxCampaigns: row.capMaxCampaigns, windowDays: row.capWindowDays } : null,
+    quietHours: { enabled: row.quietHoursEnabled, start: row.quietStart, end: row.quietEnd, channels: row.quietChannels },
+    version: row.version,
+    updatedAt: row.updatedAt.toISOString(),
+  };
 }
 
 function dedupe(channels: OutreachChannel[]): OutreachChannel[] {

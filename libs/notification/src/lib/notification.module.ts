@@ -50,7 +50,8 @@ export class NotificationModule {
         { provide: RECIPIENT_DIRECTORY, useClass: options.recipientDirectory },
         options.queue ?? bullMqQueue,
       ],
-      exports: [NotificationService, PushSubscriptionService, StaffPushPreferenceService],
+      // The recipient directory is exported so outreach can show who a campaign can reach with the very checks a send makes.
+      exports: [NotificationService, PushSubscriptionService, StaffPushPreferenceService, RECIPIENT_DIRECTORY],
     };
   }
 }

@@ -24,3 +24,17 @@ export interface CrmPreferenceWriter {
   optOut(organizationId: string, patientId: string, channel: OutreachChannel, campaignId: string): Promise<void>;
 }
 export const CRM_PREFERENCES = Symbol("CRM_PREFERENCES");
+
+/**
+ * Whether each patient can be messaged on each channel, by the same consent and contact checks the notification service
+ * makes when a message is sent (so the figures shown before a send agree with what the send does). Implemented by the
+ * composition root, which knows the patient and MyHealth domains.
+ */
+export interface CrmReachSource {
+  reach(
+    organizationId: string,
+    patientIds: string[],
+    channels: OutreachChannel[],
+  ): Promise<Array<{ patientId: string; channels: Partial<Record<OutreachChannel, { allowed: true } | { allowed: false; reason: string }>> }>>;
+}
+export const CRM_REACH_SOURCE = Symbol("CRM_REACH_SOURCE");

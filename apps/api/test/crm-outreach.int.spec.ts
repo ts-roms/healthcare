@@ -137,6 +137,7 @@ describe("outreach segments and campaigns", () => {
     expect(done.status).toBe("completed");
     expect(done.summary).toEqual({
       patients: 2,
+      heldForQuietHours: 0,
       byChannel: [{ channel: "sms", queued: 1, delivered: 0, suppressed: 1, failed: 0 }],
       suppressedByReason: [{ reason: "no_outreach_opt_in", total: 1 }],
     });
@@ -207,5 +208,196 @@ describe("outreach segments and campaigns", () => {
     await api(auditor)
       .post("/outreach/campaigns", { segmentId, name: "x", channels: ["sms"], body: "Nobody may send this message." })
       .expect(403);
+  });
+
+  /** A campaign from draft to sent: drafted by one administrator, approved by the other, then the runner's pass. */
+  const sendCampaign = async (body: object, now?: Date) => {
+    const draft = (await api(admin).post("/outreach/campaigns", body).expect(201)).body;
+    const submitted = (await api(admin).post(`/outreach/campaigns/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    await api(approver).post(`/outreach/campaigns/${draft.id}/approve`, { version: submitted.version }).expect(201);
+    await runs.tick(now);
+    return (await api(admin).get(`/outreach/campaigns/${draft.id}`).expect(200)).body as {
+      id: string;
+      includeBookingLink: boolean;
+      summary: { patients: number; heldForQuietHours: number; suppressedByReason: Array<{ reason: string; total: number }> };
+    };
+  };
+  const deliveries = async (campaignId: string) =>
+    (
+      await ctx.pool.query<{ patient_id: string; channel: string; outcome: string; reason: string | null; notification_id: string | null }>(
+        "SELECT patient_id, channel, outcome, reason, notification_id FROM crm_campaign_delivery WHERE campaign_id = $1 ORDER BY patient_id",
+        [campaignId],
+      )
+    ).rows;
+  let reachSegment: string;
+
+  it("shows, before anything is sent, who can actually be messaged on each channel and why the others cannot", async () => {
+    reachSegment = (
+      await api(admin)
+        .post("/outreach/segments", { name: "Women 50+ (reach)", criteria: { ageMin: 50, sex: "female" } })
+        .expect(201)
+    ).body.id;
+    const before = (await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign_delivery")).rows[0].n;
+    const preview = (await api(admin).get(`/outreach/segments/${reachSegment}/preview`).expect(200)).body;
+    expect(preview.total).toBe(2);
+    expect(preview.reach).toMatchObject({ evaluated: 2, sampled: false, reachableOnAny: 1, unreachable: 1 });
+    const byChannel = Object.fromEntries(preview.reach.byChannel.map((c: { channel: string }) => [c.channel, c]));
+    // Only Maria opted in to text messages; Ana never answered.
+    expect(byChannel["sms"]).toEqual({ channel: "sms", reachable: 1, notReached: [{ reason: "no_outreach_opt_in", total: 1 }] });
+    // Maria turned email off through the opt-out link; nobody has push or MyHealth.
+    expect(byChannel["email"]).toEqual({
+      channel: "email",
+      reachable: 0,
+      notReached: [
+        { reason: "no_outreach_opt_in", total: 1 },
+        { reason: "opted_out", total: 1 },
+      ],
+    });
+    expect(byChannel["push"].reachable).toBe(0);
+    expect(byChannel["in_app"].reachable).toBe(0);
+    // The reach check changes nothing: no message, no delivery row.
+    expect((await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign_delivery")).rows[0].n).toBe(before);
+  });
+
+  it("answers the same for a campaign on its own channels, and says what the organization's limits would do", async () => {
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", {
+          segmentId: reachSegment,
+          name: "Reach check",
+          channels: ["sms", "email"],
+          subject: "Hello",
+          body: "A short message about our opening hours.",
+        })
+        .expect(201)
+    ).body;
+    expect(draft.includeBookingLink).toBe(false);
+    const reach = (await api(admin).get(`/outreach/campaigns/${draft.id}/reach`).expect(200)).body;
+    expect(reach.byChannel.map((c: { channel: string }) => c.channel)).toEqual(["sms", "email"]);
+    expect(reach).toMatchObject({ reachableOnAny: 1, frequencyCap: null, quietHours: null, includeBookingLink: false });
+    expect(await auditRows(ctx.pool, `action = 'crm.campaign.reach' AND resource_id = $1`, [draft.id])).toHaveLength(1);
+    await api(auditor).get(`/outreach/campaigns/${draft.id}/reach`).expect(403);
+  });
+
+  it("keeps the organization's frequency cap and quiet hours, changed only by those who approve campaigns", async () => {
+    const defaults = (await api(admin).get("/outreach/settings").expect(200)).body;
+    expect(defaults).toEqual({
+      frequencyCap: null,
+      quietHours: { enabled: false, start: null, end: null, channels: ["sms", "push"] },
+      version: 0,
+      updatedAt: null,
+    });
+    const settings = {
+      frequencyCap: { maxCampaigns: 1, windowDays: 30 },
+      quietHours: { enabled: true, start: "22:00", end: "07:00", channels: ["sms", "push"] },
+      version: 0,
+    };
+    await api(auditor).put("/outreach/settings", settings).expect(403);
+    await api(admin)
+      .put("/outreach/settings", { ...settings, quietHours: { ...settings.quietHours, end: "22:00" } })
+      .expect(400);
+    await api(admin)
+      .put("/outreach/settings", { ...settings, frequencyCap: { maxCampaigns: 0, windowDays: 30 } })
+      .expect(400);
+    const saved = (await api(admin).put("/outreach/settings", settings).expect(200)).body;
+    expect(saved).toMatchObject({ frequencyCap: { maxCampaigns: 1, windowDays: 30 }, quietHours: { enabled: true, start: "22:00", end: "07:00" }, version: 1 });
+    await api(admin).put("/outreach/settings", settings).expect(409); // a stale version
+    expect(await auditRows(ctx.pool, "action = 'crm.settings.update' AND organization_id = $1", [tenant.organizationId])).toHaveLength(1);
+    // The same limits now show in a campaign's reach: Maria already received two campaigns, so one patient would be held back.
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", { segmentId: reachSegment, name: "With limits", channels: ["sms"], body: "A short message about our opening hours." })
+        .expect(201)
+    ).body;
+    const reach = (await api(admin).get(`/outreach/campaigns/${draft.id}/reach`).expect(200)).body;
+    expect(reach.frequencyCap).toEqual({ maxCampaigns: 1, windowDays: 30, heldBack: 1 });
+    expect(reach.quietHours).toMatchObject({ start: "22:00", end: "07:00", channels: ["sms"] });
+  });
+
+  it("does not message a patient who is already at the frequency cap, and records why", async () => {
+    const campaign = await sendCampaign({
+      segmentId: reachSegment,
+      name: "Second notice",
+      channels: ["sms"],
+      body: "A second message from the clinic this month.",
+    });
+    const rows = await deliveries(campaign.id);
+    // Maria got two earlier campaigns: held back, no message created. Ana never received one: the opt-in check decides.
+    const maria = rows.find((r) => r.patient_id === optedIn);
+    expect(maria).toEqual({ patient_id: optedIn, channel: "sms", outcome: "suppressed", reason: "frequency_cap", notification_id: null });
+    expect(rows.find((r) => r.patient_id === notOptedIn)).toMatchObject({ outcome: "suppressed", reason: "no_outreach_opt_in" });
+    expect(campaign.summary.suppressedByReason).toEqual(
+      expect.arrayContaining([
+        { reason: "frequency_cap", total: 1 },
+        { reason: "no_outreach_opt_in", total: 1 },
+      ]),
+    );
+    expect(
+      (await ctx.pool.query("SELECT count(*)::int AS n FROM notification WHERE idempotency_key = $1", [`crm:${campaign.id}:${optedIn}:sms`])).rows[0].n,
+    ).toBe(0);
+  });
+
+  it("holds text messages and push notices that fall in quiet hours until they end, and sends in the daytime at once", async () => {
+    // Lift the cap so this is only about the hour: 23:00 in Manila is inside 22:00-07:00.
+    const current = (await api(admin).get("/outreach/settings").expect(200)).body;
+    await api(admin)
+      .put("/outreach/settings", { ...current, frequencyCap: null })
+      .expect(200);
+    const night = await sendCampaign(
+      { segmentId: reachSegment, name: "Evening notice", channels: ["sms"], body: "An evening message from the clinic." },
+      new Date("2026-10-26T15:00:00Z"),
+    );
+    const held = (await deliveries(night.id)).find((r) => r.patient_id === optedIn)!;
+    expect(held).toMatchObject({ outcome: "queued", reason: "held_for_quiet_hours" });
+    const scheduled = await ctx.pool.query<{ scheduled_for: Date }>("SELECT scheduled_for FROM notification WHERE id = $1", [held.notification_id]);
+    expect(scheduled.rows[0]!.scheduled_for.toISOString()).toBe("2026-10-26T23:00:00.000Z");
+    expect(night.summary.heldForQuietHours).toBe(1);
+
+    // 10:00 in Manila: no hold.
+    const day = await sendCampaign(
+      { segmentId: reachSegment, name: "Morning notice", channels: ["sms"], body: "A morning message from the clinic." },
+      new Date("2026-10-27T02:00:00Z"),
+    );
+    const sent = (await deliveries(day.id)).find((r) => r.patient_id === optedIn)!;
+    expect(sent).toMatchObject({ outcome: "queued", reason: null });
+    expect((await ctx.pool.query("SELECT scheduled_for FROM notification WHERE id = $1", [sent.notification_id])).rows[0].scheduled_for).toBeNull();
+    expect(day.summary.heldForQuietHours).toBe(0);
+  });
+
+  it("can end a message with a link to book a visit in MyHealth, counted against the length, and carries nothing about the patient", async () => {
+    // 300 characters fit a text message alone, but not with the link.
+    await api(admin)
+      .post("/outreach/campaigns", { segmentId: reachSegment, name: "Too long with link", channels: ["sms"], body: "x".repeat(300), includeBookingLink: true })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("wording_invalid"));
+    const withLink = await sendCampaign(
+      {
+        segmentId: reachSegment,
+        name: "Book a checkup",
+        channels: ["sms"],
+        body: "Your yearly checkup is due. Book a time that suits you.",
+        includeBookingLink: true,
+      },
+      new Date("2026-10-27T03:00:00Z"),
+    );
+    expect(withLink.includeBookingLink).toBe(true);
+    const variables = (
+      await ctx.pool.query<{ variables: { bookingLink?: string; body: string } }>("SELECT variables FROM notification WHERE idempotency_key = $1", [
+        `crm:${withLink.id}:${optedIn}:sms`,
+      ])
+    ).rows[0]!.variables;
+    expect(variables.bookingLink).toBe("https://myhealth.test.invalid/appointments/book");
+    expect(variables.bookingLink).not.toContain(optedIn);
+    // A campaign without it carries none.
+    const without = await sendCampaign(
+      { segmentId: reachSegment, name: "No link", channels: ["sms"], body: "Our clinic hours change next month." },
+      new Date("2026-10-27T03:00:00Z"),
+    );
+    const plain = (
+      await ctx.pool.query<{ variables: Record<string, unknown> }>("SELECT variables FROM notification WHERE idempotency_key = $1", [
+        `crm:${without.id}:${optedIn}:sms`,
+      ])
+    ).rows[0]!.variables;
+    expect(plain["bookingLink"]).toBeUndefined();
   });
 });

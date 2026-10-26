@@ -19,12 +19,33 @@ const campaignSchema = z.object({
   subject: z.string().trim().max(120).nullable().optional(),
   body: z.string().trim().min(10).max(2000),
   sendAt: z.iso.datetime({ offset: true }).nullable().optional(),
+  includeBookingLink: z.boolean().optional(),
 });
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 22:00");
+const settingsSchema = z
+  .object({
+    frequencyCap: z.object({ maxCampaigns: z.number().int().min(1).max(20), windowDays: z.number().int().min(1).max(365) }).nullable(),
+    quietHours: z.object({
+      enabled: z.boolean(),
+      start: hhmm.nullable(),
+      end: hhmm.nullable(),
+      channels: z.array(z.enum(["sms", "email", "push"])).max(3),
+    }),
+    version: z.number().int().min(0),
+  })
+  .refine(
+    (s) => !s.quietHours.enabled || (s.quietHours.start && s.quietHours.end && s.quietHours.start !== s.quietHours.end && s.quietHours.channels.length > 0),
+    {
+      message: "Quiet hours need a start, a different end and at least one channel",
+      path: ["quietHours"],
+    },
+  );
 const version = z.object({ version: z.number().int().min(1) });
 
 export class SegmentDto extends createZodDto(segmentSchema) {}
 export class SegmentUpdateDto extends createZodDto(segmentSchema.extend(version.shape)) {}
 export class VersionDto extends createZodDto(version) {}
+export class SettingsDto extends createZodDto(settingsSchema) {}
 export class CampaignDto extends createZodDto(campaignSchema) {}
 export class CampaignUpdateDto extends createZodDto(campaignSchema.extend(version.shape)) {}
 export class CancelDto extends createZodDto(version.extend({ reason: z.string().trim().min(3).max(500) })) {}
@@ -35,6 +56,20 @@ export class OptOutDto extends createZodDto(z.object({ token: z.string().min(16)
 @Controller({ path: "outreach", version: "1" })
 export class CrmController {
   constructor(private readonly crm: CrmService) {}
+
+  @Get("settings")
+  @RequirePermissions("crm.read")
+  @ApiOperation({ summary: "The organization's limits on how often and when outreach goes out (frequency cap, quiet hours)" })
+  getSettings(@CurrentActor() actor: Actor) {
+    return this.crm.getSettings(actor);
+  }
+
+  @Put("settings")
+  @RequirePermissions("crm.campaign.approve")
+  @ApiOperation({ summary: "Set the frequency cap and quiet hours (the people who approve campaigns; audited; optimistic version)" })
+  updateSettings(@CurrentActor() actor: Actor, @Body() body: SettingsDto) {
+    return this.crm.updateSettings(actor, body);
+  }
 
   @Get("segments")
   @RequirePermissions("crm.read")
@@ -66,7 +101,7 @@ export class CrmController {
 
   @Get("segments/:id/preview")
   @RequirePermissions("crm.read")
-  @ApiOperation({ summary: "Who matches the segment now: a count and a work list of at most 200 (audited)" })
+  @ApiOperation({ summary: "Who matches the segment now: a count, a work list of at most 200 and who of them can be messaged on each channel (audited)" })
   previewSegment(@CurrentActor() actor: Actor, @Param("id") id: string) {
     return this.crm.previewSegment(actor, id);
   }
@@ -83,6 +118,13 @@ export class CrmController {
   @ApiOperation({ summary: "One campaign with its delivery summary (counts by channel and outcome; no names)" })
   getCampaign(@CurrentActor() actor: Actor, @Param("id") id: string) {
     return this.crm.getCampaign(actor, id);
+  }
+
+  @Get("campaigns/:id/reach")
+  @RequirePermissions("crm.read")
+  @ApiOperation({ summary: "Who the campaign can reach on its channels, and what the frequency cap and quiet hours would do to it now (counts only; audited)" })
+  campaignReach(@CurrentActor() actor: Actor, @Param("id") id: string) {
+    return this.crm.campaignReach(actor, id);
   }
 
   @Post("campaigns")

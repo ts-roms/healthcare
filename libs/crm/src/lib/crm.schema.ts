@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { SegmentCriteria } from "./crm.rules";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -35,6 +35,8 @@ export const crmCampaign = pgTable(
     channels: text("channels").array().$type<OutreachChannel[]>().notNull(),
     subject: text("subject"),
     body: text("body").notNull(),
+    /** Whether the message ends with a link to book a visit in MyHealth (chosen while drafting, approved with the wording). */
+    includeBookingLink: boolean("include_booking_link").notNull().default(false),
     status: text("status").$type<CampaignStatus>().notNull().default("draft"),
     sendAt: ts("send_at"),
     createdBy: uuid("created_by").notNull(),
@@ -84,3 +86,18 @@ export const crmOptOutToken = pgTable("crm_opt_out_token", {
 export type CrmSegmentRecord = typeof crmSegment.$inferSelect;
 export type CrmCampaignRecord = typeof crmCampaign.$inferSelect;
 export type CrmCampaignDeliveryRecord = typeof crmCampaignDelivery.$inferSelect;
+
+/** The organization's own limits on how often and when outreach goes out (migration 0131): off until set. */
+export const crmSetting = pgTable("crm_setting", {
+  organizationId: uuid("organization_id").primaryKey(),
+  capMaxCampaigns: smallint("cap_max_campaigns"),
+  capWindowDays: smallint("cap_window_days"),
+  quietHoursEnabled: boolean("quiet_hours_enabled").notNull().default(false),
+  quietStart: text("quiet_start"),
+  quietEnd: text("quiet_end"),
+  quietChannels: text("quiet_channels").array().$type<Array<"sms" | "email" | "push">>().notNull().default(["sms", "push"]),
+  version: integer("version").notNull().default(1),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+export type CrmSettingRecord = typeof crmSetting.$inferSelect;

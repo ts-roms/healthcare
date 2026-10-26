@@ -160,10 +160,12 @@ export const TEMPLATES = [
       subject: z.string().trim().min(2).max(120).optional(),
       body: z.string().trim().min(10).max(2000),
       optOutLink: z.string().url().max(500).optional(),
+      // MyHealth's booking page when the campaign carries it: a plain address with nothing about the patient in it.
+      bookingLink: z.string().url().max(500).optional(),
     }),
     render: (v) => ({
       subject: v.subject ?? `A message from ${v.organizationName}`,
-      text: `${v.body}${v.optOutLink ? `\n\nTo stop messages like this: ${v.optOutLink}` : ""}`,
+      text: `${v.body}${v.bookingLink ? `\n\nBook a visit: ${v.bookingLink}` : ""}${v.optOutLink ? `\n\nTo stop messages like this: ${v.optOutLink}` : ""}`,
     }),
   }),
   defineTemplate({

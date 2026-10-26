@@ -28,6 +28,11 @@ Library `libs/crm` (`scope:crm`, `type:feature`); the composition root answers w
   outcome (`queued`, `delivered`, `suppressed` with the service's reason, `failed`).
 - `crm_opt_out_token` — the single-use token behind the opt-out link (hash only), bound to patient, channel and
   campaign, 30 days.
+- `crm_setting` (migration `0131`, one row per organization, off until set) — the organization's limits on how often and
+  when outreach goes out: a **frequency cap** (`cap_max_campaigns` in `cap_window_days`) and **quiet hours**
+  (`quiet_start`–`quiet_end` in Asia/Manila time, across midnight if the start is later; `quiet_channels` of `sms`,
+  `push`, `email`, default `sms` and `push`). Optimistic `version`; changes audited (`crm.settings.update`).
+- `crm_campaign.include_booking_link` (migration `0131`) — the message ends with a link to book a visit in MyHealth.
 
 ## Commands
 
@@ -86,6 +91,32 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
   result); MyHealth `/outreach/opt-out?token=` (public page). MyHealth's notification settings already let a patient
   choose outreach per channel.
 
+## Reach, limits and the booking link
+
+- **Reach before sending.** A segment preview (`GET /outreach/segments/:id/preview`) and a campaign's reach
+  (`GET /outreach/campaigns/:id/reach`, staff **Check reach** on the campaign page) say, per channel, how many patients can
+  be messaged and why the others cannot (`no_outreach_opt_in`, `opted_out`, `no_mobile_number`, `no_email_address`,
+  `no_push_device`, `no_portal_account`). It asks the same recipient directory the notification service asks when it sends
+  (port `CrmReachSource`, adapter `AppCrmReachSource`), so the figures are what a send would do; counts only, no names; at
+  most the first 2,000 patients are checked (`sampled`). The campaign view also says how many patients the frequency cap would
+  hold back and whether quiet hours would hold its messages now. Audited (`crm.campaign.reach`, and in the preview's audit).
+- **Frequency cap.** Before messaging a patient the runner counts the **other** outreach campaigns that actually went to them
+  (a delivery `queued` or `delivered`, not a suppressed one) in the window; at or over the cap the patient is skipped on every
+  channel and each skipped channel is recorded as `suppressed` with reason `frequency_cap` and no notification. It covers
+  outreach campaigns only, not care-plan recall, no-show follow-up or other messages about care, appointments or bills.
+- **Quiet hours.** A message on a quiet channel that would go out inside the period is created with `scheduled_for` at the end of
+  the period (the notification service queues it with that delay) and its delivery row says `queued` with reason
+  `held_for_quiet_hours`; the campaign summary counts them (`heldForQuietHours`). Outside the period, nothing changes. MyHealth
+  inbox messages are never held. An explicit `send_at` inside quiet hours is held the same way.
+- **Who sets them.** `GET /outreach/settings` needs `crm.read`; `PUT /outreach/settings` needs `crm.campaign.approve` (the people
+  who approve campaigns, so an author cannot loosen the limits for their own campaign). Staff `/outreach/settings`.
+- **Booking link.** A campaign can end its message with `Book a visit: <PORTAL_BASE_URL>/appointments/book` (MyHealth's booking page),
+  chosen while drafting and approved with the wording. The address carries nothing about the patient: signing in identifies
+  them. The link counts against each channel's length (`wording_invalid` names the channel) and needs `PORTAL_BASE_URL`
+  (`portal_base_missing`). The notification template `outreach.campaign` renders it before the opt-out link.
+- Not built: clicks or bookings attributed to a campaign (a tracking link would identify the patient; the audit and the
+  appointment list show bookings), per-channel caps, caps that include care reminders, quiet hours per facility or time zone.
+
 ## Open questions / assumptions
 
 - **Compliance dependency.** The platform enforces an explicit opt-in per channel, a second person's approval, the
@@ -94,5 +125,7 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
   organization's to validate (compliance register, "Patient outreach").
 - SMS "STOP" replies need an SMS provider with inbound messages; none is selected, so text-message opt-out is through
   MyHealth or the clinic.
+- The frequency cap and quiet-hour values are the organization's own policy: the platform sets none by default and encodes no
+  rule on how often or when people may be contacted (compliance register, "Patient outreach").
 - Not built: segmentation by clinical data (decision first), recurring campaigns, message templates with variables,
   delivery analytics beyond counts, recipients outside the organization.

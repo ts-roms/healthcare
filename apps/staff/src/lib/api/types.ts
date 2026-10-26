@@ -3384,16 +3384,45 @@ export interface OutreachSegment {
   updatedAt: string;
 }
 
+/** Who can be messaged on each channel, by the same consent and contact checks a send makes (counts only). */
+export interface OutreachReach {
+  /** Patients whose reach was checked (a very large segment is checked in part). */
+  evaluated: number;
+  sampled: boolean;
+  byChannel: Array<{ channel: OutreachChannel; reachable: number; notReached: Array<{ reason: string; total: number }> }>;
+  /** Patients who can be messaged on at least one of the channels. */
+  reachableOnAny: number;
+  unreachable: number;
+}
+
 export interface OutreachSegmentPreview {
   total: number;
   members: Array<{ patientId: string; patientNumber: string; displayName: string; sex: string; age: number }>;
   truncated: boolean;
+  reach: OutreachReach;
+}
+
+/** GET /outreach/campaigns/:id/reach: the campaign's own channels, and what the organization's limits would do to it now. */
+export interface OutreachCampaignReach extends OutreachReach {
+  frequencyCap: { maxCampaigns: number; windowDays: number; heldBack: number } | null;
+  quietHours: { start: string; end: string; channels: OutreachChannel[]; holdingNow: boolean; until: string | null } | null;
+  includeBookingLink: boolean;
+}
+
+/** GET /outreach/settings: how often and when outreach goes out (both off until set). */
+export interface OutreachSettings {
+  frequencyCap: { maxCampaigns: number; windowDays: number } | null;
+  quietHours: { enabled: boolean; start: string | null; end: string | null; channels: Array<"sms" | "email" | "push"> };
+  version: number;
+  updatedAt: string | null;
 }
 
 export type OutreachCampaignStatus = "draft" | "submitted" | "approved" | "sending" | "completed" | "cancelled";
 
 export interface OutreachCampaignSummary {
   patients: number;
+  /** Messages queued to go out when quiet hours end. */
+  heldForQuietHours: number;
   byChannel: Array<{ channel: OutreachChannel; queued: number; delivered: number; suppressed: number; failed: number }>;
   suppressedByReason: Array<{ reason: string; total: number }>;
 }
@@ -3406,6 +3435,8 @@ export interface OutreachCampaign {
   channels: OutreachChannel[];
   subject: string | null;
   body: string;
+  /** Ends with a link to book a visit in MyHealth. */
+  includeBookingLink: boolean;
   status: OutreachCampaignStatus;
   sendAt: string | null;
   createdBy: string;

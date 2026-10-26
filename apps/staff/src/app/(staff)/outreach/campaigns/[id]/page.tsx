@@ -9,6 +9,7 @@ import { can, getSession } from "@/lib/api/session";
 import type { OutreachCampaign, OutreachSegment } from "@/lib/api/types";
 import { CAMPAIGN_STATUS, CHANNEL_LABEL, SUPPRESSION_LABEL } from "@/lib/outreach-mapping";
 import { CampaignActions } from "./campaign-actions";
+import { CampaignReachCard } from "./reach-card";
 
 export const metadata = { title: "Campaign" };
 
@@ -53,6 +54,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
             <p className="whitespace-pre-wrap">{campaign.body}</p>
             <p className="text-meta text-muted-foreground">
               {campaign.sendAt ? `Send at ${clinicalDateTime(campaign.sendAt)}.` : "Sent as soon as approved."} Emails carry an opt-out link.
+              {campaign.includeBookingLink ? " Each message ends with a link to book a visit in MyHealth." : ""}
             </p>
           </CardContent>
         </Card>
@@ -80,6 +82,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
             />
           </CardContent>
         </Card>
+        {["draft", "submitted", "approved"].includes(campaign.status) && can(session, "crm.read") ? <CampaignReachCard campaignId={campaign.id} /> : null}
         {campaign.summary ? (
           <Card className="lg:col-span-2">
             <CardHeader>
@@ -112,6 +115,12 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                   ))}
                 </TableBody>
               </Table>
+              {campaign.summary.heldForQuietHours > 0 ? (
+                <p className="text-meta text-muted-foreground">
+                  {campaign.summary.heldForQuietHours} message{campaign.summary.heldForQuietHours === 1 ? " was" : "s were"} held until quiet hours ended; they
+                  are counted as queued.
+                </p>
+              ) : null}
               {campaign.summary.suppressedByReason.length > 0 ? (
                 <p className="text-meta text-muted-foreground">
                   Not sent: {campaign.summary.suppressedByReason.map((r) => `${SUPPRESSION_LABEL[r.reason] ?? r.reason} (${r.total})`).join(", ")}

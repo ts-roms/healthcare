@@ -48,12 +48,22 @@ export interface WordingProblem {
 }
 
 /** Why a campaign's wording cannot go out on its channels, if anything. */
-export function wordingProblems(input: { channels: ReadonlyArray<keyof typeof BODY_LIMITS>; subject: string | null; body: string }): WordingProblem[] {
+export function wordingProblems(input: {
+  channels: ReadonlyArray<keyof typeof BODY_LIMITS>;
+  subject: string | null;
+  body: string;
+  /** Characters added after the body (the booking link), which count against every channel's length. */
+  reservedChars?: number;
+}): WordingProblem[] {
   const problems: WordingProblem[] = [];
   const body = input.body.trim();
+  const length = body.length + (input.reservedChars ?? 0);
   for (const channel of input.channels) {
-    if (body.length > BODY_LIMITS[channel])
-      problems.push({ channel, message: `The message is longer than ${BODY_LIMITS[channel]} characters allowed for ${channel}` });
+    if (length > BODY_LIMITS[channel])
+      problems.push({
+        channel,
+        message: `The message is longer than ${BODY_LIMITS[channel]} characters allowed for ${channel}${input.reservedChars ? " (with the booking link)" : ""}`,
+      });
   }
   if ((input.channels.includes("email") || input.channels.includes("in_app")) && !input.subject?.trim()) {
     problems.push({ channel: "subject", message: "Email and MyHealth messages need a subject" });
@@ -87,3 +97,100 @@ export function isDueToSend(campaign: { status: string; sendAt: Date | null }, n
 
 /** The opt-out link is valid for this long after the campaign went out. */
 export const OPT_OUT_TOKEN_DAYS = 30;
+
+// ---- the booking link ------------------------------------------------------------------------------------------------
+
+/** MyHealth's booking page. The address carries nothing about the patient: signing in is what identifies them. */
+export const BOOKING_LINK_PATH = "/appointments/book";
+export const BOOKING_LINK_LABEL = "Book a visit: ";
+
+/** The booking link's address for MyHealth at `portalBase`. */
+export function bookingLinkUrl(portalBase: string): string {
+  return `${portalBase.replace(/\/$/, "")}${BOOKING_LINK_PATH}`;
+}
+
+/** What follows the body in a message that carries the booking link (the notification template renders the same text). */
+export function bookingLinkText(portalBase: string): string {
+  return `\n\n${BOOKING_LINK_LABEL}${bookingLinkUrl(portalBase)}`;
+}
+
+// ---- how often and when ----------------------------------------------------------------------------------------------
+
+export interface FrequencyCap {
+  maxCampaigns: number;
+  windowDays: number;
+}
+
+/** Whether a patient already reached by `recent` campaigns in the window is held back from another one. */
+export function capReached(recent: number, cap: FrequencyCap | null): boolean {
+  return cap !== null && recent >= cap.maxCampaigns;
+}
+
+export interface QuietHours {
+  /** "HH:MM" in Asia/Manila time; a start later than the end crosses midnight ("22:00" to "07:00"). */
+  start: string;
+  end: string;
+}
+
+const DAY_MS = 86_400_000;
+/** The Philippines has no daylight saving: local time is UTC+8 all year. */
+const PH_OFFSET_MS = 8 * 3_600_000;
+
+const clockMs = (hhmm: string): number => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return ((h ?? 0) * 60 + (m ?? 0)) * 60_000;
+};
+
+/** When a message held for quiet hours may go out (the end of the period), or null when `at` is not in quiet hours. */
+export function quietHoldUntil(at: Date, quiet: QuietHours): Date | null {
+  const start = clockMs(quiet.start);
+  const end = clockMs(quiet.end);
+  const local = (((at.getTime() + PH_OFFSET_MS) % DAY_MS) + DAY_MS) % DAY_MS;
+  const inside = start < end ? local >= start && local < end : local >= start || local < end;
+  if (!inside) return null;
+  return new Date(at.getTime() + ((end - local + DAY_MS) % DAY_MS));
+}
+
+// ---- who a campaign can actually reach -------------------------------------------------------------------------------
+
+export type ReachChannel = "sms" | "email" | "push" | "in_app";
+
+/** What the notification service's consent and contact checks say about one patient on one channel. */
+export type ChannelReach = { allowed: true } | { allowed: false; reason: string };
+
+export interface ReachSummary {
+  /** Patients whose reach was checked (a very large segment is checked in part). */
+  evaluated: number;
+  /** True when the segment has more members than were checked: the figures describe the first `evaluated`. */
+  sampled: boolean;
+  /** For each channel: patients who can be messaged, and why the others cannot (most common first). */
+  byChannel: Array<{ channel: ReachChannel; reachable: number; notReached: Array<{ reason: string; total: number }> }>;
+  /** Patients who can be messaged on at least one of the channels. */
+  reachableOnAny: number;
+  /** Patients who can be messaged on none of them. */
+  unreachable: number;
+}
+
+/** Tallies per-patient results into what a person reads: reachable counts and the reasons for the rest. */
+export function summarizeReach(
+  channels: readonly ReachChannel[],
+  results: ReadonlyArray<Partial<Record<ReachChannel, ChannelReach>>>,
+  totalMatched: number,
+): ReachSummary {
+  const byChannel = channels.map((channel) => {
+    let reachable = 0;
+    const reasons = new Map<string, number>();
+    for (const result of results) {
+      const outcome = result[channel];
+      if (outcome?.allowed) reachable += 1;
+      else reasons.set(outcome?.reason ?? "unknown", (reasons.get(outcome?.reason ?? "unknown") ?? 0) + 1);
+    }
+    return {
+      channel,
+      reachable,
+      notReached: [...reasons.entries()].map(([reason, total]) => ({ reason, total })).sort((a, b) => b.total - a.total || a.reason.localeCompare(b.reason)),
+    };
+  });
+  const reachableOnAny = results.filter((result) => channels.some((channel) => result[channel]?.allowed)).length;
+  return { evaluated: results.length, sampled: totalMatched > results.length, byChannel, reachableOnAny, unreachable: results.length - reachableOnAny };
+}

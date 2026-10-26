@@ -23,6 +23,10 @@ export const SUPPRESSION_LABEL: Record<string, string> = {
   no_portal_account: "No MyHealth account",
   no_push_subscription: "No device for push",
   opted_out: "Opted out",
+  no_mobile_number: "No mobile number",
+  no_email_address: "No email address",
+  no_push_device: "No device for push",
+  frequency_cap: "Already reached by other campaigns recently",
 };
 
 /** "Age 50–64 · Female · Makati City · No visit for 12 months". */

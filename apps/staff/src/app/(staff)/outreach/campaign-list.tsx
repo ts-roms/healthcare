@@ -75,6 +75,7 @@ export function CampaignForm({ campaign, segments, onDone }: { campaign: Outreac
   const [subject, setSubject] = React.useState(campaign?.subject ?? "");
   const [body, setBody] = React.useState(campaign?.body ?? "");
   const [sendAt, setSendAt] = React.useState(campaign?.sendAt ? campaign.sendAt.slice(0, 16) : "");
+  const [includeBookingLink, setIncludeBookingLink] = React.useState(campaign?.includeBookingLink ?? false);
   const limit = Math.min(...channels.map((ch) => BODY_LIMIT[ch]), 2000);
   const needsSubject = channels.includes("email") || channels.includes("in_app");
   const valid =
@@ -93,14 +94,18 @@ export function CampaignForm({ campaign, segments, onDone }: { campaign: Outreac
         e.preventDefault();
         startTransition(async () => {
           const result = await saveCampaign(
-            { segmentId, name, channels, subject, body, sendAt },
+            { segmentId, name, channels, subject, body, sendAt, includeBookingLink },
             campaign ? { id: campaign.id, version: campaign.version } : null,
           );
           if (result.ok) {
             toast.success(campaign ? "Campaign changed" : "Campaign drafted");
             onDone();
             router.refresh();
-          } else toast.error(result.message);
+          } else {
+            // The API names which channel the wording does not fit; show that rather than the general refusal.
+            const detail = Array.isArray(result.details) ? (result.details[0] as { message?: string } | undefined)?.message : undefined;
+            toast.error(detail ?? result.message);
+          }
         });
       }}
     >
@@ -148,6 +153,16 @@ export function CampaignForm({ campaign, segments, onDone }: { campaign: Outreac
           get an opt-out link added automatically.
         </p>
       </div>
+      <label className="flex items-start gap-2 text-table">
+        <Checkbox checked={includeBookingLink} onCheckedChange={(v) => setIncludeBookingLink(v === true)} className="mt-0.5" />
+        <span>
+          End the message with a link to book a visit in MyHealth
+          <span className="block text-meta text-muted-foreground">
+            The link is added after your wording (about 65 characters, counted against each channel&apos;s limit) and holds nothing about the patient: they sign
+            in to book.
+          </span>
+        </span>
+      </label>
       <div className="grid max-w-72 gap-1">
         <Label htmlFor="cp-send">Send at (optional; otherwise as soon as approved)</Label>
         <Input id="cp-send" type="datetime-local" value={sendAt} onChange={(e) => setSendAt(e.target.value)} />

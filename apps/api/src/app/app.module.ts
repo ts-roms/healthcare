@@ -29,7 +29,7 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
-import { AppCrmPreferenceWriter, AppCrmSegmentSource } from "./adapters/crm-adapters";
+import { AppCrmPreferenceWriter, AppCrmReachSource, AppCrmSegmentSource } from "./adapters/crm-adapters";
 import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
@@ -168,7 +168,12 @@ export class AppModule implements NestModule {
     });
     const carePlans = CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory });
     // Outreach: who matches a segment is read here (patient, clinic, care plans); opt-outs go to the patient domain.
-    const crm = CrmModule.forRoot({ imports: [PatientModule], segmentSource: AppCrmSegmentSource, preferenceWriter: AppCrmPreferenceWriter });
+    const crm = CrmModule.forRoot({
+      imports: [PatientModule],
+      segmentSource: AppCrmSegmentSource,
+      preferenceWriter: AppCrmPreferenceWriter,
+      reachSource: AppCrmReachSource,
+    });
     const rateLimitStorage = overrides.rateLimitStorage ?? { redisUrl: config.REDIS_URL };
     const rateLimits = new RedisThrottlerStorage(rateLimitStorage.redisUrl, rateLimitStorage.keyPrefix);
     return {

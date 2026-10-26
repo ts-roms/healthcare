@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { OutreachCampaign, OutreachSegment } from "@/lib/api/types";
+import type { OutreachCampaign, OutreachCampaignReach, OutreachSegment, OutreachSettings } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates the criteria, the wording and every transition.
 
@@ -67,6 +67,7 @@ const campaignSchema = z.object({
   subject: z.string().trim().max(120).optional(),
   body: z.string().trim().min(10, "Write the message (at least 10 characters).").max(2000),
   sendAt: optionalText,
+  includeBookingLink: z.boolean().optional(),
 });
 
 export async function saveCampaign(
@@ -115,6 +116,44 @@ export async function cancelCampaign(campaignId: string, campaignVersion: number
   if (result.ok) {
     revalidatePath("/outreach");
     revalidatePath(`/outreach/campaigns/${campaignId}`);
+  }
+  return result;
+}
+
+/** Who the campaign can reach on its channels, and what the organization's limits would do to it now (counts only; audited). */
+export async function loadCampaignReach(campaignId: string): Promise<ActionResult<OutreachCampaignReach>> {
+  if (!id.safeParse(campaignId).success) return { ok: false, message: "Unknown campaign." };
+  return actionResult(() => api<OutreachCampaignReach>(`/outreach/campaigns/${campaignId}/reach`));
+}
+
+const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 22:00.");
+const settingsSchema = z.object({
+  frequencyCap: z
+    .object({
+      maxCampaigns: z.number().int().min(1, "At least 1.").max(20, "At most 20."),
+      windowDays: z.number().int().min(1, "At least 1 day.").max(365, "At most 365 days."),
+    })
+    .nullable(),
+  quietHours: z.object({
+    enabled: z.boolean(),
+    start: hhmm.nullable(),
+    end: hhmm.nullable(),
+    channels: z.array(z.enum(["sms", "email", "push"])),
+  }),
+  version: z.number().int().min(0),
+});
+/** Saves how often and when outreach goes out (the people who approve campaigns; audited). */
+export async function saveOutreachSettings(input: z.input<typeof settingsSchema>): Promise<ActionResult<OutreachSettings>> {
+  const parsed = settingsSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the limits." };
+  const quiet = parsed.data.quietHours;
+  if (quiet.enabled && (!quiet.start || !quiet.end)) return { ok: false, message: "Give the quiet hours a start and an end." };
+  if (quiet.enabled && quiet.start === quiet.end) return { ok: false, message: "The quiet hours cannot start and end at the same time." };
+  if (quiet.enabled && quiet.channels.length === 0) return { ok: false, message: "Choose which channels wait for quiet hours to end." };
+  const result = await actionResult(() => api<OutreachSettings>("/outreach/settings", { method: "PUT", body: parsed.data }));
+  if (result.ok) {
+    revalidatePath("/outreach");
+    revalidatePath("/outreach/settings");
   }
   return result;
 }

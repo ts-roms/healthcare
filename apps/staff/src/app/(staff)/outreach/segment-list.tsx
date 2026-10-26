@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, 
 import type { OutreachSegment, OutreachSegmentCriteria, OutreachSegmentPreview } from "@/lib/api/types";
 import { CHANNEL_LABEL, describeCriteria } from "@/lib/outreach-mapping";
 import { archiveSegment, saveSegment } from "./actions";
+import { ReachPanel } from "./reach-panel";
 
 export function SegmentList({ segments, canManage }: { segments: OutreachSegment[]; canManage: boolean }) {
   const router = useRouter();
@@ -61,6 +62,9 @@ export function SegmentList({ segments, canManage }: { segments: OutreachSegment
                       {preview.data.total} patient{preview.data.total === 1 ? "" : "s"} match today
                       {preview.data.truncated ? ` (first ${preview.data.members.length} shown)` : ""}.
                     </p>
+                    <div className="mt-2">
+                      <ReachPanel reach={preview.data.reach} total={preview.data.total} />
+                    </div>
                     {preview.data.members.length > 0 ? (
                       <ul className="mt-1 max-h-48 overflow-y-auto text-meta text-muted-foreground">
                         {preview.data.members.map((m) => (

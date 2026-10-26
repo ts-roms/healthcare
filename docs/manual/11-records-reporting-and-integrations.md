@@ -484,6 +484,18 @@ Records officers can read segments and campaigns.
 5. The campaign is sent at its time, or within a minute. Open it to see the **Result**: how many patients were in the segment, and per channel
    how many messages were queued, delivered, not sent or failed, with the reasons (for example "No outreach opt-in on this channel").
 
+**Before you send — who it can reach.** The segment's **Preview** also shows, for each channel, how many of those patients can actually be messaged
+and why the others cannot (no opt-in, opted out, no mobile number or email address, no MyHealth account). On a draft, **Check reach** on the campaign
+page shows the same for the campaign's own channels, and how many patients the frequency cap would hold back. Nothing is sent and only counts are shown.
+
+**Booking link.** Tick **End the message with a link to book a visit in MyHealth** and each message ends with "Book a visit:" and the address of MyHealth's
+booking page. The address has nothing about the patient in it; they sign in to book. It uses up about 65 characters of a text message's limit.
+
+**Limits.** **Outreach → Change limits** (`/outreach/settings`; the people who approve campaigns can change them) holds two settings, both off until you set
+them: a **frequency cap** (for example at most 1 campaign per patient in 14 days: a patient already at it is skipped, and the result says "Already reached
+by other campaigns recently") and **quiet hours** (for example 21:00–08:00, Manila time: text messages and push notices that would go out then are queued
+and sent when the quiet hours end; the result shows how many were held). The cap does not affect reminders about care, appointments or bills.
+
 **Things to know:**
 
 - A message goes out only on a channel the patient has **opted in to for outreach** (MyHealth → Notification settings, or recorded at the
