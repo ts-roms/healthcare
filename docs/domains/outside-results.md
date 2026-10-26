@@ -51,9 +51,14 @@ Roles: `org_admin`, `physician`, `nurse`, `receptionist` and `records_officer` r
 - `/patients/[id]/outside-results`: file a report (file, source, kind, day, tests, how it reached the clinic, notes) and the list with **Open report** and **Entered in error…**.
 - The patient record's **Labs** tab shows the latest five under "Results from other laboratories and hospitals".
 
+## Patient timeline and Patient 360
+
+- **Timeline:** kind `outside_result` (permission `outside-result.read`, source `outside_result`), dated when the report was filed. The row carries the tests, the source and the day it was done ("Outside result: CBC, HbA1c", "From St. Luke's… · Done …"), never the notes; entries in error stay listed, marked. The uploaded file is not also listed as a `document` entry (the documents timeline leaves out the `outside_result` category). Staff chip "Outside results"; the row opens `/patients/[id]/outside-results`.
+- **Patient 360:** panel `outside_results` in `GET /patients/:id/workspace` (the latest 5 not in error: source, kind, tests, day, how it arrived, facility; no notes), withheld without `outside-result.read`. The panel says the reports are not results of this laboratory.
+
 ## Limits and follow-ups
 
-- Not yet in the patient timeline, Patient 360, FHIR export, MyHealth or the copy of the record. Add each as its own change; none should present the filing as a laboratory result.
+- Not yet in the FHIR export, MyHealth or the copy of the record. Add each as its own change; none should present the filing as a laboratory result.
 - Staff acknowledgement that a clinician reviewed the report is not recorded.
 - Structured values for outside results (so a value could be seen beside trends) would need a labelled, separate store that is never merged into this laboratory's trends, as with imported FHIR history.
 - Patients cannot yet send a result for the clinic to file from MyHealth; the reuse of the records office review queue is the likely design.

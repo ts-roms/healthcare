@@ -13,6 +13,7 @@ import {
   EyeOffIcon,
   FileBadgeIcon,
   FileInputIcon,
+  FileUpIcon,
   FileMinusIcon,
   FileTextIcon,
   FlaskConicalIcon,
@@ -75,6 +76,7 @@ const KIND_ICONS: Record<PatientTimelineKind, LucideIcon> = {
   external_history: FileInputIcon,
   document: FileTextIcon,
   immunization: ShieldPlusIcon,
+  outside_result: FileUpIcon,
   records_request: FolderOpenIcon,
 };
 

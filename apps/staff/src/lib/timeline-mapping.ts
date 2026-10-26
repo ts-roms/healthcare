@@ -18,6 +18,7 @@ export const TIMELINE_GROUPS = [
   { key: "imported", label: "Imported history", kinds: ["external_history"] },
   { key: "documents", label: "Documents and requests", kinds: ["document", "records_request"] },
   { key: "immunizations", label: "Immunizations", kinds: ["immunization"] },
+  { key: "outside-results", label: "Outside results", kinds: ["outside_result"] },
 ] as const satisfies ReadonlyArray<{ key: string; label: string; kinds: readonly PatientTimelineKind[] }>;
 
 export type TimelineGroupKey = (typeof TIMELINE_GROUPS)[number]["key"];
@@ -53,6 +54,7 @@ export const KIND_LABELS: Record<PatientTimelineKind, string> = {
   external_history: "Imported history",
   document: "Document",
   immunization: "Immunization",
+  outside_result: "Outside result",
   records_request: "Records request",
 };
 
@@ -131,6 +133,8 @@ export function entryHref(entry: PatientTimelineEntry, patientId: string, timeZo
       return `/patients/${patientId}?tab=clinical#external-history`;
     case "patient_immunizations":
       return `/patients/${patientId}/immunizations`;
+    case "patient_outside_results":
+      return `/patients/${patientId}/outside-results`;
     case "patient_record":
       return `/patients/${patientId}`;
     case "dental_record":
@@ -199,6 +203,8 @@ const STATUS: Record<string, { label: string; variant: Variant; tone: StatusTone
   // Immunizations
   "immunization:completed": { label: "Given", variant: "success", tone: "done" },
   "immunization:not_done": { label: "Not given", variant: "warning", tone: "stopped" },
+  // Reports from other laboratories and hospitals
+  "outside_result:filed": { label: "Filed", variant: "info", tone: "done" },
   // Queue visits
   "queue_visit:waiting": { label: "Waiting", variant: "info", tone: "waiting" },
   "queue_visit:in_triage": { label: "In triage", variant: "info", tone: "active" },

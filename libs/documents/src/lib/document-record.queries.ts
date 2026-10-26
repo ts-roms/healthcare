@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, timelineFacility, timelineInstant, timelineRange, type TimelineWindow, filedAsPatient } from "@healthcare/core";
-import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, ne } from "drizzle-orm";
 import { document, type DocumentCategory, type DocumentSource } from "./document.schema";
 
 export interface PatientDocumentRecord {
@@ -107,6 +107,7 @@ export class DocumentRecordQueries {
           filedAsPatient(document.patientId, patientId),
           eq(document.status, "available"),
           eq(document.source, "upload"),
+          ne(document.category, "outside_result"),
           isNull(document.managedBy),
           isNotNull(at),
           timelineFacility(document.facilityId, window),

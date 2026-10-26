@@ -3308,6 +3308,7 @@ export type PatientTimelineKind =
   | "external_history"
   | "document"
   | "immunization"
+  | "outside_result"
   | "records_request";
 
 export type PatientTimelineLinkType =
@@ -3321,6 +3322,7 @@ export type PatientTimelineLinkType =
   | "invoice"
   | "patient_external_history"
   | "patient_immunizations"
+  | "patient_outside_results"
   | "patient_record"
   | "billing_account"
   | "doh_case_report"
@@ -3830,7 +3832,8 @@ export type PatientWorkspacePanel =
   | "referrals"
   | "procedures"
   | "immunizations"
-  | "history";
+  | "history"
+  | "outside_results";
 
 export interface WorkspaceFacilityRef {
   id: string;
@@ -3941,6 +3944,8 @@ export interface PatientWorkspace {
   /** The latest immunizations (entries in error left out); absent from an older API. */
   immunizations?: WorkspaceImmunization[] | null;
   procedures?: WorkspaceProcedure[] | null;
+  /** The latest reports from other laboratories and hospitals filed on the record (needs outside-result.read); absent from an older API. */
+  outsideResults?: WorkspaceOutsideResult[] | null;
   /** The patient history summary (needs history.read); absent from an older API. */
   history?: WorkspaceHistory | null;
   /** Records merged into this patient, read with it. */
@@ -4722,6 +4727,19 @@ export interface VaccineStockLot {
   lotNumber: string | null;
   expiryDate: string | null;
   quantity: number;
+}
+
+export interface WorkspaceOutsideResult {
+  id: string;
+  filedUnder?: string | null;
+  facility: WorkspaceFacilityRef | null;
+  sourceName: string;
+  sourceKind: "laboratory" | "hospital" | "clinic" | "other";
+  /** YYYY-MM-DD, as stated on the report. */
+  performedOn: string;
+  tests: string;
+  receivedFrom: "patient" | "provider" | "other";
+  recordedAt: string;
 }
 
 export interface WorkspaceImmunization {

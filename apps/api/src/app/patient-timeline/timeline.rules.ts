@@ -36,6 +36,7 @@ export const TIMELINE_KINDS = {
   external_history: { permission: "clinical.read", sources: ["external_history"] },
   document: { permission: "document.read", sources: ["document"] },
   immunization: { permission: "immunization.read", sources: ["immunization"] },
+  outside_result: { permission: "outside-result.read", sources: ["outside_result"] },
   records_request: { permission: "patient.records-request.manage", sources: ["records_request"] },
 } as const satisfies Record<string, { permission: string; sources: readonly string[] }>;
 

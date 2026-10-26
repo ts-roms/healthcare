@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { BillingRecordQueries, formatPeso } from "@healthcare/billing";
 import { CarePlanService } from "@healthcare/care-plan";
-import { ClinicProcedureService, ClinicQueries, doseText, ImmunizationService, occurrenceText, procedureText } from "@healthcare/clinic";
+import { ClinicProcedureService, ClinicQueries, doseText, ImmunizationService, OutsideResultService, occurrenceText, procedureText } from "@healthcare/clinic";
 import { type Actor, BadRequestError, localDayBounds, NotFoundError, PH_TIMEZONE, type TimelinePosition, type TimelineWindow } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -37,6 +37,7 @@ export type TimelineLinkType =
   | "invoice"
   | "patient_external_history"
   | "patient_immunizations"
+  | "patient_outside_results"
   | "patient_record"
   | "billing_account"
   | "doh_case_report"
@@ -120,6 +121,7 @@ export class PatientTimelineService {
     private readonly documents: DocumentRecordQueries,
     private readonly immunizations: ImmunizationService,
     private readonly procedures: ClinicProcedureService,
+    private readonly outsideResults: OutsideResultService,
     private readonly patientRecords: PatientTimelineQueries,
     private readonly philhealth: PhilHealthRecordQueries,
     private readonly doh: DohRecordQueries,
@@ -432,6 +434,16 @@ export class PatientTimelineService {
             status: i.enteredInErrorAt ? "entered_in_error" : i.status,
             link: { type: "patient_immunizations", id: patientId },
             sourceIds: { immunizationId: i.id, ...(i.encounterId ? { encounterId: i.encounterId } : {}) },
+          }),
+        );
+      case "outside_result":
+        return (await this.outsideResults.timeline(organizationId, patientId, window)).map((o) =>
+          row("outside_result", o, {
+            title: `Outside result: ${o.tests}`,
+            detail: [`From ${o.sourceName}`, `Done ${occurrenceText({ date: o.performedOn, precision: "day", at: null })}`].join(" · "),
+            status: o.enteredInErrorAt ? "entered_in_error" : "filed",
+            link: { type: "patient_outside_results", id: patientId },
+            sourceIds: { outsideResultId: o.id, documentId: o.documentId },
           }),
         );
       case "queue_visit":

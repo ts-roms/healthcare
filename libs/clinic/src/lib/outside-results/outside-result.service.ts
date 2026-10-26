@@ -9,6 +9,10 @@ import {
   DomainEventPublisher,
   filedAsPatient,
   isFiledAs,
+  timelineFacility,
+  timelineInstant,
+  timelineRange,
+  type TimelineWindow,
   localDate,
   NotFoundError,
   PgErrorCode,
@@ -16,7 +20,7 @@ import {
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { OrganizationService } from "@healthcare/organization";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { found } from "../clinic-support";
 import { HISTORY_STAFF_NAMES, type HistoryStaffNames } from "../history/ports";
@@ -133,6 +137,58 @@ export class OutsideResultService {
       metadata: { count: rows.length },
     });
     return this.views(actor.organizationId, rows);
+  }
+
+  /** The latest filings for Patient 360 (not in error): source, tests and day only, no notes. Not audited here: the caller audits. */
+  async workspace(organizationId: string, patientId: string, limit: number) {
+    const rows = await this.db
+      .select()
+      .from(outsideResult)
+      .where(and(eq(outsideResult.organizationId, organizationId), filedAsPatient(outsideResult.patientId, patientId), isNull(outsideResult.enteredInErrorAt)))
+      .orderBy(desc(outsideResult.performedOn), desc(outsideResult.recordedAt))
+      .limit(limit);
+    return rows.map((r) => ({
+      id: r.id,
+      patientId: r.patientId,
+      facilityId: r.facilityId,
+      sourceName: r.sourceName,
+      sourceKind: r.sourceKind,
+      performedOn: r.performedOn,
+      tests: r.tests,
+      receivedFrom: r.receivedFrom,
+      recordedAt: r.recordedAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Timeline rows: when it was filed. Tests, source and day only (the notes stay on the record); a facility filter matches
+   * the facility it was filed at. Not audited here: the caller audits.
+   */
+  timeline(organizationId: string, patientId: string, window: TimelineWindow) {
+    const at = outsideResult.recordedAt;
+    return this.db
+      .select({
+        id: outsideResult.id,
+        patientId: outsideResult.patientId,
+        facilityId: outsideResult.facilityId,
+        at: timelineInstant(at),
+        documentId: outsideResult.documentId,
+        sourceName: outsideResult.sourceName,
+        performedOn: outsideResult.performedOn,
+        tests: outsideResult.tests,
+        enteredInErrorAt: outsideResult.enteredInErrorAt,
+      })
+      .from(outsideResult)
+      .where(
+        and(
+          eq(outsideResult.organizationId, organizationId),
+          filedAsPatient(outsideResult.patientId, patientId),
+          timelineRange("outside_result", at, outsideResult.id, window),
+          timelineFacility(outsideResult.facilityId, window),
+        ),
+      )
+      .orderBy(desc(at), desc(outsideResult.id))
+      .limit(window.limit);
   }
 
   /** A short-lived link to the report (the documents service audits it). */

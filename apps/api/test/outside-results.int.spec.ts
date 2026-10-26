@@ -184,4 +184,41 @@ describe("outside results", () => {
     expect(list.find((r) => r.id === ids.result)?.enteredInError?.reason).toBe("Filed on the wrong patient");
     await staff(nurse).post(`/patients/${patientId}/outside-results`, filing(ids.document)).expect(201);
   });
+
+  it("shows in the timeline and Patient 360 as outside results, without notes and never as a document or laboratory result", async () => {
+    const timeline = (await staff(nurse).get(`/patients/${patientId}/timeline?kinds=outside_result`).expect(200)).body;
+    const entries = timeline.items as Array<{
+      kind: string;
+      title: string;
+      detail: string;
+      marker: string | null;
+      link: { type: string };
+      sourceIds: Record<string, string>;
+    }>;
+    expect(entries.every((e) => e.kind === "outside_result")).toBe(true);
+    expect(entries.map((e) => e.title)).toEqual(["Outside result: CBC, HbA1c", "Outside result: CBC, HbA1c"]);
+    expect(entries[0]?.detail).toContain("From St. Luke's Medical Center Laboratory");
+    expect(entries.filter((e) => e.marker === "entered_in_error")).toHaveLength(1);
+    expect(entries[0]?.link.type).toBe("patient_outside_results");
+    expect(JSON.stringify(timeline)).not.toMatch(/daughter/);
+    // The filed reports are not also listed as plain documents.
+    const documents = (await staff(nurse).get(`/patients/${patientId}/timeline?kinds=document`).expect(200)).body.items as Array<{
+      sourceIds: Record<string, string>;
+    }>;
+    expect(documents.map((d) => d.sourceIds.documentId)).not.toContain(ids.document);
+    expect((await staff(cashier).get(`/patients/${patientId}/timeline`).expect(200)).body.withheld).toContain("outside_result");
+
+    const workspace = (await staff(nurse).get(`/patients/${patientId}/workspace`).expect(200)).body;
+    expect(workspace.outsideResults).toHaveLength(1);
+    expect(workspace.outsideResults[0]).toMatchObject({
+      sourceName: "St. Luke's Medical Center Laboratory",
+      sourceKind: "laboratory",
+      tests: "CBC, HbA1c",
+      filedUnder: null,
+    });
+    expect(JSON.stringify(workspace.outsideResults)).not.toMatch(/daughter/);
+    const forCashier = (await staff(cashier).get(`/patients/${patientId}/workspace`).expect(200)).body;
+    expect(forCashier.outsideResults).toBeNull();
+    expect(forCashier.withheld).toContain("outside_results");
+  });
 });
