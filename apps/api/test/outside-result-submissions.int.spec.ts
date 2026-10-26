@@ -145,7 +145,13 @@ describe("outside results sent by patients", () => {
     expect(waiting).toHaveLength(1);
     expect(waiting[0]).toMatchObject({ id: ids.sub1, tests: "Lipid profile", patient: { id: patientId } });
     expect((await staff(officer).get(`/outside-result-submissions/${ids.sub1}/link`).expect(200)).body.url).toEqual(expect.any(String));
-    expect((await auditRows(ctx.pool, "action = 'document.download' AND resource_id = $1", [ids.doc1])).length).toBe(1);
+    // A preview shows a PDF or a photo in the page (still an audited access); the plain link stays a download.
+    const download = (await staff(officer).get(`/outside-result-submissions/${ids.sub1}/link`).expect(200)).body;
+    expect(download).toMatchObject({ contentType: "application/pdf", inline: false });
+    const preview = (await staff(officer).get(`/outside-result-submissions/${ids.sub1}/link?inline=true`).expect(200)).body;
+    expect(preview).toMatchObject({ url: expect.any(String), contentType: "application/pdf", inline: true });
+    expect((await auditRows(ctx.pool, "action = 'document.download' AND resource_id = $1 AND metadata->>'inline' = 'true'", [ids.doc1])).length).toBe(1);
+    expect((await auditRows(ctx.pool, "action = 'document.download' AND resource_id = $1", [ids.doc1])).length).toBe(3);
     expect((await auditRows(ctx.pool, "action = 'outside-result.submission-view' AND patient_id = $1", [patientId])).length).toBeGreaterThan(0);
     expect((await staff(admin).get("/me/badges").expect(200)).body.outsideResultSubmissions).toBe(1);
     expect((await staff(nurse).get("/me/badges").expect(200)).body.outsideResultSubmissions).toBeNull();
@@ -216,6 +222,11 @@ describe("outside results sent by patients", () => {
   it("lets the records office decline with a reason the patient reads, and the patient withdraw while it waits", async () => {
     ids.doc2 = await upload("image/jpeg", 4096);
     ids.sub2 = (await send(ids.doc2, { tests: "Chest X-ray result" }).expect(201)).body.id;
+    // A photo previews in the page too.
+    expect((await staff(officer).get(`/outside-result-submissions/${ids.sub2}/link?inline=true`).expect(200)).body).toMatchObject({
+      contentType: "image/jpeg",
+      inline: true,
+    });
     await staff(officer).post(`/outside-result-submissions/${ids.sub2}/decline`, { reason: "no" }).expect(400);
     const declined = await staff(officer)
       .post(`/outside-result-submissions/${ids.sub2}/decline`, { reason: "The photo is too blurry to read. Please send a clearer one." })

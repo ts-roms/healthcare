@@ -18,9 +18,13 @@ function refresh(patientId: string) {
 }
 
 /** A short-lived link to the report the patient sent (the API audits each link). */
-export async function submissionReportLink(submissionId: string): Promise<ActionResult<{ url: string }>> {
+export async function submissionReportLink(submissionId: string, inline = false): Promise<ActionResult<{ url: string; contentType: string; inline: boolean }>> {
   if (!uuid.safeParse(submissionId).success) return { ok: false, message: "Unknown submission." };
-  return actionResult(() => api<{ url: string }>(`/outside-result-submissions/${submissionId}/link`));
+  return actionResult(() =>
+    api<{ url: string; contentType: string; inline: boolean }>(`/outside-result-submissions/${submissionId}/link`, {
+      query: inline ? { inline: "true" } : undefined,
+    }),
+  );
 }
 
 const fileSchema = z.object({ patientId: z.uuid(), submissionId: z.uuid() });

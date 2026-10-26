@@ -70,9 +70,13 @@ export async function markOutsideResultInError(input: z.input<typeof correctionS
 }
 
 /** A short-lived link to the filed report (the API audits each link). */
-export async function outsideResultLink(outsideResultId: string): Promise<ActionResult<{ url: string }>> {
+export async function outsideResultLink(outsideResultId: string, inline = false): Promise<ActionResult<{ url: string; contentType: string; inline: boolean }>> {
   if (!uuid.safeParse(outsideResultId).success) return { ok: false, message: "Unknown report." };
-  return actionResult(async () => ({ url: (await api<{ url: string }>(`/outside-results/${outsideResultId}/download-url`)).url }));
+  return actionResult(() =>
+    api<{ url: string; contentType: string; inline: boolean }>(`/outside-results/${outsideResultId}/download-url`, {
+      query: inline ? { inline: "true" } : undefined,
+    }),
+  );
 }
 
 const reviewSchema = z.object({

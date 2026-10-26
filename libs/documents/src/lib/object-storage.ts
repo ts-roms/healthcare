@@ -21,7 +21,8 @@ export interface StoredObjectInfo {
  */
 export interface ObjectStorage {
   presignUpload(key: string, contentType: string, sizeBytes: number, expiresInSeconds: number): Promise<PresignedUpload>;
-  presignDownload(key: string, fileName: string, contentType: string, expiresInSeconds: number): Promise<string>;
+  /** `inline` lets the browser show the file in a page instead of saving it (the caller allows it only for types a browser can display). */
+  presignDownload(key: string, fileName: string, contentType: string, expiresInSeconds: number, disposition?: "attachment" | "inline"): Promise<string>;
   head(key: string): Promise<StoredObjectInfo | undefined>;
   /**
    * Writes an object the server generated, only if no object exists at the key (never overwrites).
@@ -71,12 +72,18 @@ export class S3ObjectStorage implements ObjectStorage {
     };
   }
 
-  presignDownload(key: string, fileName: string, contentType: string, expiresInSeconds: number): Promise<string> {
+  presignDownload(
+    key: string,
+    fileName: string,
+    contentType: string,
+    expiresInSeconds: number,
+    disposition: "attachment" | "inline" = "attachment",
+  ): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
       ResponseContentType: contentType,
-      ResponseContentDisposition: contentDisposition(fileName),
+      ResponseContentDisposition: contentDisposition(fileName, disposition),
     });
     return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
   }
@@ -170,7 +177,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
 }
 
 /** RFC 6266 attachment disposition with a UTF-8 file name. */
-export function contentDisposition(fileName: string): string {
+export function contentDisposition(fileName: string, disposition: "attachment" | "inline" = "attachment"): string {
   const ascii = fileName.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  return `${disposition}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
 }

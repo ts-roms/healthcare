@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
 import { DeclineSubmissionDto, FileSubmissionDto } from "./outside-result-submission.dto";
@@ -20,9 +20,9 @@ export class OutsideResultSubmissionController {
 
   @Get(":submissionId/link")
   @RequirePermissions("outside-result.submission.manage")
-  @ApiOperation({ summary: "Short-lived signed link to the report the patient sent (audited)" })
-  link(@CurrentActor() actor: Actor, @Param("submissionId", ParseUUIDPipe) id: string) {
-    return this.submissions.link(actor, id);
+  @ApiOperation({ summary: "Short-lived signed link to the report the patient sent (audited); inline=true to show a PDF or photo in the page" })
+  link(@CurrentActor() actor: Actor, @Param("submissionId", ParseUUIDPipe) id: string, @Query("inline") inline?: string) {
+    return this.submissions.link(actor, id, inline === "true");
   }
 
   @Post(":submissionId/file")

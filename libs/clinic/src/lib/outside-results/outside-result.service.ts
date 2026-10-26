@@ -303,12 +303,12 @@ export class OutsideResultService {
   }
 
   /** A short-lived link to the report (the documents service audits it). */
-  async downloadUrl(actor: Actor, outsideResultId: string): Promise<{ url: string; expiresAt: string }> {
+  async downloadUrl(actor: Actor, outsideResultId: string, inline = false) {
     const [row] = await this.db
       .select()
       .from(outsideResult)
       .where(and(eq(outsideResult.organizationId, actor.organizationId), eq(outsideResult.id, outsideResultId)));
-    return this.documents.downloadUrl(actor, found(row, "Outside result").documentId);
+    return this.documents.downloadUrl(actor, found(row, "Outside result").documentId, {}, { inline });
   }
 
   /** Marks a filing entered in error with a reason (never deleted; the report stays in storage). */

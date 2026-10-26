@@ -90,7 +90,11 @@ export class OutsideResultSubmissionService {
     if ((await this.documents.patientUploadsToday(context)) >= MAX_SUBMISSION_UPLOADS_PER_DAY) {
       throw new BusinessRuleError("You have uploaded many files today. Try again tomorrow, or call the clinic.", "upload_rate_limited");
     }
-    return this.documents.createForPatient(context, { title: "Result from another laboratory or hospital (sent by the patient)", ...input, category: "outside_result" });
+    return this.documents.createForPatient(context, {
+      title: "Result from another laboratory or hospital (sent by the patient)",
+      ...input,
+      category: "outside_result",
+    });
   }
 
   completeUpload(context: PatientAuditContext, documentId: string) {
@@ -99,7 +103,8 @@ export class OutsideResultSubmissionService {
 
   /** Sends the uploaded report to the records office with the patient's own description. */
   async submit(context: PatientAuditContext, input: z.output<typeof submitOutsideResultSchema>): Promise<PatientSubmissionView> {
-    if (input.performedOn && input.performedOn > localDate(new Date(), PH_TIMEZONE)) throw new BusinessRuleError("The date given is in the future", "performed_on_in_future");
+    if (input.performedOn && input.performedOn > localDate(new Date(), PH_TIMEZONE))
+      throw new BusinessRuleError("The date given is in the future", "performed_on_in_future");
     if (!(await this.documents.isOwnPatientUpload(context, input.documentId))) {
       throw new BusinessRuleError("Upload the report first, then send it", "document_not_of_patient");
     }
@@ -255,12 +260,12 @@ export class OutsideResultSubmissionService {
   }
 
   /** A short-lived link to the patient's report for the records office (audited by the documents service). */
-  async link(actor: Actor, submissionId: string) {
+  async link(actor: Actor, submissionId: string, inline = false) {
     const [row] = await this.db
       .select()
       .from(outsideResultSubmission)
       .where(and(eq(outsideResultSubmission.organizationId, actor.organizationId), eq(outsideResultSubmission.id, submissionId)));
-    return this.documents.downloadUrl(actor, found(row, "Submission").documentId);
+    return this.documents.downloadUrl(actor, found(row, "Submission").documentId, {}, { inline });
   }
 
   /** Files the report on the patient's record as an outside result, with the records office's own reading of it. */
@@ -273,7 +278,11 @@ export class OutsideResultSubmissionService {
         const submission = await this.lock(tx, actor.organizationId, submissionId);
         if (submission.status !== "submitted") throw new BusinessRuleError("This submission has already been answered", "submission_answered");
         await this.outsideResults.assertReport(actor.organizationId, submission.patientId, submission.documentId);
-        const filing = await this.outsideResults.fileIn(tx, actor, submission.patientId, { ...input, documentId: submission.documentId, receivedFrom: "patient" });
+        const filing = await this.outsideResults.fileIn(tx, actor, submission.patientId, {
+          ...input,
+          documentId: submission.documentId,
+          receivedFrom: "patient",
+        });
         const [updated] = await tx
           .update(outsideResultSubmission)
           .set({ status: "filed", outsideResultId: filing.id, decidedBy: actor.userId, decidedAt: new Date() })

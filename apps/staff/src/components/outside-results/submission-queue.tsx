@@ -8,6 +8,7 @@ import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, DateInput, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import { declineSubmission, fileSubmission, submissionReportLink } from "@/app/(staff)/records/outside-results/actions";
 import type { OutsideResultSubmission } from "@/lib/api/types";
+import { ReportPreview } from "./report-preview";
 import { BLANK_OUTSIDE_RESULT, type OutsideResultForm, SOURCE_KIND_LABEL } from "@/lib/outside-result-form";
 
 /**
@@ -87,7 +88,8 @@ function SubmissionRow({ submission: s }: { submission: OutsideResultSubmission 
       </p>
       {s.notes ? <p className="text-meta">The patient wrote: {s.notes}</p> : null}
       {mode === "none" ? (
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
+          <ReportPreview load={() => submissionReportLink(s.id, true)} />
           <Button type="button" size="xs" variant="outline" disabled={pending} onClick={open}>
             <ExternalLinkIcon aria-hidden /> Open report
           </Button>

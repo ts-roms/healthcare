@@ -10,6 +10,7 @@ import { fileOutsideResult, markOutsideResultInError, outsideResultLink, reviewO
 import type { OutsideResult, UnreviewedOutsideResult } from "@/lib/api/types";
 import { BLANK_OUTSIDE_RESULT, type OutsideResultForm, RECEIVED_FROM_LABEL, SOURCE_KIND_LABEL } from "@/lib/outside-result-form";
 import { filedUnderLookup, filedUnderText } from "@/lib/patient-merge";
+import { ReportPreview } from "./report-preview";
 
 /**
  * Results from outside laboratories and hospitals, filed as the report with its source, day and tests. They are not this
@@ -153,7 +154,8 @@ function OutsideResultRow({
         </p>
       ) : null}
       {mode === "none" ? (
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
+          <ReportPreview load={() => outsideResultLink(r.id, true)} />
           <Button type="button" size="xs" variant="outline" disabled={pending} onClick={open}>
             <ExternalLinkIcon aria-hidden /> Open report
           </Button>

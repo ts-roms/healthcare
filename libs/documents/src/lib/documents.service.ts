@@ -35,6 +35,8 @@ import { OBJECT_STORAGE, type ObjectStorage, type PresignedUpload } from "./obje
 
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
+/** What a browser can show in a page without running anything: a PDF and the common photo formats. */
+const INLINE_CONTENT_TYPES: ReadonlySet<string> = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 export type DocumentView = Omit<DocumentRecord, "storageKey" | "organizationId" | "declaredSha256">;
 
@@ -428,18 +430,32 @@ export class DocumentsService {
   }
 
   /** Issues a short-lived download URL. Every issuance is audited as an access. */
-  async downloadUrl(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<{ url: string; expiresAt: string }> {
+  async downloadUrl(
+    actor: Actor,
+    documentId: string,
+    scope: DocumentScope = {},
+    options: { inline?: boolean } = {},
+  ): Promise<{ url: string; expiresAt: string; contentType: string; inline: boolean }> {
     const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
     await this.assertIntegrity(record);
-    const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
+    // Shown in the page only for types a browser displays safely; anything else is still a download.
+    const inline = options.inline === true && INLINE_CONTENT_TYPES.has(record.contentType);
+    const url = await this.storage.presignDownload(
+      record.storageKey,
+      record.fileName,
+      record.contentType,
+      DOWNLOAD_URL_TTL_SECONDS,
+      inline ? "inline" : "attachment",
+    );
     await this.audit.recordStandalone(actor, {
       action: "document.download",
       resourceType: "document",
       resourceId: documentId,
       patientId: record.patientId ?? undefined,
+      metadata: inline ? { inline: true } : undefined,
     });
-    return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString() };
+    return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString(), contentType: record.contentType, inline };
   }
 
   /**
