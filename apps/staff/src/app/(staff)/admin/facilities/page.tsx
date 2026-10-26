@@ -9,6 +9,7 @@ import {
   MailIcon,
   MapPinIcon,
   PhoneIcon,
+  PillIcon,
   ScanLineIcon,
   SmileIcon,
   StethoscopeIcon,
@@ -31,6 +32,7 @@ const TYPE_ICON: Record<string, LucideIcon> = {
   hospital: HospitalIcon,
   diagnostic_center: ScanLineIcon,
   telemedicine_hub: VideoIcon,
+  pharmacy: PillIcon,
 };
 
 /** One line of facts on a facility card: an icon, then the text. */

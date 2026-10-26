@@ -6,6 +6,7 @@ export const FACILITY_TYPES = [
   { value: "hospital", label: "Hospital" },
   { value: "diagnostic_center", label: "Diagnostic center" },
   { value: "telemedicine_hub", label: "Telemedicine hub" },
+  { value: "pharmacy", label: "Pharmacy" },
   { value: "other", label: "Other" },
 ] as const;
 
