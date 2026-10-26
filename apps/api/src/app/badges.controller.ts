@@ -1,6 +1,7 @@
 import { Controller, Get } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor } from "@healthcare/core";
+import { OutsideResultService, OutsideResultSubmissionService } from "@healthcare/clinic";
 import { DohReportsService } from "@healthcare/interoperability";
 import { LabResultService } from "@healthcare/laboratory";
 import { PatientMessageService, RecordsRequestService } from "@healthcare/patient";
@@ -16,6 +17,10 @@ export interface StaffBadges {
   recordsRequests: number | null;
   /** DOH case reports awaiting review (`doh.report.manage`). */
   caseReports: number | null;
+  /** Filed outside results awaiting a clinician's review (`outside-result.review`). */
+  outsideResultsUnreviewed: number | null;
+  /** Results patients sent that wait for the records office (`outside-result.submission.manage`). */
+  outsideResultSubmissions: number | null;
 }
 
 /**
@@ -32,19 +37,23 @@ export class BadgesController {
     private readonly results: LabResultService,
     private readonly records: RecordsRequestService,
     private readonly doh: DohReportsService,
+    private readonly outsideResults: OutsideResultService,
+    private readonly submissions: OutsideResultSubmissionService,
   ) {}
 
   @Get()
   @ApiOperation({ summary: "Counts for the navigation: messages awaiting and overdue, critical results, records requests, case reports" })
   async badges(@CurrentActor() actor: Actor): Promise<StaffBadges> {
     const may = (permission: string) => actor.permissions.has(permission);
-    const [messagesAwaiting, messagesOverdue, criticalResults, recordsRequests, caseReports] = await Promise.all([
+    const [messagesAwaiting, messagesOverdue, criticalResults, recordsRequests, caseReports, outsideResultsUnreviewed, outsideResultSubmissions] = await Promise.all([
       may("patient.message.read") ? this.messages.awaitingCount(actor) : null,
       may("patient.message.read") ? this.messages.overdueCount(actor) : null,
       may("lab.result.read") ? this.results.countUnacknowledgedCritical(actor) : null,
       may("patient.records-request.manage") ? this.records.countOpen(actor) : null,
       may("doh.report.manage") ? this.doh.countPendingReview(actor) : null,
+      may("outside-result.review") ? this.outsideResults.countUnreviewed(actor) : null,
+      may("outside-result.submission.manage") ? this.submissions.countOpen(actor) : null,
     ]);
-    return { messagesAwaiting, messagesOverdue, criticalResults, recordsRequests, caseReports };
+    return { messagesAwaiting, messagesOverdue, criticalResults, recordsRequests, caseReports, outsideResultsUnreviewed, outsideResultSubmissions };
   }
 }

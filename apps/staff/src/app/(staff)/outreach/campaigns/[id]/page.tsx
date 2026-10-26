@@ -7,8 +7,9 @@ import { ApiError } from "@healthcare/web-session";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { OutreachCampaign, OutreachSegment } from "@/lib/api/types";
-import { CAMPAIGN_STATUS, CHANNEL_LABEL, SUPPRESSION_LABEL } from "@/lib/outreach-mapping";
+import { CAMPAIGN_STATUS, CHANNEL_LABEL, DELIVERY_MODE_LABEL, fillWording, SUPPRESSION_LABEL } from "@/lib/outreach-mapping";
 import { CampaignActions } from "./campaign-actions";
+import { CampaignReachCard } from "./reach-card";
 
 export const metadata = { title: "Campaign" };
 
@@ -38,9 +39,16 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
         </>
       }
       actions={
-        <Link href="/outreach" className="text-table text-primary hover:underline">
-          All campaigns
-        </Link>
+        <span className="flex flex-wrap gap-3">
+          {campaign.seriesId ? (
+            <Link href={`/outreach/series/${campaign.seriesId}`} className="text-table text-primary hover:underline">
+              Part of a recurring campaign
+            </Link>
+          ) : null}
+          <Link href="/outreach" className="text-table text-primary hover:underline">
+            All campaigns
+          </Link>
+        </span>
       }
     >
       <div className="grid gap-4 lg:grid-cols-2">
@@ -51,8 +59,16 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
           <CardContent className="flex flex-col gap-2 text-table">
             {campaign.subject ? <p className="font-medium">{campaign.subject}</p> : null}
             <p className="whitespace-pre-wrap">{campaign.body}</p>
+            {/{{\s*\w+\s*}}/.test(`${campaign.subject ?? ""}${campaign.body}`) ? (
+              <p className="rounded-md bg-muted/50 p-2 text-meta">
+                <span className="font-medium">How it reads for Maria: </span>
+                {fillWording(campaign.body, "Maria", session.organization.name)}
+              </p>
+            ) : null}
+            <p className="text-meta text-muted-foreground">{DELIVERY_MODE_LABEL[campaign.deliveryMode]}.</p>
             <p className="text-meta text-muted-foreground">
               {campaign.sendAt ? `Send at ${clinicalDateTime(campaign.sendAt)}.` : "Sent as soon as approved."} Emails carry an opt-out link.
+              {campaign.includeBookingLink ? " Each message ends with a link to book a visit in MyHealth." : ""}
             </p>
           </CardContent>
         </Card>
@@ -77,9 +93,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
               canManage={can(session, "crm.campaign.manage")}
               canApprove={can(session, "crm.campaign.approve")}
               currentUserId={session.user.id}
+              clinicName={session.organization.name}
             />
           </CardContent>
         </Card>
+        {["draft", "submitted", "approved"].includes(campaign.status) && can(session, "crm.read") ? <CampaignReachCard campaignId={campaign.id} /> : null}
         {campaign.summary ? (
           <Card className="lg:col-span-2">
             <CardHeader>
@@ -112,6 +130,12 @@ export default async function CampaignPage({ params }: { params: Promise<{ id: s
                   ))}
                 </TableBody>
               </Table>
+              {campaign.summary.heldForQuietHours > 0 ? (
+                <p className="text-meta text-muted-foreground">
+                  {campaign.summary.heldForQuietHours} message{campaign.summary.heldForQuietHours === 1 ? " was" : "s were"} held until quiet hours ended; they
+                  are counted as queued.
+                </p>
+              ) : null}
               {campaign.summary.suppressedByReason.length > 0 ? (
                 <p className="text-meta text-muted-foreground">
                   Not sent: {campaign.summary.suppressedByReason.map((r) => `${SUPPRESSION_LABEL[r.reason] ?? r.reason} (${r.total})`).join(", ")}

@@ -1,6 +1,13 @@
 import { Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { canReadSensitiveHistory, ClinicProcedureService, ClinicQueries, ImmunizationService, PatientHistoryService } from "@healthcare/clinic";
+import {
+  canReadSensitiveHistory,
+  ClinicProcedureService,
+  ClinicQueries,
+  ImmunizationService,
+  OutsideResultService,
+  PatientHistoryService,
+} from "@healthcare/clinic";
 import { type Actor, actorUserId, NotFoundError, PH_TIMEZONE } from "@healthcare/core";
 import { DentalRecordQueries } from "@healthcare/dental";
 import { DocumentRecordQueries } from "@healthcare/documents";
@@ -135,6 +142,23 @@ export interface PatientWorkspace {
     hasReaction: boolean;
   }> | null;
   /**
+   * The latest reports from other laboratories and hospitals filed on the record, entries in error left out. Source,
+   * tests and day as written; no notes. Never this laboratory's results: open the report to read it.
+   */
+  outsideResults: Array<{
+    id: string;
+    filedUnder: string | null;
+    facility: Facility;
+    sourceName: string;
+    sourceKind: "laboratory" | "hospital" | "clinic" | "other";
+    performedOn: string;
+    tests: string;
+    receivedFrom: "patient" | "provider" | "other";
+    /** Whether a clinician has recorded that they read it. */
+    reviewed: boolean;
+    recordedAt: string;
+  }> | null;
+  /**
    * The patient history: the latest past procedures and conditions (not in error), medicines taken that were not
    * prescribed here and are not stopped, the family history state with the
    * latest entries, and the current social history. Substance use and sexual history are null unless the viewer also
@@ -186,6 +210,7 @@ export class PatientWorkspaceService {
     private readonly documents: DocumentRecordQueries,
     private readonly immunizations: ImmunizationService,
     private readonly procedures: ClinicProcedureService,
+    private readonly outsideResults: OutsideResultService,
     private readonly history: PatientHistoryService,
     private readonly audit: AuditService,
   ) {}
@@ -208,7 +233,7 @@ export class PatientWorkspaceService {
 
     const linked = await this.patients.filedUnderNumbers(organizationId, patientId);
     const filedUnder = (id: string | null | undefined) => (id && id !== patientId ? (linked.get(id) ?? null) : null);
-    const [encounters, visit, critical, orders, images, documents, referrals, immunizations, history, procedures] = await Promise.all([
+    const [encounters, visit, critical, orders, images, documents, referrals, immunizations, history, procedures, outsideResults] = await Promise.all([
       has("current_encounter") || has("encounter_history")
         ? this.clinic.workspaceEncounters(organizationId, patientId, { open: WORKSPACE_LIMITS.openEncounters, recent: WORKSPACE_LIMITS.recentEncounters })
         : none,
@@ -226,6 +251,7 @@ export class PatientWorkspaceService {
         ? this.history.workspace(organizationId, patientId, WORKSPACE_LIMITS.history, { sensitive: canReadSensitiveHistory(actor.permissions) })
         : none,
       has("procedures") ? this.procedures.workspace(organizationId, patientId, WORKSPACE_LIMITS.procedures) : none,
+      has("outside_results") ? this.outsideResults.workspace(organizationId, patientId, WORKSPACE_LIMITS.outsideResults) : none,
     ]);
 
     const userId = actorUserId(actor);
@@ -351,6 +377,9 @@ export class PatientWorkspaceService {
       immunizations: immunizations
         ? immunizations.map(({ patientId: filedAs, facilityId, ...i }) => ({ ...i, filedUnder: filedUnder(filedAs), facility: facilityOf(facilityId) }))
         : null,
+      outsideResults: outsideResults
+        ? outsideResults.map(({ patientId: filedAs, facilityId, ...o }) => ({ ...o, filedUnder: filedUnder(filedAs), facility: facilityOf(facilityId) }))
+        : null,
       history: history
         ? {
             procedures: history.procedures.map(({ patientId: filedAs, ...p }) => ({ ...p, filedUnder: filedUnder(filedAs) })),
@@ -388,6 +417,7 @@ export class PatientWorkspaceService {
           documents: result.documents?.length ?? null,
           referrals: result.referrals?.length ?? null,
           immunizations: result.immunizations?.length ?? null,
+          outsideResults: result.outsideResults?.length ?? null,
           procedures: result.procedures?.length ?? null,
           historyProcedures: result.history?.proceduresTotal ?? null,
           historyConditions: result.history?.conditionsTotal ?? null,

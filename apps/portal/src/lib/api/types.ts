@@ -849,3 +849,23 @@ export interface PortalPushStatus {
   /** The device asking (by its browser address), when registered. */
   thisDeviceId: string | null;
 }
+
+// ---- results sent to the clinic (/portal/outside-results) ----
+
+export type PortalOutsideResultStatus = "submitted" | "filed" | "declined" | "withdrawn";
+
+/** A result from another laboratory or hospital the patient sent: what they wrote, where it stands and, when declined, why. */
+export interface PortalOutsideResult {
+  id: string;
+  status: PortalOutsideResultStatus;
+  sourceName: string;
+  tests: string;
+  /** YYYY-MM-DD, if the patient gave it. */
+  performedOn: string | null;
+  notes: string | null;
+  submittedAt: string;
+  /** When the records office answered, or the patient withdrew it. */
+  answeredAt: string | null;
+  /** The records office's reason, when declined. */
+  declineReason: string | null;
+}

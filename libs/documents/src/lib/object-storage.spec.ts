@@ -7,6 +7,11 @@ describe("contentDisposition", () => {
     );
   });
 
+  it("shows the file in the page when asked to, keeping the file name for saving", () => {
+    expect(contentDisposition("CBC.pdf", "inline")).toBe(`inline; filename="CBC.pdf"; filename*=UTF-8''CBC.pdf`);
+    expect(contentDisposition("CBC.pdf")).toMatch(/^attachment;/);
+  });
+
   it("neutralizes quotes", () => {
     expect(contentDisposition('a"b.pdf')).toContain('filename="a_b.pdf"');
   });

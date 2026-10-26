@@ -413,6 +413,19 @@ The records office checks your request and either shares the copies — they app
 You get a message either way. You can **Withdraw this request** while it is waiting. You can have up to 3 requests waiting at once. Results,
 prescriptions and care plans already in MyHealth do not need a request.
 
+## How to send the clinic a result from another laboratory or hospital
+
+Had a test somewhere else? Send the result so your doctor can see it. Choose **Documents** on **Home**, then **Results from another laboratory or hospital**.
+
+1. Choose **Send a result**.
+2. Choose the report: a PDF or a clear photo (JPEG, PNG or HEIC), up to 10 MB.
+3. Say which laboratory or hospital it is from and what the test was. The day it was done and a note are optional.
+4. Choose **Send**.
+
+The records office reads the report and adds it to your record, or tells you why it cannot (for example, "the photo is too blurry"). You get a message either way; the reason is shown under the result in MyHealth. The result is not part of your record until the records office adds it, and your doctor reads it at your next visit. Sending a result is not the way to reach the clinic about something urgent: call them.
+
+You can open the file you sent (**My file**) and, while it is waiting, choose **Take it back**. Up to 3 results can be waiting at once. Only you can send results from your own MyHealth account; a guardian cannot send on someone else's behalf.
+
 ## How to see your dental record
 
 **Dental** appears in the menu only if your clinic shares dental records in MyHealth and there is something to show.

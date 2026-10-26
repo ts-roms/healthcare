@@ -14,6 +14,9 @@ import {
   type LucideIcon,
   PillIcon,
   StethoscopeIcon,
+  CheckCircle2Icon,
+  ClockIcon,
+  FileInputIcon,
   SyringeIcon,
   HandIcon,
   TestTubeIcon,
@@ -537,6 +540,47 @@ export default async function PatientWorkspacePage({ params }: { params: Promise
               </ul>
             ) : (
               <p className="text-table text-muted-foreground">No immunizations recorded.</p>
+            )}
+          </Panel>
+
+          <Panel
+            title="Results from other laboratories and hospitals"
+            icon={FileInputIcon}
+            action={
+              can(session, "outside-result.read") ? (
+                <Link href={`/patients/${id}/outside-results`} className="text-meta text-primary hover:underline">
+                  All reports
+                </Link>
+              ) : null
+            }
+          >
+            {isWithheld(workspace, "outside_results") || !workspace?.outsideResults ? (
+              <Withheld />
+            ) : workspace.outsideResults.length ? (
+              <ul className="flex flex-col gap-1.5 text-body">
+                {workspace.outsideResults.map((o) => (
+                  <li key={o.id} className="flex flex-col gap-0.5">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-medium">{o.tests}</span>
+                      <Badge variant="info">Outside result</Badge>
+                      {o.reviewed ? (
+                        <Badge variant="success">
+                          <CheckCircle2Icon aria-hidden /> Reviewed
+                        </Badge>
+                      ) : (
+                        <Badge variant="warning">
+                          <ClockIcon aria-hidden /> Awaiting review
+                        </Badge>
+                      )}
+                    </span>
+                    <span className="text-meta text-muted-foreground">
+                      {[`from ${o.sourceName}`, clinicalDate(o.performedOn), o.facility?.name, filedUnderText(o.filedUnder)].filter(Boolean).join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-table text-muted-foreground">No outside results filed. The reports are not results of this laboratory.</p>
             )}
           </Panel>
 

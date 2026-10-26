@@ -17,7 +17,10 @@ Library `libs/crm` (`scope:crm`, `type:feature`); the composition root answers w
   `active | archived`, version. Criteria are **non-clinical**: age range, sex, city/municipality or province of the
   primary address, registered between dates, last completed consultation on or before a date, no completed
   consultation for N months (never seen included), an open care-plan activity due within N days (overdue included),
-  opted in to outreach on a channel. At least one criterion. No diagnosis, result or medication criterion exists:
+  opted in to outreach on a channel, **born in a month** (`birthMonth`, never the year or day), **MyHealth** (`myHealth`: has an active
+  account, or has none that is active), **registered at a facility** (`registeredFacilityId`, which must be a facility of the
+  organization) and **a number on file** (`identifierOnFile`: a PhilHealth or an HMO membership number; whether one exists, never the
+  number). At least one criterion. No diagnosis, result or medication criterion exists:
   selecting people by health data for outreach is a compliance decision first (compliance register).
 - `crm_campaign` — segment, name, channels (`sms`, `email`, `push`, `in_app`), the organization's own wording
   (`subject` for email and MyHealth, one plain-text `body` for every channel, checked against each channel's length:
@@ -28,6 +31,11 @@ Library `libs/crm` (`scope:crm`, `type:feature`); the composition root answers w
   outcome (`queued`, `delivered`, `suppressed` with the service's reason, `failed`).
 - `crm_opt_out_token` — the single-use token behind the opt-out link (hash only), bound to patient, channel and
   campaign, 30 days.
+- `crm_setting` (migration `0131`, one row per organization, off until set) — the organization's limits on how often and
+  when outreach goes out: a **frequency cap** (`cap_max_campaigns` in `cap_window_days`) and **quiet hours**
+  (`quiet_start`–`quiet_end` in Asia/Manila time, across midnight if the start is later; `quiet_channels` of `sms`,
+  `push`, `email`, default `sms` and `push`). Optimistic `version`; changes audited (`crm.settings.update`).
+- `crm_campaign.include_booking_link` (migration `0131`) — the message ends with a link to book a visit in MyHealth.
 
 ## Commands
 
@@ -86,6 +94,91 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
   result); MyHealth `/outreach/opt-out?token=` (public page). MyHealth's notification settings already let a patient
   choose outreach per channel.
 
+## Reach, limits and the booking link
+
+- **Reach before sending.** A segment preview (`GET /outreach/segments/:id/preview`) and a campaign's reach
+  (`GET /outreach/campaigns/:id/reach`, staff **Check reach** on the campaign page) say, per channel, how many patients can
+  be messaged and why the others cannot (`no_outreach_opt_in`, `opted_out`, `no_mobile_number`, `no_email_address`,
+  `no_push_device`, `no_portal_account`). It asks the same recipient directory the notification service asks when it sends
+  (port `CrmReachSource`, adapter `AppCrmReachSource`), so the figures are what a send would do; counts only, no names; at
+  most the first 2,000 patients are checked (`sampled`). The campaign view also says how many patients the frequency cap would
+  hold back and whether quiet hours would hold its messages now. Audited (`crm.campaign.reach`, and in the preview's audit).
+- **Frequency cap.** Before messaging a patient the runner counts the **other** outreach campaigns that actually went to them
+  (a delivery `queued` or `delivered`, not a suppressed one) in the window; at or over the cap the patient is skipped on every
+  channel and each skipped channel is recorded as `suppressed` with reason `frequency_cap` and no notification. It covers
+  outreach campaigns only, not care-plan recall, no-show follow-up or other messages about care, appointments or bills.
+- **Quiet hours.** A message on a quiet channel that would go out inside the period is created with `scheduled_for` at the end of
+  the period (the notification service queues it with that delay) and its delivery row says `queued` with reason
+  `held_for_quiet_hours`; the campaign summary counts them (`heldForQuietHours`). Outside the period, nothing changes. MyHealth
+  inbox messages are never held. An explicit `send_at` inside quiet hours is held the same way.
+- **Who sets them.** `GET /outreach/settings` needs `crm.read`; `PUT /outreach/settings` needs `crm.campaign.approve` (the people
+  who approve campaigns, so an author cannot loosen the limits for their own campaign). Staff `/outreach/settings`.
+- **Booking link.** A campaign can end its message with `Book a visit: <PORTAL_BASE_URL>/appointments/book` (MyHealth's booking page),
+  chosen while drafting and approved with the wording. The address carries nothing about the patient: signing in identifies
+  them. The link counts against each channel's length (`wording_invalid` names the channel) and needs `PORTAL_BASE_URL`
+  (`portal_base_missing`). The notification template `outreach.campaign` renders it before the opt-out link.
+- Not built: clicks or bookings attributed to a campaign (a tracking link would identify the patient; the audit and the
+  appointment list show bookings), per-channel caps, caps that include care reminders, quiet hours per facility or time zone.
+
+## Wording variables and one message per patient
+
+- **Variables.** A campaign's wording (subject and body) may contain `{{firstName}}` and `{{clinicName}}`, filled in for each patient
+  when the message is created: the first word of their given name (at most 30 characters, "there" if empty) and the organization's
+  name. These two are all there is: nothing clinical, and no appointment, balance or contact detail, can be put in a message this
+  way. Any other `{{name}}` is refused while drafting (`wording_invalid`, naming it). What the second person approves is the
+  wording with its placeholders; the message each patient receives is stored on its notification (the communications log still
+  shows no content). Pure rules `renderWording`, `firstNameOf`, `unknownPlaceholders`, `renderedLength` in `crm.rules.ts`; the staff
+  form mirrors them in `lib/outreach-mapping.ts` (the API is authoritative).
+- **Length.** Each channel's limit is checked against the **longest** the message can become: a first name of 30 characters, the
+  organization's real name, and the booking link when present. So whatever was approved always fits, for any patient.
+- **Delivery mode** (`crm_campaign.delivery_mode`, migration `0132`, chosen while drafting and approved with the wording):
+  `all` (default: every channel named, as before) or `first_available`: one message per patient, on the first channel that can reach
+  them, tried in the order push, text message, email, MyHealth inbox (`CHANNEL_PRIORITY`). The channel is chosen at the time of the
+  send from the same consent checks as the reach figures. The delivery record holds one row for the patient: the channel used, or,
+  when none can reach them, the first channel in that order with the reason it was not sent (so the record still says why). The
+  frequency cap and quiet hours apply as before. A rerun after an interruption skips patients already handled. A campaign's reach
+  says how many patients each channel would carry and how many none reaches (`plannedChannels`).
+- Not built: variables beyond these two (a clinic phone number is not offered because a campaign is not tied to one facility; type it in
+  the wording), a choice of channel order, per-patient channel preference.
+
+## Approval nudges and the test send
+
+- **Nudges** (migration `0133`). Submitting a campaign records `CrmCampaignSubmitted`; the people who hold `crm.campaign.approve` get an
+  in-app `outreach.campaign-notice` ("waiting for your approval"), except the author and whoever submitted it. A campaign still
+  waiting two days after submission reminds them **once** (`CrmApprovalReminders`, hourly in the API under an advisory lock;
+  `crm_campaign.approval_reminded_at`). Approval records `CrmCampaignApproved` and tells the author and the submitter. The notices
+  carry the campaign's name and a link, never anything about a patient.
+- **Test send** (`POST /outreach/campaigns/:id/test-send`, `crm.campaign.manage`, audited `crm.campaign.test-send`). The wording as a sample
+  patient ("Maria") would get it, with `[Test]` in the subject and a line saying it is a test, goes to the caller's own notifications and
+  email, and to nobody else: no patient, no delivery row, nothing counted against a cap. Only a campaign that has not gone out. Text
+  messages and push cannot be tried this way (staff have no number or app on file for it): check their length in the form.
+
+## Recurring campaigns
+
+A campaign can repeat weekly or monthly (migration `0135`). The recurring campaign is a **series** (`crm_campaign_series`): the same
+fields as a campaign (segment, channels, wording, delivery mode, booking link) and a schedule: `cadence` `weekly` (a `weekday`, 0 =
+Sunday) or `monthly` (a `day_of_month` from 1 to 28, so every month has it), a `send_time` in Asia/Manila time, a first day and an
+optional last day.
+
+- **Approval.** Two people, as for a campaign: `draft → submitted → active` (approved by someone who is neither author nor
+  submitter, `approver_is_author`), with the same in-app notices (`CrmSeriesSubmitted`, `CrmSeriesApproved`; the reminder after two
+  days is for single campaigns only). Approving approves **every** occurrence. A series changes only as a draft: an active series
+  is paused (`paused`), taken back to `draft` (the approval and submission are cleared) and submitted and approved again.
+  `active ⇄ paused`, `active | paused → ended` (with a reason, or by itself after its last day: "Reached its last day"),
+  `draft | submitted → cancelled` (with a reason). Audited as `crm.series.*`. Routes `GET|POST /outreach/series`,
+  `GET|PUT /outreach/series/:id`, `POST …/submit|reopen|approve|pause|resume|end|cancel`; staff `/outreach` (the form's **Repeat**
+  section and the Recurring campaigns list) and `/outreach/series/[id]`.
+- **Occurrences.** Every minute, before sending, the runner (`CrmCampaignRuns`, under its advisory lock) creates the occurrence of each
+  active series whose `next_run_at` has come, as an **ordinary approved campaign** (`series_id`, `occurrence_on`; unique per series and
+  day; `approved_by` is the series' approver). The sender then takes it in the same pass: the segment is evaluated at that moment, each
+  patient's opt-in, the frequency cap and quiet hours apply, deliveries and results are the campaign's, an occurrence can be cancelled
+  on its own with a reason, and the series page lists them. A campaign created this way is never edited.
+- **Missed occurrences.** One missed by more than six hours (the system was down) is **skipped**, never sent late or in a burst; the
+  series moves on to its next. Resuming a paused series picks up at the next occurrence after now; those missed while paused are not sent.
+- A segment cannot be archived while a series that has not ended or been cancelled uses it.
+- Not built: several send times a day, "every N weeks", an end after N occurrences, reminders for a series waiting for approval, a calendar
+  of upcoming occurrences, and a preview of who would receive the next occurrence (use **Check reach** on an occurrence once created).
+
 ## Open questions / assumptions
 
 - **Compliance dependency.** The platform enforces an explicit opt-in per channel, a second person's approval, the
@@ -94,5 +187,7 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
   organization's to validate (compliance register, "Patient outreach").
 - SMS "STOP" replies need an SMS provider with inbound messages; none is selected, so text-message opt-out is through
   MyHealth or the clinic.
-- Not built: segmentation by clinical data (decision first), recurring campaigns, message templates with variables,
+- The frequency cap and quiet-hour values are the organization's own policy: the platform sets none by default and encodes no
+  rule on how often or when people may be contacted (compliance register, "Patient outreach").
+- Not built: segmentation by clinical data (decision first), recurring campaigns, saved message templates,
   delivery analytics beyond counts, recipients outside the organization.

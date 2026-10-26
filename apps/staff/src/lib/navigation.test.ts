@@ -264,7 +264,15 @@ describe("settingsForPermissions", () => {
 });
 
 describe("moduleTabsFor", () => {
-  const badges: StaffBadges = { messagesAwaiting: 0, messagesOverdue: 0, criticalResults: 2, recordsRequests: 1, caseReports: null };
+  const badges: StaffBadges = {
+    messagesAwaiting: 0,
+    messagesOverdue: 0,
+    criticalResults: 2,
+    recordsRequests: 1,
+    caseReports: null,
+    outsideResultsUnreviewed: null,
+    outsideResultSubmissions: null,
+  };
 
   it("offers a module's tabs by permission, with counts that need action marked", () => {
     const lab = moduleTabsFor("/laboratory/worklist", ["lab.order.read", "lab.result.read"], badges);
@@ -300,12 +308,28 @@ describe("withBadgeCounts", () => {
   ];
 
   it("adds a count only where there is something waiting the user may see", () => {
-    const counted = withBadgeCounts(items, { messagesAwaiting: 3, messagesOverdue: 1, criticalResults: 0, recordsRequests: null, caseReports: 2 });
+    const counted = withBadgeCounts(items, {
+      messagesAwaiting: 3,
+      messagesOverdue: 1,
+      criticalResults: 0,
+      recordsRequests: null,
+      caseReports: 2,
+      outsideResultsUnreviewed: null,
+      outsideResultSubmissions: null,
+    });
     expect(counted.map((i) => i.count ?? null)).toEqual([3, null, null, 2, null]);
   });
 
   it("marks the laboratory's critical results as needing attention", () => {
-    const counted = withBadgeCounts(items, { messagesAwaiting: 0, messagesOverdue: 0, criticalResults: 2, recordsRequests: null, caseReports: null });
+    const counted = withBadgeCounts(items, {
+      messagesAwaiting: 0,
+      messagesOverdue: 0,
+      criticalResults: 2,
+      recordsRequests: null,
+      caseReports: null,
+      outsideResultsUnreviewed: null,
+      outsideResultSubmissions: null,
+    });
     expect(counted.find((i) => i.href === "/laboratory")).toMatchObject({ count: 2, countAlert: true });
   });
 

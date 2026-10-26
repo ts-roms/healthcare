@@ -29,7 +29,7 @@ import { PrescriptionModule } from "@healthcare/prescription";
 import { TelemedicineModule } from "@healthcare/telemedicine";
 import { ZodValidationPipe } from "nestjs-zod";
 import { AppPatientDirectory, AppPrescribingContext } from "./adapters/clinic-adapters";
-import { AppCrmPreferenceWriter, AppCrmSegmentSource } from "./adapters/crm-adapters";
+import { AppCrmPreferenceWriter, AppCrmReachSource, AppCrmSegmentSource } from "./adapters/crm-adapters";
 import { AppInstrumentMessageReader } from "./adapters/instrument-adapters";
 import { paymongoGatewayProvider } from "./adapters/payment-adapters";
 import { AppDispensingStock } from "./adapters/inventory-adapters";
@@ -80,6 +80,7 @@ import { PortalMfaPolicyNotices } from "./portal/portal-mfa-policy-notices";
 import { PortalSecurityNotices } from "./portal/portal-security-notices";
 import { StaffSecurityNotices } from "./staff-security-notices";
 import { PatientMessageReminders } from "./portal/patient-message-reminders";
+import { CrmApprovalNotices, CrmApprovalReminders } from "./outreach/crm-approval-notices";
 import { PatientMessageNotices } from "./portal/patient-message-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
@@ -90,6 +91,7 @@ import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalFormsController } from "./portal/portal-forms.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalImmunizationsController } from "./portal/portal-immunizations.controller";
+import { PortalOutsideResultsController } from "./portal/portal-outside-results.controller";
 import { PortalQrController } from "./portal/portal-qr.controller";
 import { PortalHistoryController } from "./portal/portal-history.controller";
 import { PortalMessagesController } from "./portal/portal-messages.controller";
@@ -167,7 +169,12 @@ export class AppModule implements NestModule {
     });
     const carePlans = CarePlanModule.forRoot({ imports: [PatientModule], patientDirectory: AppPatientDirectory });
     // Outreach: who matches a segment is read here (patient, clinic, care plans); opt-outs go to the patient domain.
-    const crm = CrmModule.forRoot({ imports: [PatientModule], segmentSource: AppCrmSegmentSource, preferenceWriter: AppCrmPreferenceWriter });
+    const crm = CrmModule.forRoot({
+      imports: [PatientModule],
+      segmentSource: AppCrmSegmentSource,
+      preferenceWriter: AppCrmPreferenceWriter,
+      reachSource: AppCrmReachSource,
+    });
     const rateLimitStorage = overrides.rateLimitStorage ?? { redisUrl: config.REDIS_URL };
     const rateLimits = new RedisThrottlerStorage(rateLimitStorage.redisUrl, rateLimitStorage.keyPrefix);
     return {
@@ -261,6 +268,7 @@ export class AppModule implements NestModule {
         PortalFormsController,
         PortalDocumentsController,
         PortalImmunizationsController,
+        PortalOutsideResultsController,
         PortalQrController,
         PortalHistoryController,
         PortalMessagesController,
@@ -297,6 +305,8 @@ export class AppModule implements NestModule {
         StaffSecurityNotices,
         PatientMessageNotices,
         PatientMessageReminders,
+        CrmApprovalNotices,
+        CrmApprovalReminders,
         // Rate limiting applies to every route, including the public login endpoints. The storage is a provider so
         // its Redis connection closes with the application.
         { provide: RedisThrottlerStorage, useValue: rateLimits },

@@ -127,7 +127,15 @@ describe("communication log actions and badges", () => {
 
   it("counts for the navigation only what the user may see", async () => {
     const forAdmin = (await staff(admin).get("/me/badges").expect(200)).body;
-    expect(forAdmin).toEqual({ messagesAwaiting: 0, messagesOverdue: 0, criticalResults: 0, recordsRequests: 0, caseReports: 0 });
+    expect(forAdmin).toEqual({
+      messagesAwaiting: 0,
+      messagesOverdue: 0,
+      criticalResults: 0,
+      recordsRequests: 0,
+      caseReports: 0,
+      outsideResultsUnreviewed: null,
+      outsideResultSubmissions: 0,
+    });
     const forNurse = (await staff(nurse).get("/me/badges").expect(200)).body;
     expect(forNurse).toMatchObject({ messagesAwaiting: 0, criticalResults: 0, recordsRequests: null, caseReports: null });
     // Without a facility the critical-result count is withheld.

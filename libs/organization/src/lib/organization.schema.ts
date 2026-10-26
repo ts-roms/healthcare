@@ -10,7 +10,7 @@ export const organization = pgTable("organization", {
   version: integer("version").notNull().default(1),
 });
 
-export const FACILITY_TYPES = ["clinic", "laboratory", "dental_clinic", "hospital", "diagnostic_center", "telemedicine_hub", "other"] as const;
+export const FACILITY_TYPES = ["clinic", "laboratory", "dental_clinic", "hospital", "diagnostic_center", "telemedicine_hub", "pharmacy", "other"] as const;
 export type FacilityType = (typeof FACILITY_TYPES)[number];
 
 export const facility = pgTable("facility", {

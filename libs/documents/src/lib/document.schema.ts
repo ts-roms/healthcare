@@ -14,6 +14,8 @@ export const DOCUMENT_CATEGORIES = [
   /** A compiled copy of the patient's record, prepared for a records request. */
   "record_copy",
   "management_report",
+  /** A result from an outside laboratory or hospital, filed on the patient's record (migration 0128). */
+  "outside_result",
 ] as const;
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
 /** `quarantined` (migration 0098): the scanner found malware; never available, kept for the organization's incident handling. */

@@ -65,10 +65,17 @@ const MODULES: ModuleDefinition[] = [
   },
   {
     label: "Consultations",
-    prefixes: ["/clinic/encounters", "/clinic/prescriptions"],
+    prefixes: ["/clinic/encounters", "/clinic/prescriptions", "/clinic/outside-results"],
     tabs: [
       { label: "Consultations", href: "/clinic/encounters", permissions: ["encounter.read"] },
       { label: "Prescriptions", href: "/clinic/prescriptions", permissions: ["prescription.read"] },
+      {
+        label: "Outside results",
+        href: "/clinic/outside-results",
+        permissions: ["outside-result.review"],
+        count: (b) => b.outsideResultsUnreviewed,
+        alert: true,
+      },
     ],
   },
   {
@@ -86,6 +93,12 @@ const MODULES: ModuleDefinition[] = [
     tabs: [
       { label: "Requests", href: "/records/requests", permissions: ["patient.records-request.manage"], count: (b) => b.recordsRequests },
       { label: "Imports", href: "/records/imports", permissions: ["interop.fhir.import.review"] },
+      {
+        label: "Outside results",
+        href: "/records/outside-results",
+        permissions: ["outside-result.submission.manage"],
+        count: (b) => b.outsideResultSubmissions,
+      },
       { label: "Integrity", href: "/records/integrity", permissions: ["document.integrity.manage"] },
       { label: "Retention", href: "/records/retention", permissions: ["document.retention.manage"] },
     ],

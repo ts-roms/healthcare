@@ -67,6 +67,7 @@ None. Every entry has one shape:
 | `document`               | Uploaded document (upload verified)                                                                                               | Category                                                                                                 | Title, file name (free text); generated and archived documents                |
 | `procedure`              | Procedure performed at the clinic (at the time performed)                                                                         | Name with quantity and site, code; entered in error marked; link to the consultation                     | Notes, the late-entry reason                                                  |
 | `immunization`           | Dose given, not given, reported or imported (at the time given, else when recorded)                                               | Vaccine name, dose as recorded, date given when partial, status (entered in error marked), source        | Notes, the not-given reason text, reactions, lot                              |
+| `outside_result`         | A report from another laboratory or hospital filed on the record (when filed)                                                     | Tests and source as written, the day it was done, status (entered in error marked)                       | Notes; the report itself (not repeated as a `document` entry)                 |
 | `records_request`        | Request for copies of records from MyHealth (submitted)                                                                           | Number, what was asked for (fixed scopes), status                                                        | Details, purpose, the records office's answer, what was shared                |
 
 The patient history (past procedures and conditions, family and social history; [patient history](patient-history.md)) is
@@ -138,6 +139,7 @@ own reads; otherwise it is left out and listed in `withheld` (no counts are reve
 | `communication`                                             | `notification.read`                                                  |
 | `document`                                                  | `document.read`                                                      |
 | `immunization`                                              | `immunization.read`                                                  |
+| `outside_result`                                            | `outside-result.read`                                                |
 | `records_request`                                           | `patient.records-request.manage`                                     |
 
 For example a cashier sees consents, billing (invoices, payments, notes and deposits) and PhilHealth claims and answers; a

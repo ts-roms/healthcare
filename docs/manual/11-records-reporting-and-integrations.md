@@ -143,6 +143,16 @@ received from other providers are labelled. Allergies and the medical, family an
 includes its private parts: the copy answers the patient's own request). Dates follow your facility's time zone. Preparing a copy is
 recorded. Billing records and dental charts are not included; whether a copy must be signed or certified is your organization's procedure.
 
+## How to answer a result a patient sent
+
+Patients can send a report from another laboratory or hospital in MyHealth. Nothing they send is on their record until you file it. It needs the permission `outside-result.submission.manage` (administrators and the records office). You are told in the app when one arrives.
+
+1. Go to **Records → Outside results** (`/records/outside-results`). The oldest are first; the tab shows how many are waiting.
+2. Choose **Open report** and read it. The system has not read it and does not know what it says.
+3. Either choose **File on the record…** and fill in, from the report itself, the laboratory or hospital as written, its kind, the day the test was done and the tests as the report names them (what the patient wrote is only a starting point), then **File outside result**; or choose **Decline…** and give a reason the patient can understand, then **Decline**.
+
+Filing adds an outside result to the patient's record, received from the patient, which a doctor or dentist then reviews (see the Laboratory chapter). Declining files nothing; the patient reads your reason in MyHealth. Each submission is answered once, and the patient is told without any detail of the report. A patient can take a result back while it waits.
+
 ### Your records-request procedure
 
 **Records → Requests → Your procedure** (`/records/requests/settings`) holds your organization's own procedure; administrators change it:
@@ -466,13 +476,51 @@ Records officers can read segments and campaigns.
 
 1. Open **Outreach** in the menu (`/outreach`).
 2. Under **Segments**, select **New segment** and choose who matches: age range, sex, city or province, when they registered, when they last
-   visited (or no visit for a number of months), a care-plan activity due soon, or an opt-in to a channel. Every filled criterion must hold.
+   visited (or no visit for a number of months), a care-plan activity due soon, an opt-in to a channel, the month they were born in (for birthday
+   greetings), whether they have an active MyHealth account (to invite those who have not set it up), the facility they registered at, or whether a PhilHealth
+   or HMO membership number is on file (the number itself is never shown). Every filled criterion must hold.
    **Preview** shows how many patients match today and a short work list; every preview is recorded in the audit trail.
 3. Under **Campaigns**, select **New campaign**: the segment, the channels, a subject (for email and MyHealth), the message in plain text, and
    optionally when to send. The screen shows the length allowed for the chosen channels. Save the draft and select **Submit for approval**.
 4. **Someone else** opens the campaign and selects **Approve**. The system refuses an approval by the person who wrote or submitted it.
 5. The campaign is sent at its time, or within a minute. Open it to see the **Result**: how many patients were in the segment, and per channel
    how many messages were queued, delivered, not sent or failed, with the reasons (for example "No outreach opt-in on this channel").
+
+**Before you send — who it can reach.** The segment's **Preview** also shows, for each channel, how many of those patients can actually be messaged
+and why the others cannot (no opt-in, opted out, no mobile number or email address, no MyHealth account). On a draft, **Check reach** on the campaign
+page shows the same for the campaign's own channels, and how many patients the frequency cap would hold back. Nothing is sent and only counts are shown.
+
+**Recurring campaigns.** To send the same message again and again (for example a monthly reminder to people who have not visited for a year), in
+**New campaign** choose **Repeat → Every week** or **Every month**, then the day, the time (Manila time), the first day and, if you like, the last day.
+The recurring campaign is submitted and **approved once by someone else**; from then on each occurrence is sent at its time to whoever matches the
+segment that day, with each patient's opt-in, the frequency cap and quiet hours still applying. Each occurrence appears under the recurring campaign
+(**Outreach → Recurring campaigns**) as its own campaign with its own result, and you can cancel one without stopping the rest. You can **Pause** and
+**Resume** it, and **End for good** with a reason. To change the wording, the segment or the schedule, pause it, choose **Change (back to draft)**, edit it and
+have it approved again. An occurrence the system missed by more than six hours (for example it was down) is skipped, not sent late. Monthly days go up to
+the 28th, so every month has the day.
+
+**Approval.** When you submit a campaign, the other people who can approve campaigns are told in their notifications (the bell); if it is still waiting
+after two days they are reminded once. You are told when it is approved. **Send a test to me** on a campaign that has not gone out puts the message,
+as a sample patient would get it, in your own notifications and emails it to you; nobody else receives it. Text messages and push cannot be tested
+this way: check their length in the form.
+
+**Personal touches.** In the message you can use **Insert first name** and **Insert clinic name** (written `{{firstName}}` and `{{clinicName}}`): each
+patient's message has their own first name and your clinic's name in their place, and the screen shows how it reads for a sample patient. Nothing else can
+be filled in, so a message can never carry anything about a person's health. The length limit is checked with the longest first name, so a message that is
+approved always fits.
+
+**One message per patient.** Under **How to send**, choose **One message per patient, on the first channel that reaches them** to stop a patient who can be
+reached in several ways from getting the same message several times. Channels are tried in this order: push, text message, email, MyHealth inbox. **Check
+reach** on the campaign shows how many patients each channel would carry and how many cannot be reached at all. With **On every channel I chose** (the
+default), a patient gets the message on each channel they have opted in to.
+
+**Booking link.** Tick **End the message with a link to book a visit in MyHealth** and each message ends with "Book a visit:" and the address of MyHealth's
+booking page. The address has nothing about the patient in it; they sign in to book. It uses up about 65 characters of a text message's limit.
+
+**Limits.** **Outreach → Change limits** (`/outreach/settings`; the people who approve campaigns can change them) holds two settings, both off until you set
+them: a **frequency cap** (for example at most 1 campaign per patient in 14 days: a patient already at it is skipped, and the result says "Already reached
+by other campaigns recently") and **quiet hours** (for example 21:00–08:00, Manila time: text messages and push notices that would go out then are queued
+and sent when the quiet hours end; the result shows how many were held). The cap does not affect reminders about care, appointments or bills.
 
 **Things to know:**
 

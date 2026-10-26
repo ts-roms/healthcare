@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BellIcon, CompassIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
+import { CompassIcon, FlaskConicalIcon, LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
 import { StaffLayout, type LinkComponent } from "@healthcare/ui/layouts";
 import { setClinicTimeZone } from "@healthcare/ui/healthcare";
 import {
@@ -27,6 +27,7 @@ import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigatio
 import type { ManualSection } from "@healthcare/ui/primitives";
 import { GuidedTour } from "./guided-tour";
 import { HelpFab, type HelpChapter } from "./help-fab";
+import { NotificationBell } from "./notification-bell";
 import { useLiveUpdates } from "./live-queue";
 import { ModuleTabsBar } from "./module-tabs-bar";
 import { OfflineBanner } from "./offline-banner";
@@ -153,20 +154,7 @@ export function StaffShell({
           ) : null}
           {/* On phones the help button lives here instead of floating over the page. */}
           <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" />
-          <Button asChild variant="ghost" size="icon" className="relative">
-            <Link
-              href="/notifications"
-              aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
-              title={unread ? `${unread} unread` : "Notifications"}
-            >
-              <BellIcon />
-              {unread ? (
-                <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
-                  {unread > 99 ? "99+" : unread}
-                </span>
-              ) : null}
-            </Link>
-          </Button>
+          <NotificationBell unread={unread} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="Account menu" title={user.displayName}>

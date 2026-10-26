@@ -1,5 +1,6 @@
 import { CrmCampaignRuns } from "@healthcare/crm";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
+import { CrmApprovalReminders } from "../src/app/outreach/crm-approval-notices";
+import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
 
 /**
  * Outreach (docs/domains/crm.md): segments from non-clinical criteria, campaigns approved by a second person, sent
@@ -137,6 +138,7 @@ describe("outreach segments and campaigns", () => {
     expect(done.status).toBe("completed");
     expect(done.summary).toEqual({
       patients: 2,
+      heldForQuietHours: 0,
       byChannel: [{ channel: "sms", queued: 1, delivered: 0, suppressed: 1, failed: 0 }],
       suppressedByReason: [{ reason: "no_outreach_opt_in", total: 1 }],
     });
@@ -207,5 +209,538 @@ describe("outreach segments and campaigns", () => {
     await api(auditor)
       .post("/outreach/campaigns", { segmentId, name: "x", channels: ["sms"], body: "Nobody may send this message." })
       .expect(403);
+  });
+
+  /** A campaign from draft to sent: drafted by one administrator, approved by the other, then the runner's pass. */
+  const sendCampaign = async (body: object, now?: Date) => {
+    const draft = (await api(admin).post("/outreach/campaigns", body).expect(201)).body;
+    const submitted = (await api(admin).post(`/outreach/campaigns/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    await api(approver).post(`/outreach/campaigns/${draft.id}/approve`, { version: submitted.version }).expect(201);
+    await runs.tick(now);
+    return (await api(admin).get(`/outreach/campaigns/${draft.id}`).expect(200)).body as {
+      id: string;
+      includeBookingLink: boolean;
+      summary: { patients: number; heldForQuietHours: number; suppressedByReason: Array<{ reason: string; total: number }> };
+    };
+  };
+  const deliveries = async (campaignId: string) =>
+    (
+      await ctx.pool.query<{ patient_id: string; channel: string; outcome: string; reason: string | null; notification_id: string | null }>(
+        "SELECT patient_id, channel, outcome, reason, notification_id FROM crm_campaign_delivery WHERE campaign_id = $1 ORDER BY patient_id",
+        [campaignId],
+      )
+    ).rows;
+  let reachSegment: string;
+
+  it("shows, before anything is sent, who can actually be messaged on each channel and why the others cannot", async () => {
+    reachSegment = (
+      await api(admin)
+        .post("/outreach/segments", { name: "Women 50+ (reach)", criteria: { ageMin: 50, sex: "female" } })
+        .expect(201)
+    ).body.id;
+    const before = (await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign_delivery")).rows[0].n;
+    const preview = (await api(admin).get(`/outreach/segments/${reachSegment}/preview`).expect(200)).body;
+    expect(preview.total).toBe(2);
+    expect(preview.reach).toMatchObject({ evaluated: 2, sampled: false, reachableOnAny: 1, unreachable: 1 });
+    const byChannel = Object.fromEntries(preview.reach.byChannel.map((c: { channel: string }) => [c.channel, c]));
+    // Only Maria opted in to text messages; Ana never answered.
+    expect(byChannel["sms"]).toEqual({ channel: "sms", reachable: 1, notReached: [{ reason: "no_outreach_opt_in", total: 1 }] });
+    // Maria turned email off through the opt-out link; nobody has push or MyHealth.
+    expect(byChannel["email"]).toEqual({
+      channel: "email",
+      reachable: 0,
+      notReached: [
+        { reason: "no_outreach_opt_in", total: 1 },
+        { reason: "opted_out", total: 1 },
+      ],
+    });
+    expect(byChannel["push"].reachable).toBe(0);
+    expect(byChannel["in_app"].reachable).toBe(0);
+    // The reach check changes nothing: no message, no delivery row.
+    expect((await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign_delivery")).rows[0].n).toBe(before);
+  });
+
+  it("answers the same for a campaign on its own channels, and says what the organization's limits would do", async () => {
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", {
+          segmentId: reachSegment,
+          name: "Reach check",
+          channels: ["sms", "email"],
+          subject: "Hello",
+          body: "A short message about our opening hours.",
+        })
+        .expect(201)
+    ).body;
+    expect(draft.includeBookingLink).toBe(false);
+    const reach = (await api(admin).get(`/outreach/campaigns/${draft.id}/reach`).expect(200)).body;
+    expect(reach.byChannel.map((c: { channel: string }) => c.channel)).toEqual(["sms", "email"]);
+    expect(reach).toMatchObject({ reachableOnAny: 1, frequencyCap: null, quietHours: null, includeBookingLink: false });
+    expect(await auditRows(ctx.pool, `action = 'crm.campaign.reach' AND resource_id = $1`, [draft.id])).toHaveLength(1);
+    await api(auditor).get(`/outreach/campaigns/${draft.id}/reach`).expect(403);
+  });
+
+  it("keeps the organization's frequency cap and quiet hours, changed only by those who approve campaigns", async () => {
+    const defaults = (await api(admin).get("/outreach/settings").expect(200)).body;
+    expect(defaults).toEqual({
+      frequencyCap: null,
+      quietHours: { enabled: false, start: null, end: null, channels: ["sms", "push"] },
+      version: 0,
+      updatedAt: null,
+    });
+    const settings = {
+      frequencyCap: { maxCampaigns: 1, windowDays: 30 },
+      quietHours: { enabled: true, start: "22:00", end: "07:00", channels: ["sms", "push"] },
+      version: 0,
+    };
+    await api(auditor).put("/outreach/settings", settings).expect(403);
+    await api(admin)
+      .put("/outreach/settings", { ...settings, quietHours: { ...settings.quietHours, end: "22:00" } })
+      .expect(400);
+    await api(admin)
+      .put("/outreach/settings", { ...settings, frequencyCap: { maxCampaigns: 0, windowDays: 30 } })
+      .expect(400);
+    const saved = (await api(admin).put("/outreach/settings", settings).expect(200)).body;
+    expect(saved).toMatchObject({ frequencyCap: { maxCampaigns: 1, windowDays: 30 }, quietHours: { enabled: true, start: "22:00", end: "07:00" }, version: 1 });
+    await api(admin).put("/outreach/settings", settings).expect(409); // a stale version
+    expect(await auditRows(ctx.pool, "action = 'crm.settings.update' AND organization_id = $1", [tenant.organizationId])).toHaveLength(1);
+    // The same limits now show in a campaign's reach: Maria already received two campaigns, so one patient would be held back.
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", { segmentId: reachSegment, name: "With limits", channels: ["sms"], body: "A short message about our opening hours." })
+        .expect(201)
+    ).body;
+    const reach = (await api(admin).get(`/outreach/campaigns/${draft.id}/reach`).expect(200)).body;
+    expect(reach.frequencyCap).toEqual({ maxCampaigns: 1, windowDays: 30, heldBack: 1 });
+    expect(reach.quietHours).toMatchObject({ start: "22:00", end: "07:00", channels: ["sms"] });
+  });
+
+  it("does not message a patient who is already at the frequency cap, and records why", async () => {
+    const campaign = await sendCampaign({
+      segmentId: reachSegment,
+      name: "Second notice",
+      channels: ["sms"],
+      body: "A second message from the clinic this month.",
+    });
+    const rows = await deliveries(campaign.id);
+    // Maria got two earlier campaigns: held back, no message created. Ana never received one: the opt-in check decides.
+    const maria = rows.find((r) => r.patient_id === optedIn);
+    expect(maria).toEqual({ patient_id: optedIn, channel: "sms", outcome: "suppressed", reason: "frequency_cap", notification_id: null });
+    expect(rows.find((r) => r.patient_id === notOptedIn)).toMatchObject({ outcome: "suppressed", reason: "no_outreach_opt_in" });
+    expect(campaign.summary.suppressedByReason).toEqual(
+      expect.arrayContaining([
+        { reason: "frequency_cap", total: 1 },
+        { reason: "no_outreach_opt_in", total: 1 },
+      ]),
+    );
+    expect(
+      (await ctx.pool.query("SELECT count(*)::int AS n FROM notification WHERE idempotency_key = $1", [`crm:${campaign.id}:${optedIn}:sms`])).rows[0].n,
+    ).toBe(0);
+  });
+
+  it("holds text messages and push notices that fall in quiet hours until they end, and sends in the daytime at once", async () => {
+    // Lift the cap so this is only about the hour: 23:00 in Manila is inside 22:00-07:00.
+    const current = (await api(admin).get("/outreach/settings").expect(200)).body;
+    await api(admin)
+      .put("/outreach/settings", { ...current, frequencyCap: null })
+      .expect(200);
+    const night = await sendCampaign(
+      { segmentId: reachSegment, name: "Evening notice", channels: ["sms"], body: "An evening message from the clinic." },
+      new Date("2026-10-26T15:00:00Z"),
+    );
+    const held = (await deliveries(night.id)).find((r) => r.patient_id === optedIn)!;
+    expect(held).toMatchObject({ outcome: "queued", reason: "held_for_quiet_hours" });
+    const scheduled = await ctx.pool.query<{ scheduled_for: Date }>("SELECT scheduled_for FROM notification WHERE id = $1", [held.notification_id]);
+    expect(scheduled.rows[0]!.scheduled_for.toISOString()).toBe("2026-10-26T23:00:00.000Z");
+    expect(night.summary.heldForQuietHours).toBe(1);
+
+    // 10:00 in Manila: no hold.
+    const day = await sendCampaign(
+      { segmentId: reachSegment, name: "Morning notice", channels: ["sms"], body: "A morning message from the clinic." },
+      new Date("2026-10-27T02:00:00Z"),
+    );
+    const sent = (await deliveries(day.id)).find((r) => r.patient_id === optedIn)!;
+    expect(sent).toMatchObject({ outcome: "queued", reason: null });
+    expect((await ctx.pool.query("SELECT scheduled_for FROM notification WHERE id = $1", [sent.notification_id])).rows[0].scheduled_for).toBeNull();
+    expect(day.summary.heldForQuietHours).toBe(0);
+  });
+
+  it("can end a message with a link to book a visit in MyHealth, counted against the length, and carries nothing about the patient", async () => {
+    // 300 characters fit a text message alone, but not with the link.
+    await api(admin)
+      .post("/outreach/campaigns", { segmentId: reachSegment, name: "Too long with link", channels: ["sms"], body: "x".repeat(300), includeBookingLink: true })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("wording_invalid"));
+    const withLink = await sendCampaign(
+      {
+        segmentId: reachSegment,
+        name: "Book a checkup",
+        channels: ["sms"],
+        body: "Your yearly checkup is due. Book a time that suits you.",
+        includeBookingLink: true,
+      },
+      new Date("2026-10-27T03:00:00Z"),
+    );
+    expect(withLink.includeBookingLink).toBe(true);
+    const variables = (
+      await ctx.pool.query<{ variables: { bookingLink?: string; body: string } }>("SELECT variables FROM notification WHERE idempotency_key = $1", [
+        `crm:${withLink.id}:${optedIn}:sms`,
+      ])
+    ).rows[0]!.variables;
+    expect(variables.bookingLink).toBe("https://myhealth.test.invalid/appointments/book");
+    expect(variables.bookingLink).not.toContain(optedIn);
+    // A campaign without it carries none.
+    const without = await sendCampaign(
+      { segmentId: reachSegment, name: "No link", channels: ["sms"], body: "Our clinic hours change next month." },
+      new Date("2026-10-27T03:00:00Z"),
+    );
+    const plain = (
+      await ctx.pool.query<{ variables: Record<string, unknown> }>("SELECT variables FROM notification WHERE idempotency_key = $1", [
+        `crm:${without.id}:${optedIn}:sms`,
+      ])
+    ).rows[0]!.variables;
+    expect(plain["bookingLink"]).toBeUndefined();
+  });
+
+  it("fills the approved wording in for each patient: their first name and the clinic's name, and refuses anything else", async () => {
+    const org = (await ctx.pool.query<{ name: string }>("SELECT name FROM organization WHERE id = $1", [tenant.organizationId])).rows[0]!.name;
+    const personal = await sendCampaign(
+      { segmentId: reachSegment, name: "Personal", channels: ["sms"], body: "Hello {{firstName}}, {{clinicName}} has flu shots this month. Call us to book." },
+      new Date("2026-10-27T04:00:00Z"),
+    );
+    const mariaBody = (
+      await ctx.pool.query<{ variables: { body: string } }>("SELECT variables FROM notification WHERE idempotency_key = $1", [
+        `crm:${personal.id}:${optedIn}:sms`,
+      ])
+    ).rows[0]!.variables.body;
+    expect(mariaBody).toBe(`Hello Maria, ${org} has flu shots this month. Call us to book.`);
+    // What staff approved, with the placeholders, is what the campaign keeps.
+    expect((await api(admin).get(`/outreach/campaigns/${personal.id}`).expect(200)).body.body).toContain("{{firstName}}");
+
+    await api(admin)
+      .post("/outreach/campaigns", {
+        segmentId: reachSegment,
+        name: "Bad variable",
+        channels: ["sms"],
+        body: "Hello {{firstName}}, your balance is {{balance}} pesos.",
+      })
+      .expect(422)
+      .expect((r) => {
+        expect(r.body.error.code).toBe("wording_invalid");
+        expect(JSON.stringify(r.body.error.details)).toContain("{{balance}}");
+      });
+    // 310 characters as typed, but a long first name would push a text message over its 320 limit.
+    await api(admin)
+      .post("/outreach/campaigns", { segmentId: reachSegment, name: "Too long when filled", channels: ["sms"], body: `${"x".repeat(297)}{{firstName}}` })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("wording_invalid"));
+  });
+
+  it("can send one message per patient, on the first channel that reaches them, and says so before sending", async () => {
+    // Maria can now be reached by text message and by email.
+    await api(admin)
+      .put(`/patients/${optedIn}/communication-preferences`, { preferences: [{ channel: "email", category: "outreach", optedIn: true }] })
+      .expect(200);
+    const body = {
+      segmentId: reachSegment,
+      name: "One message",
+      channels: ["email", "sms"],
+      subject: "From the clinic",
+      body: "One message for each of you, on the best channel.",
+      deliveryMode: "first_available",
+    };
+    const draft = (await api(admin).post("/outreach/campaigns", body).expect(201)).body;
+    expect(draft.deliveryMode).toBe("first_available");
+    const reach = (await api(admin).get(`/outreach/campaigns/${draft.id}/reach`).expect(200)).body;
+    expect(reach.deliveryMode).toBe("first_available");
+    expect(reach.plannedChannels).toEqual({
+      byChannel: [
+        { channel: "sms", total: 1 },
+        { channel: "email", total: 0 },
+      ],
+      none: 1,
+    });
+
+    const sent = await sendCampaign(body, new Date("2026-10-27T04:00:00Z"));
+    const rows = await deliveries(sent.id);
+    // Maria: one text message, no email. Ana: nothing could reach her, so one row says why, on the first channel tried.
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.patient_id === optedIn)).toMatchObject({ channel: "sms", outcome: "queued" });
+    expect(rows.find((r) => r.patient_id === notOptedIn)).toMatchObject({ channel: "sms", outcome: "suppressed", reason: "no_outreach_opt_in" });
+    expect(
+      (await ctx.pool.query("SELECT count(*)::int AS n FROM notification WHERE idempotency_key = $1", [`crm:${sent.id}:${optedIn}:email`])).rows[0].n,
+    ).toBe(0);
+    // Running it again sends nothing more.
+    expect(await runs.tick(new Date("2026-10-27T04:05:00Z"))).toEqual({ campaigns: 0, deliveries: 0 });
+  });
+
+  it("tells the approvers when a campaign is submitted, reminds them once after two days, and tells the author when it is approved", async () => {
+    const inbox = async (token: string) =>
+      (
+        (await ctx.http().get("/api/v1/me/notifications").set(as(token, tenant.facilityId)).expect(200)).body as Array<{
+          subject: string;
+          href: string;
+          templateKey: string;
+        }>
+      ).filter((n) => n.templateKey === "outreach.campaign-notice");
+    const mine = async (token: string) => (await inbox(token)).filter((n) => n.subject.includes("Needs approval"));
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", { segmentId: reachSegment, name: "Needs approval", channels: ["sms"], body: "A message that waits for a second person." })
+        .expect(201)
+    ).body;
+    const submitted = (await api(admin).post(`/outreach/campaigns/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    await drainEvents(ctx);
+    // The other approver is asked; the author, who submitted it, is not.
+    const asked = await mine(approver);
+    expect(asked).toHaveLength(1);
+    expect(asked[0]).toMatchObject({ subject: "Campaign waiting for your approval: Needs approval", href: `/outreach/campaigns/${draft.id}` });
+    expect(await mine(admin)).toEqual([]);
+
+    // Two days later it reminds, once.
+    await ctx.pool.query("UPDATE crm_campaign SET submitted_at = now() - interval '3 days' WHERE id = $1", [draft.id]);
+    const reminders = underPlatform(ctx.app.get(CrmApprovalReminders));
+    expect(await reminders.run()).toBe(1);
+    expect(await reminders.run()).toBe(0);
+    expect((await mine(approver)).map((n) => n.subject)).toEqual(expect.arrayContaining(["Still waiting for approval: Needs approval"]));
+    expect(await mine(approver)).toHaveLength(2);
+
+    // Approved: the author is told.
+    await api(approver).post(`/outreach/campaigns/${draft.id}/approve`, { version: submitted.version }).expect(201);
+    await drainEvents(ctx);
+    expect((await mine(admin)).map((n) => n.subject)).toEqual(["Campaign approved: Needs approval"]);
+    // Not sent in this test: leave it approved but cancel nothing; the next send tick would take it, so cancel it.
+    const approved = (await api(admin).get(`/outreach/campaigns/${draft.id}`).expect(200)).body;
+    await api(admin).post(`/outreach/campaigns/${draft.id}/cancel`, { version: approved.version, reason: "Only a test of the notices" }).expect(201);
+  });
+
+  it("sends a test of a campaign to the person who asked, and to nobody else", async () => {
+    const draft = (
+      await api(admin)
+        .post("/outreach/campaigns", {
+          segmentId: reachSegment,
+          name: "Try me",
+          channels: ["sms"],
+          body: "Hello {{firstName}}, {{clinicName}} has flu shots this month.",
+        })
+        .expect(201)
+    ).body;
+    const result = (await api(admin).post(`/outreach/campaigns/${draft.id}/test-send`).expect(201)).body;
+    expect(result.sent.map((s: { channel: string }) => s.channel)).toEqual(["in_app", "email"]);
+    const rows = await ctx.pool.query<{ channel: string; status: string; variables: { subject: string; body: string } }>(
+      "SELECT channel, status, variables FROM notification WHERE template_key = 'outreach.campaign' AND recipient_user_id = $1 ORDER BY channel",
+      [adminId],
+    );
+    expect(rows.rows.map((r) => r.channel)).toEqual(["email", "in_app"]);
+    for (const row of rows.rows) {
+      expect(row.variables.subject.startsWith("[Test] ")).toBe(true);
+      expect(row.variables.body).toContain("Hello Maria,");
+      expect(row.variables.body).toContain("This is a test, sent only to you.");
+    }
+    // Nothing reached a patient or the other approver, and nothing was recorded as a delivery.
+    expect((await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign_delivery WHERE campaign_id = $1", [draft.id])).rows[0].n).toBe(0);
+    expect(
+      (await ctx.pool.query("SELECT count(*)::int AS n FROM notification WHERE template_key = 'outreach.campaign' AND recipient_user_id <> $1", [adminId]))
+        .rows[0].n,
+    ).toBe(0);
+    expect(await auditRows(ctx.pool, `action = 'crm.campaign.test-send' AND resource_id = $1`, [draft.id])).toHaveLength(1);
+    // Only a campaign that has not gone out; and only those who write campaigns.
+    const gone = await sendCampaign(
+      { segmentId: reachSegment, name: "Already out", channels: ["sms"], body: "A message that has already gone out." },
+      new Date("2026-10-27T04:00:00Z"),
+    );
+    await api(admin)
+      .post(`/outreach/campaigns/${gone.id}/test-send`)
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("campaign_sent"));
+    await api(auditor).post(`/outreach/campaigns/${draft.id}/test-send`).expect(403);
+  });
+
+  it("selects patients by birth month, MyHealth account, registering facility and a PhilHealth or HMO number on file", async () => {
+    const preview = async (criteria: object) => {
+      const segment = (
+        await api(admin)
+          .post("/outreach/segments", { name: `Filter ${Math.random().toString(36).slice(2, 8)}`, criteria })
+          .expect(201)
+      ).body;
+      return (await api(admin).get(`/outreach/segments/${segment.id}/preview`).expect(200)).body as { total: number; members: Array<{ patientId: string }> };
+    };
+    // Maria was born in May, Ana in January; the third patient on another day.
+    expect((await preview({ birthMonth: 5 })).members.map((m) => m.patientId)).toEqual([optedIn]);
+    expect((await preview({ birthMonth: 1 })).members.map((m) => m.patientId)).toEqual([notOptedIn]);
+    expect((await preview({ birthMonth: 7 })).total).toBe(0);
+    // Nobody has a MyHealth account yet.
+    expect((await preview({ myHealth: "active" })).total).toBe(0);
+    expect((await preview({ myHealth: "not_active" })).total).toBe(3);
+    // Every patient was registered at the organization's facility; a facility of another organization is refused.
+    expect((await preview({ registeredFacilityId: tenant.facilityId })).total).toBe(3);
+    const other = await createTenant(ctx.pool, "crm-other");
+    await api(admin)
+      .post("/outreach/segments", { name: "Somebody else's facility", criteria: { registeredFacilityId: other.facilityId } })
+      .expect(404);
+    // A PhilHealth number on file (the number itself is never shown).
+    await ctx.pool.query(
+      `INSERT INTO patient_identifier (organization_id, patient_id, type, value, value_normalized, created_by) VALUES ($1, $2, 'philhealth_pin', '12-345678901-2', '123456789012', $3)`,
+      [tenant.organizationId, notOptedIn, adminId],
+    );
+    const withPin = await preview({ identifierOnFile: "philhealth_pin" });
+    expect(withPin.members.map((m) => m.patientId)).toEqual([notOptedIn]);
+    expect(JSON.stringify(withPin)).not.toContain("12-345678901");
+    expect((await preview({ identifierOnFile: "hmo_member_id" })).total).toBe(0);
+    // Filters combine: every one must hold.
+    expect((await preview({ birthMonth: 1, identifierOnFile: "philhealth_pin", myHealth: "not_active" })).total).toBe(1);
+    expect((await preview({ birthMonth: 5, identifierOnFile: "philhealth_pin" })).total).toBe(0);
+  });
+
+  it("repeats a campaign every month once two people approve it, creating each occurrence at its time and skipping one the system missed", async () => {
+    const segment = (
+      await api(admin)
+        .post("/outreach/segments", { name: "Women 50+ (monthly)", criteria: { ageMin: 50, sex: "female" } })
+        .expect(201)
+    ).body;
+    const body = {
+      segmentId: segment.id,
+      name: "Monthly checkup reminder",
+      channels: ["sms"],
+      body: "Hello {{firstName}}, a friendly reminder to book your yearly checkup.",
+      cadence: "monthly",
+      dayOfMonth: 1,
+      sendTime: "09:00",
+      startsOn: "2027-03-01",
+      endsOn: "2027-05-31",
+    };
+    // What is refused while drafting: a schedule that does not fit, a start in the past, a placeholder that is not allowed.
+    await api(admin)
+      .post("/outreach/series", { ...body, cadence: "weekly", dayOfMonth: null })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("schedule_invalid"));
+    await api(admin)
+      .post("/outreach/series", { ...body, startsOn: "2020-01-01" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("schedule_invalid"));
+    await api(admin)
+      .post("/outreach/series", { ...body, dayOfMonth: 31 })
+      .expect(400);
+    await api(admin)
+      .post("/outreach/series", { ...body, body: "Hello {{firstName}}, your balance is {{balance}}." })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("wording_invalid"));
+    await api(auditor).post("/outreach/series", body).expect(403);
+
+    const draft = (await api(admin).post("/outreach/series", body).expect(201)).body;
+    expect(draft).toMatchObject({ status: "draft", cadence: "monthly", dayOfMonth: 1, nextRunAt: null });
+    // The segment cannot be archived while a recurring campaign uses it.
+    await api(admin)
+      .post(`/outreach/segments/${segment.id}/archive`, { version: segment.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("segment_in_use"));
+
+    const submitted = (await api(admin).post(`/outreach/series/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    await api(admin)
+      .post(`/outreach/series/${draft.id}/approve`, { version: submitted.version })
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe("approver_is_author"));
+    await drainEvents(ctx);
+    const asked = (
+      (await ctx.http().get("/api/v1/me/notifications").set(as(approver, tenant.facilityId)).expect(200)).body as Array<{ href: string; subject: string }>
+    ).filter((n) => n.subject.includes("Monthly checkup reminder"));
+    expect(asked.map((n) => n.href)).toEqual([`/outreach/series/${draft.id}`]);
+
+    const active = (await api(approver).post(`/outreach/series/${draft.id}/approve`, { version: submitted.version }).expect(201)).body;
+    expect(active.status).toBe("active");
+    expect(new Date(active.nextRunAt).toISOString()).toBe("2027-03-01T01:00:00.000Z");
+    // An active series is not edited in place.
+    await api(admin)
+      .put(`/outreach/series/${draft.id}`, { ...body, version: active.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("series_not_draft"));
+
+    const occurrences = async () =>
+      (
+        await ctx.pool.query<{ occurrence_on: string; status: string; name: string; approved_by: string }>(
+          "SELECT occurrence_on::text, status, name, approved_by FROM crm_campaign WHERE series_id = $1 ORDER BY occurrence_on",
+          [draft.id],
+        )
+      ).rows;
+    // Before its time nothing is created; at its time the occurrence is created, approved as the series was, and sent in the same pass.
+    await runs.tick(new Date("2027-03-01T00:30:00Z"));
+    expect(await occurrences()).toEqual([]);
+    await runs.tick(new Date("2027-03-01T01:01:00Z"));
+    const [march] = await occurrences();
+    expect(march).toMatchObject({ occurrence_on: "2027-03-01", status: "completed", name: expect.stringContaining("Monthly checkup reminder — ") });
+    expect(march!.approved_by).toBe(active.approvedBy);
+    const sent = await ctx.pool.query<{ variables: { body: string } }>(
+      "SELECT n.variables FROM notification n JOIN crm_campaign c ON n.idempotency_key = 'crm:' || c.id || ':' || $2 || ':sms' WHERE c.series_id = $1 AND c.occurrence_on = '2027-03-01'",
+      [draft.id, optedIn],
+    );
+    expect(sent.rows[0]!.variables.body).toBe("Hello Maria, a friendly reminder to book your yearly checkup.");
+    // The same moment again creates nothing more.
+    await runs.tick(new Date("2027-03-01T01:02:00Z"));
+    expect(await occurrences()).toHaveLength(1);
+    const afterMarch = (await api(admin).get(`/outreach/series/${draft.id}`).expect(200)).body;
+    expect(new Date(afterMarch.series.nextRunAt).toISOString()).toBe("2027-04-01T01:00:00.000Z");
+    expect(afterMarch.occurrences).toHaveLength(1);
+
+    // The system was down in April: that occurrence is skipped, not sent late. May goes out, and the series ends after its last day.
+    await runs.tick(new Date("2027-05-01T01:01:00Z"));
+    expect((await occurrences()).map((o) => o.occurrence_on)).toEqual(["2027-03-01", "2027-05-01"]);
+    const ended = (await api(admin).get(`/outreach/series/${draft.id}`).expect(200)).body.series;
+    expect(ended).toMatchObject({ status: "ended", nextRunAt: null, closeReason: "Reached its last day" });
+    expect(await auditRows(ctx.pool, `action = 'crm.series.run' AND resource_id = $1`, [draft.id])).toHaveLength(2);
+    expect(await auditRows(ctx.pool, `action = 'crm.series.end' AND resource_id = $1`, [draft.id])).toHaveLength(1);
+  });
+
+  it("pauses and resumes a recurring campaign, takes it back to a draft to change it, and ends it with a reason", async () => {
+    const segment = (
+      await api(admin)
+        .post("/outreach/segments", { name: "Women 50+ (series two)", criteria: { ageMin: 50, sex: "female" } })
+        .expect(201)
+    ).body;
+    const body = {
+      segmentId: segment.id,
+      name: "Weekly hello",
+      channels: ["sms"],
+      body: "A weekly hello from the clinic, every Monday.",
+      cadence: "weekly",
+      weekday: 1,
+      sendTime: "09:00",
+      startsOn: "2027-06-07",
+    };
+    const draft = (await api(admin).post("/outreach/series", body).expect(201)).body;
+    const submitted = (await api(admin).post(`/outreach/series/${draft.id}/submit`, { version: draft.version }).expect(201)).body;
+    const active = (await api(approver).post(`/outreach/series/${draft.id}/approve`, { version: submitted.version }).expect(201)).body;
+    expect(new Date(active.nextRunAt).toISOString()).toBe("2027-06-07T01:00:00.000Z"); // 2027-06-07 is a Monday
+
+    const paused = (await api(admin).post(`/outreach/series/${draft.id}/pause`, { version: active.version }).expect(201)).body;
+    expect(paused).toMatchObject({ status: "paused", nextRunAt: null });
+    await runs.tick(new Date("2027-06-07T01:05:00Z"));
+    expect((await ctx.pool.query("SELECT count(*)::int AS n FROM crm_campaign WHERE series_id = $1", [draft.id])).rows[0].n).toBe(0);
+    const resumed = (await api(admin).post(`/outreach/series/${draft.id}/resume`, { version: paused.version }).expect(201)).body;
+    expect(resumed.status).toBe("active");
+    expect(resumed.nextRunAt).not.toBeNull();
+
+    // To change it: pause, back to a draft (the approval is gone), change, submit, approve again.
+    const again = (await api(admin).post(`/outreach/series/${draft.id}/pause`, { version: resumed.version }).expect(201)).body;
+    const reopened = (await api(admin).post(`/outreach/series/${draft.id}/reopen`, { version: again.version }).expect(201)).body;
+    expect(reopened).toMatchObject({ status: "draft", approvedBy: null, approvedAt: null, submittedBy: null, nextRunAt: null });
+    const changed = (
+      await api(admin)
+        .put(`/outreach/series/${draft.id}`, { ...body, body: "A different weekly hello from the clinic.", version: reopened.version })
+        .expect(200)
+    ).body;
+    expect(changed.body).toBe("A different weekly hello from the clinic.");
+    const resubmitted = (await api(admin).post(`/outreach/series/${draft.id}/submit`, { version: changed.version }).expect(201)).body;
+    const reapproved = (await api(approver).post(`/outreach/series/${draft.id}/approve`, { version: resubmitted.version }).expect(201)).body;
+    expect(reapproved.status).toBe("active");
+
+    await api(admin).post(`/outreach/series/${draft.id}/end`, { version: reapproved.version, reason: "x" }).expect(400);
+    const done = (await api(admin).post(`/outreach/series/${draft.id}/end`, { version: reapproved.version, reason: "The campaign is over" }).expect(201)).body;
+    expect(done).toMatchObject({ status: "ended", nextRunAt: null, closeReason: "The campaign is over" });
+    await api(admin)
+      .post(`/outreach/series/${draft.id}/resume`, { version: done.version })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("series_status"));
+    // The segment is free again.
+    await api(admin).post(`/outreach/segments/${segment.id}/archive`, { version: segment.version }).expect(201);
   });
 });

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { StaffPushStatus } from "@/lib/api/types";
+import type { StaffNotice, StaffPushStatus } from "@/lib/api/types";
 
 /** This browser's push status: whether it is registered (by its push address), and the member's browsers. */
 export async function pushStatus(endpoint?: string): Promise<ActionResult<StaffPushStatus>> {
@@ -55,6 +55,21 @@ export async function markNoticeRead(notificationId: string): Promise<ActionResu
   if (!z.uuid().safeParse(notificationId).success) return { ok: false, message: "Invalid message." };
   return actionResult(async () => {
     await api<void>(`/me/notifications/${notificationId}/read`, { method: "POST" });
+    return null;
+  });
+}
+
+/** The latest in-app notices for the top bar's dropdown (newest first). */
+export async function recentNotices(): Promise<ActionResult<StaffNotice[]>> {
+  return actionResult(async () => (await api<StaffNotice[]>("/me/notifications")).slice(0, 10));
+}
+
+/** Marks several of the member's own notices read (the API refuses anyone else's). */
+export async function markNoticesRead(notificationIds: string[]): Promise<ActionResult<null>> {
+  const parsed = z.array(z.uuid()).min(1).max(50).safeParse(notificationIds);
+  if (!parsed.success) return { ok: false, message: "Invalid message." };
+  return actionResult(async () => {
+    for (const id of parsed.data) await api<void>(`/me/notifications/${id}/read`, { method: "POST" });
     return null;
   });
 }

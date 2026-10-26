@@ -8,6 +8,8 @@ import { PortalAccountService, PortalProxyService } from "@healthcare/patient";
 
 /** Who hears about new records requests: staff of the records office (any facility of the organization). */
 const RECORDS_OFFICE_PERMISSION = "patient.records-request.manage";
+/** Who hears about results patients send: those who answer them. */
+const OUTSIDE_RESULT_OFFICE_PERMISSION = "outside-result.submission.manage";
 
 /**
  * Records notices (docs/domains/records-requests.md): patients who use MyHealth are told — in the app and by SMS (or
@@ -42,6 +44,9 @@ export class PatientRecordsNotices implements OnModuleInit {
       }
     });
     this.handlers.on("RecordsRequestSubmitted", "records.request-new", (event) => this.tellRecordsOffice(event));
+    // A patient's own result: the answer reaches the patient without the report or the reason; the office hears of each new one.
+    this.handlers.on("OutsideResultSubmissionAnswered", "portal.outside-result-answered", (event) => this.tellPatient(event, { kind: "outside-result-answered" }));
+    this.handlers.on("OutsideResultSubmitted", "records.outside-result-new", (event) => this.tellOutsideResultOffice(event));
   }
 
   private async tellPatient(event: DomainEventRecord, variables: Record<string, unknown>, recipientPatientId?: string): Promise<void> {
@@ -68,6 +73,20 @@ export class PatientRecordsNotices implements OnModuleInit {
       return;
     const sms = await message("sms");
     if (sms.status === "suppressed") await message("email");
+  }
+
+  private async tellOutsideResultOffice(event: DomainEventRecord): Promise<void> {
+    const staff = await this.users.holdersOf(event.organizationId, OUTSIDE_RESULT_OFFICE_PERMISSION, null);
+    const actor = systemActor(event.organizationId, null, "outside-result-notice");
+    for (const person of staff) {
+      await this.notifications.send(actor, {
+        recipient: { type: "user", userId: person.id },
+        channel: "in_app",
+        templateKey: "records.outside-result-new",
+        variables: { submissionId: event.aggregateId },
+        idempotencyKey: `outside-result-new:${event.id}:${person.id}`,
+      });
+    }
   }
 
   private async tellRecordsOffice(event: DomainEventRecord): Promise<void> {

@@ -160,10 +160,12 @@ export const TEMPLATES = [
       subject: z.string().trim().min(2).max(120).optional(),
       body: z.string().trim().min(10).max(2000),
       optOutLink: z.string().url().max(500).optional(),
+      // MyHealth's booking page when the campaign carries it: a plain address with nothing about the patient in it.
+      bookingLink: z.string().url().max(500).optional(),
     }),
     render: (v) => ({
       subject: v.subject ?? `A message from ${v.organizationName}`,
-      text: `${v.body}${v.optOutLink ? `\n\nTo stop messages like this: ${v.optOutLink}` : ""}`,
+      text: `${v.body}${v.bookingLink ? `\n\nBook a visit: ${v.bookingLink}` : ""}${v.optOutLink ? `\n\nTo stop messages like this: ${v.optOutLink}` : ""}`,
     }),
   }),
   defineTemplate({
@@ -418,6 +420,8 @@ export const TEMPLATES = [
       z.object({ kind: z.literal("referral-ready"), organizationName: shortText }),
       // No procedure or wording: the form is behind sign-in.
       z.object({ kind: z.literal("form-ready"), organizationName: shortText }),
+      // Neither the report nor the answer: both are behind sign-in.
+      z.object({ kind: z.literal("outside-result-answered"), organizationName: shortText }),
     ]),
     render: (v) => {
       switch (v.kind) {
@@ -425,6 +429,11 @@ export const TEMPLATES = [
           return {
             subject: "Your medical certificate is ready",
             text: `${v.organizationName}: a medical certificate from your visit is ready in MyHealth. Sign in to download it.`,
+          };
+        case "outside-result-answered":
+          return {
+            subject: "The clinic answered the result you sent",
+            text: `${v.organizationName}: the records office answered the result you sent from another laboratory or hospital. Sign in to MyHealth to see the answer.`,
           };
         case "request-answered":
           return {
@@ -514,6 +523,42 @@ export const TEMPLATES = [
       subject: "New records request",
       text: "A patient asked for copies of their records. Open the request to answer it.",
       href: `/records/requests/${v.requestId}`,
+    }),
+  }),
+  defineTemplate({
+    key: "outreach.campaign-notice",
+    version: 1,
+    category: "administrative",
+    // In-app to staff who approve or write outreach campaigns. The campaign's name and a pointer to it; never patient detail.
+    channels: ["in_app"],
+    variables: z.object({ kind: z.enum(["awaiting-approval", "reminder", "approved"]), campaignId: z.uuid(), name: shortText, series: z.boolean().optional() }),
+    render: (v) => ({
+      subject:
+        v.kind === "approved"
+          ? `Campaign approved: ${v.name}`
+          : v.kind === "reminder"
+            ? `Still waiting for approval: ${v.name}`
+            : `Campaign waiting for your approval: ${v.name}`,
+      text:
+        v.kind === "approved"
+          ? "Your campaign was approved and will be sent at its time, or within a minute."
+          : v.kind === "reminder"
+            ? "This campaign has waited for approval for two days. Read it and approve it, or ask the author to change it."
+            : "A campaign was submitted and needs a second person to approve it. Read the wording and the segment, then approve it.",
+      href: v.series ? `/outreach/series/${v.campaignId}` : `/outreach/campaigns/${v.campaignId}`,
+    }),
+  }),
+  defineTemplate({
+    key: "records.outside-result-new",
+    version: 1,
+    category: "administrative",
+    // In-app to the records office. No patient or report detail: that is read in the queue, behind access control.
+    channels: ["in_app"],
+    variables: z.object({ submissionId: z.uuid() }),
+    render: () => ({
+      subject: "A patient sent a result from another laboratory or hospital",
+      text: "A patient sent a report from another laboratory or hospital. Read it, then file it on their record or decline it with a reason.",
+      href: "/records/outside-results",
     }),
   }),
   defineTemplate({
@@ -802,6 +847,8 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "dental.record-update": "Dental record update in MyHealth",
   "records.update": "Records update in MyHealth",
   "records.request-new": "New records request (staff)",
+  "records.outside-result-new": "Outside result sent by a patient (staff)",
+  "outreach.campaign-notice": "Outreach campaign notice (staff)",
   "document.quarantine-notice": "File quarantined (staff)",
   "document.integrity-notice": "Document integrity finding (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",

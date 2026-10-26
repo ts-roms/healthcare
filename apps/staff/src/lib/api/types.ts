@@ -3308,6 +3308,7 @@ export type PatientTimelineKind =
   | "external_history"
   | "document"
   | "immunization"
+  | "outside_result"
   | "records_request";
 
 export type PatientTimelineLinkType =
@@ -3321,6 +3322,7 @@ export type PatientTimelineLinkType =
   | "invoice"
   | "patient_external_history"
   | "patient_immunizations"
+  | "patient_outside_results"
   | "patient_record"
   | "billing_account"
   | "doh_case_report"
@@ -3355,6 +3357,8 @@ export interface PatientTimelinePage {
 
 export type OutreachChannel = "sms" | "email" | "push" | "in_app";
 
+export type OutreachDeliveryMode = "all" | "first_available";
+
 export interface OutreachSegmentCriteria {
   ageMin?: number;
   ageMax?: number;
@@ -3367,6 +3371,10 @@ export interface OutreachSegmentCriteria {
   noVisitForMonths?: number;
   carePlanActivityDueWithinDays?: number;
   optedInChannel?: OutreachChannel;
+  birthMonth?: number;
+  myHealth?: "active" | "not_active";
+  registeredFacilityId?: string;
+  identifierOnFile?: "philhealth_pin" | "hmo_member_id";
 }
 
 export interface OutreachSegment {
@@ -3382,16 +3390,48 @@ export interface OutreachSegment {
   updatedAt: string;
 }
 
+/** Who can be messaged on each channel, by the same consent and contact checks a send makes (counts only). */
+export interface OutreachReach {
+  /** Patients whose reach was checked (a very large segment is checked in part). */
+  evaluated: number;
+  sampled: boolean;
+  byChannel: Array<{ channel: OutreachChannel; reachable: number; notReached: Array<{ reason: string; total: number }> }>;
+  /** Patients who can be messaged on at least one of the channels. */
+  reachableOnAny: number;
+  unreachable: number;
+}
+
 export interface OutreachSegmentPreview {
   total: number;
   members: Array<{ patientId: string; patientNumber: string; displayName: string; sex: string; age: number }>;
   truncated: boolean;
+  reach: OutreachReach;
+}
+
+/** GET /outreach/campaigns/:id/reach: the campaign's own channels, and what the organization's limits would do to it now. */
+export interface OutreachCampaignReach extends OutreachReach {
+  frequencyCap: { maxCampaigns: number; windowDays: number; heldBack: number } | null;
+  quietHours: { start: string; end: string; channels: OutreachChannel[]; holdingNow: boolean; until: string | null } | null;
+  includeBookingLink: boolean;
+  deliveryMode: OutreachDeliveryMode;
+  /** One message per patient only: how many patients each channel would carry, and how many no channel reaches. */
+  plannedChannels: { byChannel: Array<{ channel: OutreachChannel; total: number }>; none: number } | null;
+}
+
+/** GET /outreach/settings: how often and when outreach goes out (both off until set). */
+export interface OutreachSettings {
+  frequencyCap: { maxCampaigns: number; windowDays: number } | null;
+  quietHours: { enabled: boolean; start: string | null; end: string | null; channels: Array<"sms" | "email" | "push"> };
+  version: number;
+  updatedAt: string | null;
 }
 
 export type OutreachCampaignStatus = "draft" | "submitted" | "approved" | "sending" | "completed" | "cancelled";
 
 export interface OutreachCampaignSummary {
   patients: number;
+  /** Messages queued to go out when quiet hours end. */
+  heldForQuietHours: number;
   byChannel: Array<{ channel: OutreachChannel; queued: number; delivered: number; suppressed: number; failed: number }>;
   suppressedByReason: Array<{ reason: string; total: number }>;
 }
@@ -3404,6 +3444,13 @@ export interface OutreachCampaign {
   channels: OutreachChannel[];
   subject: string | null;
   body: string;
+  /** Ends with a link to book a visit in MyHealth. */
+  includeBookingLink: boolean;
+  /** Every channel named, or one message per patient on the first channel that reaches them. */
+  deliveryMode: OutreachDeliveryMode;
+  /** The recurring campaign this is one occurrence of, and the local day it is for. */
+  seriesId: string | null;
+  occurrenceOn: string | null;
   status: OutreachCampaignStatus;
   sendAt: string | null;
   createdBy: string;
@@ -3830,7 +3877,8 @@ export type PatientWorkspacePanel =
   | "referrals"
   | "procedures"
   | "immunizations"
-  | "history";
+  | "history"
+  | "outside_results";
 
 export interface WorkspaceFacilityRef {
   id: string;
@@ -3941,6 +3989,8 @@ export interface PatientWorkspace {
   /** The latest immunizations (entries in error left out); absent from an older API. */
   immunizations?: WorkspaceImmunization[] | null;
   procedures?: WorkspaceProcedure[] | null;
+  /** The latest reports from other laboratories and hospitals filed on the record (needs outside-result.read); absent from an older API. */
+  outsideResults?: WorkspaceOutsideResult[] | null;
   /** The patient history summary (needs history.read); absent from an older API. */
   history?: WorkspaceHistory | null;
   /** Records merged into this patient, read with it. */
@@ -4646,6 +4696,50 @@ export interface Vaccine {
   updatedAt: string;
 }
 
+/** A result from an outside laboratory or hospital filed on the patient's record (never one of this laboratory's results). */
+export interface OutsideResult {
+  id: string;
+  /** The record it is filed under (the patient, or a record merged into it). */
+  patientId: string;
+  facility: { id: string; name: string } | null;
+  documentId: string;
+  sourceName: string;
+  sourceKind: "laboratory" | "hospital" | "clinic" | "other";
+  /** YYYY-MM-DD, as stated on the report. */
+  performedOn: string;
+  tests: string;
+  receivedFrom: "patient" | "provider" | "other";
+  notes: string | null;
+  enteredInError: { at: string; reason: string; byName: string | null } | null;
+  /** Null until a clinician records that they read it; never set on an entry in error. */
+  review: { at: string; byName: string | null; note: string | null } | null;
+  recordedAt: string;
+  recordedByName: string | null;
+}
+
+/** A result a patient sent from MyHealth, waiting for the records office (GET /outside-result-submissions). */
+export interface OutsideResultSubmission {
+  id: string;
+  status: "submitted" | "filed" | "declined" | "withdrawn";
+  /** In the patient's own words. */
+  sourceName: string;
+  tests: string;
+  performedOn: string | null;
+  notes: string | null;
+  submittedAt: string;
+  answeredAt: string | null;
+  declineReason: string | null;
+  documentId: string;
+  outsideResultId: string | null;
+  decidedByName: string | null;
+  patient: { id: string; patientNumber: string; displayName: string };
+}
+
+/** A filing awaiting review, with the patient it is filed for (GET /outside-results/unreviewed). */
+export interface UnreviewedOutsideResult extends OutsideResult {
+  patient: { id: string; patientNumber: string; displayName: string };
+}
+
 export interface ImmunizationRecord {
   id: string;
   /** The record it is filed under (the patient, or a record merged into it). */
@@ -4703,6 +4797,21 @@ export interface VaccineStockLot {
   lotNumber: string | null;
   expiryDate: string | null;
   quantity: number;
+}
+
+export interface WorkspaceOutsideResult {
+  id: string;
+  filedUnder?: string | null;
+  facility: WorkspaceFacilityRef | null;
+  sourceName: string;
+  sourceKind: "laboratory" | "hospital" | "clinic" | "other";
+  /** YYYY-MM-DD, as stated on the report. */
+  performedOn: string;
+  tests: string;
+  receivedFrom: "patient" | "provider" | "other";
+  /** Whether a clinician has recorded that they read it. */
+  reviewed: boolean;
+  recordedAt: string;
 }
 
 export interface WorkspaceImmunization {
@@ -5262,6 +5371,8 @@ export interface StaffBadges {
   criticalResults: number | null;
   recordsRequests: number | null;
   caseReports: number | null;
+  outsideResultsUnreviewed: number | null;
+  outsideResultSubmissions: number | null;
 }
 
 // ---- procedures performed at the clinic (docs/domains/clinic.md, "Procedures") ------------------------------------
@@ -5466,4 +5577,50 @@ export interface MyPractitionerSignature {
 export interface PractitionerSignatureSetting {
   enabled: boolean;
   version: number;
+}
+
+// ---- Recurring outreach (GET /outreach/series) ------------------------------------------------------------------------
+
+export type OutreachSeriesStatus = "draft" | "submitted" | "active" | "paused" | "ended" | "cancelled";
+
+export interface OutreachSeries {
+  id: string;
+  segmentId: string;
+  segmentName: string;
+  name: string;
+  channels: OutreachChannel[];
+  subject: string | null;
+  body: string;
+  includeBookingLink: boolean;
+  deliveryMode: OutreachDeliveryMode;
+  cadence: "weekly" | "monthly";
+  /** Weekly: 0 = Sunday to 6 = Saturday. */
+  weekday: number | null;
+  /** Monthly: 1 to 28. */
+  dayOfMonth: number | null;
+  /** "HH:MM", Philippine time. */
+  sendTime: string;
+  startsOn: string;
+  endsOn: string | null;
+  status: OutreachSeriesStatus;
+  nextRunAt: string | null;
+  createdBy: string;
+  submittedBy: string | null;
+  submittedAt: string | null;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  closedAt: string | null;
+  closeReason: string | null;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OutreachSeriesOccurrence {
+  id: string;
+  name: string;
+  occurrenceOn: string;
+  status: OutreachCampaignStatus;
+  sendAt: string | null;
+  completedAt: string | null;
 }

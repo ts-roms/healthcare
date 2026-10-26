@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { SegmentCriteria } from "./crm.rules";
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -35,6 +35,13 @@ export const crmCampaign = pgTable(
     channels: text("channels").array().$type<OutreachChannel[]>().notNull(),
     subject: text("subject"),
     body: text("body").notNull(),
+    /** Whether the message ends with a link to book a visit in MyHealth (chosen while drafting, approved with the wording). */
+    includeBookingLink: boolean("include_booking_link").notNull().default(false),
+    /** The series this campaign is one occurrence of, and the local day it is for (migration 0135). */
+    seriesId: uuid("series_id"),
+    occurrenceOn: date("occurrence_on", { mode: "string" }),
+    /** Every channel the campaign names, or one message per patient on the first channel that reaches them (migration 0132). */
+    deliveryMode: text("delivery_mode").$type<"all" | "first_available">().notNull().default("all"),
     status: text("status").$type<CampaignStatus>().notNull().default("draft"),
     sendAt: ts("send_at"),
     createdBy: uuid("created_by").notNull(),
@@ -45,6 +52,8 @@ export const crmCampaign = pgTable(
     cancelledBy: uuid("cancelled_by"),
     cancelledAt: ts("cancelled_at"),
     cancelReason: text("cancel_reason"),
+    /** When the approvers were reminded that it still waits (once; migration 0133). */
+    approvalRemindedAt: ts("approval_reminded_at"),
     startedAt: ts("started_at"),
     completedAt: ts("completed_at"),
     version: integer("version").notNull().default(1),
@@ -84,3 +93,52 @@ export const crmOptOutToken = pgTable("crm_opt_out_token", {
 export type CrmSegmentRecord = typeof crmSegment.$inferSelect;
 export type CrmCampaignRecord = typeof crmCampaign.$inferSelect;
 export type CrmCampaignDeliveryRecord = typeof crmCampaignDelivery.$inferSelect;
+
+/** The organization's own limits on how often and when outreach goes out (migration 0131): off until set. */
+export const crmSetting = pgTable("crm_setting", {
+  organizationId: uuid("organization_id").primaryKey(),
+  capMaxCampaigns: smallint("cap_max_campaigns"),
+  capWindowDays: smallint("cap_window_days"),
+  quietHoursEnabled: boolean("quiet_hours_enabled").notNull().default(false),
+  quietStart: text("quiet_start"),
+  quietEnd: text("quiet_end"),
+  quietChannels: text("quiet_channels").array().$type<Array<"sms" | "email" | "push">>().notNull().default(["sms", "push"]),
+  version: integer("version").notNull().default(1),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+export type CrmSettingRecord = typeof crmSetting.$inferSelect;
+
+/** A campaign that repeats weekly or monthly; each occurrence is an ordinary approved campaign (migration 0135). */
+export const crmCampaignSeries = pgTable("crm_campaign_series", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  segmentId: uuid("segment_id").notNull(),
+  name: text("name").notNull(),
+  channels: text("channels").array().$type<OutreachChannel[]>().notNull(),
+  subject: text("subject"),
+  body: text("body").notNull(),
+  includeBookingLink: boolean("include_booking_link").notNull().default(false),
+  deliveryMode: text("delivery_mode").$type<"all" | "first_available">().notNull().default("all"),
+  cadence: text("cadence").$type<"weekly" | "monthly">().notNull(),
+  weekday: smallint("weekday"),
+  dayOfMonth: smallint("day_of_month"),
+  sendTime: text("send_time").notNull(),
+  startsOn: date("starts_on", { mode: "string" }).notNull(),
+  endsOn: date("ends_on", { mode: "string" }),
+  status: text("status").$type<"draft" | "submitted" | "active" | "paused" | "ended" | "cancelled">().notNull().default("draft"),
+  nextRunAt: ts("next_run_at"),
+  createdBy: uuid("created_by").notNull(),
+  submittedBy: uuid("submitted_by"),
+  submittedAt: ts("submitted_at"),
+  approvedBy: uuid("approved_by"),
+  approvedAt: ts("approved_at"),
+  approvalRemindedAt: ts("approval_reminded_at"),
+  closedBy: uuid("closed_by"),
+  closedAt: ts("closed_at"),
+  closeReason: text("close_reason"),
+  version: integer("version").notNull().default(1),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+export type CrmSeriesRecord = typeof crmCampaignSeries.$inferSelect;

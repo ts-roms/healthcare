@@ -2,8 +2,17 @@ import { Inject, Injectable } from "@nestjs/common";
 import { carePlan, carePlanActivity } from "@healthcare/care-plan";
 import { encounter } from "@healthcare/clinic";
 import { ageInYears, DATABASE, type Database } from "@healthcare/core";
-import type { CrmPreferenceWriter, CrmSegmentSource, OutreachChannel, SegmentCriteria, SegmentMember } from "@healthcare/crm";
-import { displayName, patient, patientAddress, patientCommunicationPreference, PatientRecordService } from "@healthcare/patient";
+import type { CrmPreferenceWriter, CrmReachSource, CrmSegmentSource, OutreachChannel, SegmentCriteria, SegmentMember } from "@healthcare/crm";
+import { RECIPIENT_DIRECTORY, type RecipientDirectory } from "@healthcare/notification";
+import {
+  displayName,
+  patient,
+  patientAddress,
+  patientCommunicationPreference,
+  patientIdentifier,
+  patientPortalAccount,
+  PatientRecordService,
+} from "@healthcare/patient";
 import { and, eq, exists, gte, lte, notExists, sql } from "drizzle-orm";
 
 /**
@@ -72,6 +81,28 @@ export class AppCrmSegmentSource implements CrmSegmentSource {
         ),
       );
     }
+    // Who the patient is and how the clinic knows them: nothing clinical.
+    if (criteria.birthMonth !== undefined) conditions.push(sql`extract(month from ${patient.birthDate}) = ${criteria.birthMonth}`);
+    if (criteria.registeredFacilityId) conditions.push(eq(patient.registeredFacilityId, criteria.registeredFacilityId));
+    if (criteria.myHealth) {
+      const activeAccount = this.db
+        .select({ one: sql`1` })
+        .from(patientPortalAccount)
+        .where(and(eq(patientPortalAccount.patientId, patient.id), eq(patientPortalAccount.status, "active")));
+      conditions.push(criteria.myHealth === "active" ? exists(activeAccount) : notExists(activeAccount));
+    }
+    if (criteria.identifierOnFile) {
+      conditions.push(
+        exists(
+          this.db
+            .select({ one: sql`1` })
+            .from(patientIdentifier)
+            .where(
+              and(eq(patientIdentifier.patientId, patient.id), eq(patientIdentifier.type, criteria.identifierOnFile), eq(patientIdentifier.status, "active")),
+            ),
+        ),
+      );
+    }
     if (criteria.optedInChannel) {
       conditions.push(
         exists(
@@ -109,7 +140,32 @@ export class AppCrmSegmentSource implements CrmSegmentSource {
       displayName: displayName(row),
       sex: row.sex,
       age: ageInYears(row.birthDate, today),
+      givenName: row.givenName,
     }));
+  }
+}
+
+/**
+ * Outreach → notification: whether each patient can be messaged on each channel, asked of the same recipient directory
+ * (consent, communication preferences and contact details) the notification service uses when a message is sent, so what
+ * staff see before a send is what the send does.
+ */
+@Injectable()
+export class AppCrmReachSource implements CrmReachSource {
+  constructor(@Inject(RECIPIENT_DIRECTORY) private readonly recipients: RecipientDirectory) {}
+
+  async reach(organizationId: string, patientIds: string[], channels: OutreachChannel[]) {
+    return Promise.all(
+      patientIds.map(async (patientId) => {
+        const entries = await Promise.all(
+          channels.map(async (channel) => {
+            const resolution = await this.recipients.resolve(organizationId, { type: "patient", patientId }, channel, "outreach");
+            return [channel, resolution.allowed ? ({ allowed: true } as const) : ({ allowed: false, reason: resolution.reason } as const)] as const;
+          }),
+        );
+        return { patientId, channels: Object.fromEntries(entries) };
+      }),
+    );
   }
 }
 

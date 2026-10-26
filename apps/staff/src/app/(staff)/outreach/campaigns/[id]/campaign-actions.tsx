@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { OutreachCampaign, OutreachSegment } from "@/lib/api/types";
-import { cancelCampaign, moveCampaign } from "../../actions";
+import { cancelCampaign, moveCampaign, testSendCampaign } from "../../actions";
 import { CampaignForm } from "../../campaign-list";
 
 export function CampaignActions({
@@ -13,12 +13,14 @@ export function CampaignActions({
   canManage,
   canApprove,
   currentUserId,
+  clinicName,
 }: {
   campaign: OutreachCampaign;
   segments: OutreachSegment[];
   canManage: boolean;
   canApprove: boolean;
   currentUserId: string;
+  clinicName: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -36,7 +38,7 @@ export function CampaignActions({
       } else toast.error(result.message);
     });
 
-  if (editing) return <CampaignForm campaign={campaign} segments={segments} onDone={() => setEditing(false)} />;
+  if (editing) return <CampaignForm campaign={campaign} segments={segments} clinicName={clinicName} onDone={() => setEditing(false)} />;
   return (
     <div className="mt-2 flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
@@ -49,6 +51,23 @@ export function CampaignActions({
               Change
             </Button>
           </>
+        ) : null}
+        {canManage && ["draft", "submitted", "approved"].includes(campaign.status) ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={pending}
+            title="Puts the message, as a sample patient would get it, in your own notifications and email. Nothing goes to a patient."
+            onClick={() =>
+              startTransition(async () => {
+                const result = await testSendCampaign(campaign.id);
+                if (result.ok) toast.success("A test was put in your notifications and emailed to you. Nobody else received it.");
+                else toast.error(result.message);
+              })
+            }
+          >
+            Send a test to me
+          </Button>
         ) : null}
         {canManage && campaign.status === "submitted" ? (
           <Button size="sm" variant="outline" onClick={() => move("reopen", "Back to draft")} disabled={pending}>

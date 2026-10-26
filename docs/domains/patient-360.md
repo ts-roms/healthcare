@@ -76,6 +76,7 @@ that gates the domain's own reads:
 | `documents`         | `document.read`                                           | physician, nurse, dentist, dental_assistant, records_officer, org_admin |
 | `referrals`         | `encounter.read`                                          | as `current_encounter`                                                  |
 | `immunizations`     | `immunization.read`                                       | physician, nurse, dentist, records_officer, org_admin                   |
+| `outside_results`   | `outside-result.read`                                     | physician, nurse, receptionist, dentist, records_officer, org_admin     |
 | `history`           | `history.read` (sensitive parts also `encounter.write`)   | physician, nurse, dentist, records_officer, org_admin                   |
 
 On the page, the summary panels need `patient.read` + `clinical.read` (prescriptions also `prescription.read`, care plans

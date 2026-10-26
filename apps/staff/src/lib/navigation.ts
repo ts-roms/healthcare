@@ -25,7 +25,13 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   "/outreach": ["crm.read"],
   "/management": ["management.dashboard.read"],
   "/reporting": ["doh.report.manage"],
-  "/records": ["interop.fhir.import.review", "patient.records-request.manage", "document.retention.manage", "document.integrity.manage"],
+  "/records": [
+    "interop.fhir.import.review",
+    "patient.records-request.manage",
+    "document.retention.manage",
+    "document.integrity.manage",
+    "outside-result.submission.manage",
+  ],
   "/messages": ["patient.message.read"],
 };
 

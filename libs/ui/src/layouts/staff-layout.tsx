@@ -102,7 +102,7 @@ export function StaffLayout({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex h-dvh overflow-hidden bg-background">
+      <div className="relative flex h-dvh overflow-clip bg-background">
         <aside
           className={cn(
             "relative hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 lg:flex",
@@ -147,7 +147,7 @@ export function StaffLayout({
             </form>
             <div className="ml-auto flex items-center gap-2">{topbarEnd}</div>
           </header>
-          <main className={cn("min-h-0 flex-1 overflow-auto", contentClassName)}>{children}</main>
+          <main className={cn("relative min-h-0 flex-1 overflow-auto", contentClassName)}>{children}</main>
         </div>
       </div>
     </TooltipProvider>

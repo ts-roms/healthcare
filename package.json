@@ -1,6 +1,6 @@
 {
   "name": "healthcare",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.33.0",
@@ -21,6 +21,8 @@
     "db:seed": "node -r @swc-node/register tools/db/seed.ts",
     "db:seed:demo": "node -r @swc-node/register tools/db/seed-demo.ts",
     "mobile:apk": "node -r @swc-node/register tools/mobile/build-apk.ts",
+    "release": "node tools/release/release.mjs",
+    "release:check": "node tools/release/release.mjs check",
     "build": "nx run-many -t build",
     "typecheck": "nx run-many -t typecheck",
     "lint": "nx run-many -t lint",

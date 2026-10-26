@@ -1,12 +1,14 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
-import { APP_CONFIG, type AppConfig, DATABASE, type Database } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, DATABASE, type Database, DomainEventPublisher } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationModule, OrganizationService } from "@healthcare/organization";
 import { CrmCampaignRuns } from "./crm-campaign-runs";
 import { CrmController } from "./crm.controller";
+import { CrmSeriesController } from "./crm-series.controller";
+import { CrmSeriesService } from "./crm-series.service";
 import { CrmService } from "./crm.service";
-import { CRM_PREFERENCES, CRM_SEGMENT_SOURCE, type CrmPreferenceWriter, type CrmSegmentSource } from "./ports";
+import { CRM_PREFERENCES, CRM_REACH_SOURCE, CRM_SEGMENT_SOURCE, type CrmPreferenceWriter, type CrmReachSource, type CrmSegmentSource } from "./ports";
 
 export interface CrmModuleOptions {
   imports?: ModuleMetadata["imports"];
@@ -14,6 +16,8 @@ export interface CrmModuleOptions {
   segmentSource: Type<CrmSegmentSource>;
   /** Records an opt-out in the patient's communication preferences. */
   preferenceWriter: Type<CrmPreferenceWriter>;
+  /** Whether each patient can be messaged on each channel (the same consent checks a send makes). */
+  reachSource: Type<CrmReachSource>;
 }
 
 /** Outreach: segments, campaigns, deliveries and the opt-out link (docs/domains/crm.md). */
@@ -23,13 +27,24 @@ export class CrmModule {
     return {
       module: CrmModule,
       imports: [OrganizationModule, ...(options.imports ?? [])],
-      controllers: [CrmController],
+      controllers: [CrmController, CrmSeriesController],
       providers: [
         { provide: CRM_SEGMENT_SOURCE, useClass: options.segmentSource },
         { provide: CRM_PREFERENCES, useClass: options.preferenceWriter },
+        { provide: CRM_REACH_SOURCE, useClass: options.reachSource },
         {
           provide: CrmService,
-          inject: [DATABASE, CRM_SEGMENT_SOURCE, CRM_PREFERENCES, NotificationService, OrganizationService, AuditService, APP_CONFIG],
+          inject: [
+            DATABASE,
+            CRM_SEGMENT_SOURCE,
+            CRM_PREFERENCES,
+            NotificationService,
+            OrganizationService,
+            AuditService,
+            APP_CONFIG,
+            CRM_REACH_SOURCE,
+            DomainEventPublisher,
+          ],
           useFactory: (
             db: Database,
             source: CrmSegmentSource,
@@ -38,11 +53,19 @@ export class CrmModule {
             organizations: OrganizationService,
             audit: AuditService,
             config: AppConfig,
-          ) => new CrmService(db, source, preferences, notifications, organizations, audit, config.PORTAL_BASE_URL),
+            reach: CrmReachSource,
+            events: DomainEventPublisher,
+          ) => new CrmService(db, source, preferences, notifications, organizations, audit, config.PORTAL_BASE_URL, reach, events),
+        },
+        {
+          provide: CrmSeriesService,
+          inject: [DATABASE, OrganizationService, AuditService, DomainEventPublisher, APP_CONFIG],
+          useFactory: (db: Database, organizations: OrganizationService, audit: AuditService, events: DomainEventPublisher, config: AppConfig) =>
+            new CrmSeriesService(db, organizations, audit, events, config.PORTAL_BASE_URL),
         },
         CrmCampaignRuns,
       ],
-      exports: [CrmService, CrmCampaignRuns],
+      exports: [CrmService, CrmSeriesService, CrmCampaignRuns],
     };
   }
 }

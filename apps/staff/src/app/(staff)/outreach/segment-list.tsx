@@ -4,10 +4,20 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { OutreachSegment, OutreachSegmentCriteria, OutreachSegmentPreview } from "@/lib/api/types";
-import { CHANNEL_LABEL, describeCriteria } from "@/lib/outreach-mapping";
+import { CHANNEL_LABEL, describeCriteria, IDENTIFIER_LABEL, MONTH_NAMES, MY_HEALTH_LABEL } from "@/lib/outreach-mapping";
 import { archiveSegment, saveSegment } from "./actions";
+import { ReachPanel } from "./reach-panel";
 
-export function SegmentList({ segments, canManage }: { segments: OutreachSegment[]; canManage: boolean }) {
+export function SegmentList({
+  segments,
+  canManage,
+  facilities,
+}: {
+  segments: OutreachSegment[];
+  canManage: boolean;
+  facilities: Array<{ id: string; name: string }>;
+}) {
+  const facilityNames = Object.fromEntries(facilities.map((f) => [f.id, f.name]));
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [editing, setEditing] = React.useState<OutreachSegment | "new" | null>(null);
@@ -53,7 +63,7 @@ export function SegmentList({ segments, canManage }: { segments: OutreachSegment
                 <p className="font-medium">
                   {s.name} {s.status === "archived" ? <Badge variant="neutral">Archived</Badge> : null}
                 </p>
-                <p className="text-muted-foreground">{describeCriteria(s.criteria)}</p>
+                <p className="text-muted-foreground">{describeCriteria(s.criteria, facilityNames)}</p>
                 {s.description ? <p className="text-muted-foreground">{s.description}</p> : null}
                 {preview?.id === s.id ? (
                   <div className="mt-2 rounded-md border p-2">
@@ -61,6 +71,9 @@ export function SegmentList({ segments, canManage }: { segments: OutreachSegment
                       {preview.data.total} patient{preview.data.total === 1 ? "" : "s"} match today
                       {preview.data.truncated ? ` (first ${preview.data.members.length} shown)` : ""}.
                     </p>
+                    <div className="mt-2">
+                      <ReachPanel reach={preview.data.reach} total={preview.data.total} />
+                    </div>
                     {preview.data.members.length > 0 ? (
                       <ul className="mt-1 max-h-48 overflow-y-auto text-meta text-muted-foreground">
                         {preview.data.members.map((m) => (
@@ -92,14 +105,27 @@ export function SegmentList({ segments, canManage }: { segments: OutreachSegment
           ))}
         </ul>
         {editing !== null ? (
-          <SegmentForm key={editing === "new" ? "new" : editing.id} segment={editing === "new" ? null : editing} onDone={() => setEditing(null)} />
+          <SegmentForm
+            key={editing === "new" ? "new" : editing.id}
+            segment={editing === "new" ? null : editing}
+            facilities={facilities}
+            onDone={() => setEditing(null)}
+          />
         ) : null}
       </CardContent>
     </Card>
   );
 }
 
-function SegmentForm({ segment, onDone }: { segment: OutreachSegment | null; onDone: () => void }) {
+function SegmentForm({
+  segment,
+  facilities,
+  onDone,
+}: {
+  segment: OutreachSegment | null;
+  facilities: Array<{ id: string; name: string }>;
+  onDone: () => void;
+}) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [name, setName] = React.useState(segment?.name ?? "");
@@ -116,6 +142,10 @@ function SegmentForm({ segment, onDone }: { segment: OutreachSegment | null; onD
     noVisitForMonths: str(segment?.criteria.noVisitForMonths),
     carePlanActivityDueWithinDays: str(segment?.criteria.carePlanActivityDueWithinDays),
     optedInChannel: segment?.criteria.optedInChannel ?? "",
+    birthMonth: str(segment?.criteria.birthMonth),
+    myHealth: segment?.criteria.myHealth ?? "",
+    registeredFacilityId: segment?.criteria.registeredFacilityId ?? "",
+    identifierOnFile: segment?.criteria.identifierOnFile ?? "",
   });
   const set = (key: keyof OutreachSegmentCriteria) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setC({ ...c, [key]: e.target.value });
   const num = (v: string) => (v.trim() === "" ? undefined : Number(v));
@@ -143,6 +173,10 @@ function SegmentForm({ segment, onDone }: { segment: OutreachSegment | null; onD
                 noVisitForMonths: num(c.noVisitForMonths),
                 carePlanActivityDueWithinDays: num(c.carePlanActivityDueWithinDays),
                 optedInChannel: (c.optedInChannel || undefined) as OutreachSegmentCriteria["optedInChannel"],
+                birthMonth: num(c.birthMonth),
+                myHealth: (c.myHealth || undefined) as OutreachSegmentCriteria["myHealth"],
+                registeredFacilityId: c.registeredFacilityId || undefined,
+                identifierOnFile: (c.identifierOnFile || undefined) as OutreachSegmentCriteria["identifierOnFile"],
               },
             },
             segment ? { id: segment.id, version: segment.version } : null,
@@ -192,6 +226,46 @@ function SegmentForm({ segment, onDone }: { segment: OutreachSegment | null; onD
             {(Object.keys(CHANNEL_LABEL) as Array<keyof typeof CHANNEL_LABEL>).map((ch) => (
               <option key={ch} value={ch}>
                 {CHANNEL_LABEL[ch]}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field id="sg-facility" label="Registered at">
+          <NativeSelect id="sg-facility" value={c.registeredFacilityId} onChange={set("registeredFacilityId")}>
+            <option value="">Any facility</option>
+            {facilities.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field id="sg-myhealth" label="MyHealth">
+          <NativeSelect id="sg-myhealth" value={c.myHealth} onChange={set("myHealth")}>
+            <option value="">Any</option>
+            {(Object.keys(MY_HEALTH_LABEL) as Array<keyof typeof MY_HEALTH_LABEL>).map((k) => (
+              <option key={k} value={k}>
+                {MY_HEALTH_LABEL[k]}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field id="sg-birth" label="Born in the month of">
+          <NativeSelect id="sg-birth" value={c.birthMonth} onChange={set("birthMonth")}>
+            <option value="">Any month</option>
+            {MONTH_NAMES.map((name, i) => (
+              <option key={name} value={String(i + 1)}>
+                {name}
+              </option>
+            ))}
+          </NativeSelect>
+        </Field>
+        <Field id="sg-ident" label="Number on file">
+          <NativeSelect id="sg-ident" value={c.identifierOnFile} onChange={set("identifierOnFile")}>
+            <option value="">Any</option>
+            {(Object.keys(IDENTIFIER_LABEL) as Array<keyof typeof IDENTIFIER_LABEL>).map((k) => (
+              <option key={k} value={k}>
+                {IDENTIFIER_LABEL[k]}
               </option>
             ))}
           </NativeSelect>

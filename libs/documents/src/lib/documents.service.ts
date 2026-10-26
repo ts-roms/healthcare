@@ -35,6 +35,8 @@ import { OBJECT_STORAGE, type ObjectStorage, type PresignedUpload } from "./obje
 
 const UPLOAD_URL_TTL_SECONDS = 10 * 60;
 const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
+/** What a browser can show in a page without running anything: a PDF and the common photo formats. */
+const INLINE_CONTENT_TYPES: ReadonlySet<string> = new Set(["application/pdf", "image/jpeg", "image/png"]);
 
 export type DocumentView = Omit<DocumentRecord, "storageKey" | "organizationId" | "declaredSha256">;
 
@@ -174,10 +176,18 @@ export class DocumentsService {
    */
   async createForPatient(
     context: PatientAuditContext,
-    input: { title: string; fileName: string; contentType: (typeof ALLOWED_CONTENT_TYPES)[number]; sizeBytes: number },
+    input: {
+      title: string;
+      fileName: string;
+      contentType: (typeof ALLOWED_CONTENT_TYPES)[number];
+      sizeBytes: number;
+      /** What the calling domain files it as; a message attachment unless said otherwise. */
+      category?: "clinical_attachment" | "outside_result";
+    },
   ): Promise<{ document: DocumentView; upload: PresignedUpload }> {
     const id = crypto.randomUUID();
     const storageKey = `org/${context.organizationId}/documents/${id}`;
+    const category = input.category ?? "clinical_attachment";
     const created = await this.db.transaction(async (tx) => {
       const [row] = await tx
         .insert(document)
@@ -186,7 +196,7 @@ export class DocumentsService {
           organizationId: context.organizationId,
           facilityId: null,
           patientId: context.patientId,
-          category: "clinical_attachment",
+          category,
           title: input.title,
           fileName: input.fileName,
           contentType: input.contentType,
@@ -202,7 +212,7 @@ export class DocumentsService {
         resourceType: "document",
         resourceId: id,
         patientId: context.patientId,
-        metadata: { category: "clinical_attachment", contentType: input.contentType, sizeBytes: input.sizeBytes, via: "patient_portal" },
+        metadata: { category, contentType: input.contentType, sizeBytes: input.sizeBytes, via: "patient_portal" },
       });
       return row;
     });
@@ -309,6 +319,23 @@ export class DocumentsService {
     return toView(updated);
   }
 
+  /** Whether the document is one this patient's own MyHealth account uploaded and finished uploading (for the calling domain's checks). */
+  async isOwnPatientUpload(context: PatientAuditContext, documentId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ id: document.id })
+      .from(document)
+      .where(
+        and(
+          eq(document.organizationId, context.organizationId),
+          eq(document.id, documentId),
+          eq(document.createdByPortalAccount, context.accountId),
+          eq(document.patientId, context.patientId),
+          eq(document.status, "available"),
+        ),
+      );
+    return Boolean(row);
+  }
+
   /** How many documents a patient's account uploaded in the last 24 hours (the calling domain's daily limit). */
   async patientUploadsToday(context: PatientAuditContext): Promise<number> {
     const [row] = await this.db
@@ -403,18 +430,32 @@ export class DocumentsService {
   }
 
   /** Issues a short-lived download URL. Every issuance is audited as an access. */
-  async downloadUrl(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<{ url: string; expiresAt: string }> {
+  async downloadUrl(
+    actor: Actor,
+    documentId: string,
+    scope: DocumentScope = {},
+    options: { inline?: boolean } = {},
+  ): Promise<{ url: string; expiresAt: string; contentType: string; inline: boolean }> {
     const record = await this.find(actor.organizationId, documentId, scope);
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
     await this.assertIntegrity(record);
-    const url = await this.storage.presignDownload(record.storageKey, record.fileName, record.contentType, DOWNLOAD_URL_TTL_SECONDS);
+    // Shown in the page only for types a browser displays safely; anything else is still a download.
+    const inline = options.inline === true && INLINE_CONTENT_TYPES.has(record.contentType);
+    const url = await this.storage.presignDownload(
+      record.storageKey,
+      record.fileName,
+      record.contentType,
+      DOWNLOAD_URL_TTL_SECONDS,
+      inline ? "inline" : "attachment",
+    );
     await this.audit.recordStandalone(actor, {
       action: "document.download",
       resourceType: "document",
       resourceId: documentId,
       patientId: record.patientId ?? undefined,
+      metadata: inline ? { inline: true } : undefined,
     });
-    return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString() };
+    return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000).toISOString(), contentType: record.contentType, inline };
   }
 
   /**
