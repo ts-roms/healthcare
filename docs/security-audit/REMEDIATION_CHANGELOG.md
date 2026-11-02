@@ -8,7 +8,18 @@ Status vocabulary: Fixed - Pending Verification means the change is made and uni
 | VR-07 | `ContextPool` now handles the pool's `error` event (logs `db.pool_error`, no crash) | `libs/core/src/lib/database/database-context.ts` | New `context-pool.spec.ts`; core suite 64 passed | Fixed - Pending Verification |
 | VR-05 | Unhandled-error log no longer prints the raw message of failed database queries (statement and bound parameters); keeps error name, driver cause and stack frames | `libs/core/src/lib/http/safe-error.ts`, `exception.filter.ts` | New `safe-error.spec.ts` (parameters absent from output) | Fixed - Pending Verification. Real drizzle error text not exercised against a live database |
 | VR-01 | `next` upgraded to 16.4.3 (>= 16.4.1) in `staff` and `portal` | both `package.json`, lockfile | typecheck, unit (staff 381, portal 91), production build of both: pass | Fixed - Pending Verification. Playwright journeys not run; `pnpm audit` not re-run |
-| VR-02 | User administration containment: suspending, resetting the sign-in of, or revoking a role from a member now requires the actor to hold every permission that member holds in the organization (platform administrators exempt); denial audited as `target_outranks_actor` | `libs/auth/src/lib/users.service.ts` (`assertOutranks`) | New case in `apps/api/test/staff-credential-reset.int.spec.ts`; typecheck, lint, unit pass. **The integration test was written but NOT run: Docker/PostgreSQL were not available** | Fixed - Pending Verification (test unexecuted) |
+| VR-02 | User administration containment: suspending, resetting the sign-in of, or revoking a role from a member now requires the actor to hold every permission that member holds in the organization (platform administrators exempt); denial audited as `target_outranks_actor` | `libs/auth/src/lib/users.service.ts` (`assertOutranks`) | New case in `apps/api/test/staff-credential-reset.int.spec.ts`; typecheck, lint, unit pass. Integration spec run later the same day against PostgreSQL: `staff-credential-reset` 3/3 pass, and 6 related specs (access, auth, role-editing, app-role, staff-push, password-screening) 42/42 pass | Fixed - Pending Verification (targeted integration tests pass) |
+
+## Retest results so far (2026-11-02)
+
+| Check | Result |
+|---|---|
+| `nx run-many -t lint typecheck test`, all 30 projects | Pass |
+| Full API integration suite (117 suites) | 1088 of 1089 tests pass. The one failure, `queue-display.int.spec.ts:140` ("joins the facility's live queue updates"), expects the socket to join only `queue` but the gateway now also joins `notices` (`realtime.gateway.ts:92`). Not caused by this work (no `apps/api/src` file was changed); the test expectation is out of date |
+| Playwright E2E (`pnpm test:e2e`) | **Failed: 32 passed, 10+ failed, 73 did not run** (serial run stops after failures). The first failure inspected (journey 1, "adds an emergency contact") is blocked by the staff app's "Getting around" guided-tour dialog, which appears on first visit and intercepts clicks; `apps/e2e` has no handling of the tour (feature from commits 7c52f386, 6559784b, before this work). The Next.js upgrade is therefore not shown to be the cause, but there is no baseline run on the previous commit, so the other failures were not individually diagnosed. Object storage and Mailpit containers were also stopped at the start of the run (started afterwards for a single-journey re-run only) |
+| `pnpm audit` | 4 critical, 30 high, 40 moderate, 9 low (was 6/33/45/10). Next.js criticals gone; remaining criticals: `shell-quote`, `handlebars` (2), `storybook` (not yet checked for dev-only exposure) |
+
+Findings are not marked Verified Fixed: the E2E suite must pass (after the tour issue is handled) and the scanners run before that.
 
 ## Not done yet (still Open)
 
