@@ -17,6 +17,8 @@ export const PERMISSIONS = [
   "patient.portal.proxy.manage",
   // Patient merge (migration 0068)
   "patient.merge",
+  // Government and insurance identifiers in full instead of masked (migration 0136)
+  "patient.identifier.reveal",
   // Patient QR codes: issue, print and revoke; the organization setting (migration 0117)
   "patient.qr.issue",
   "patient.qr.manage",

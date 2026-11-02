@@ -41,3 +41,4 @@ export * from "./lib/messaging/patient-message.schema";
 export * from "./lib/messaging/patient-message.service";
 export * from "./lib/messaging/patient-message.views";
 export * from "./lib/proxy/proxy.errors";
+export * from "./lib/identifier-masking";

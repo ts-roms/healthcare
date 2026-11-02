@@ -15,6 +15,7 @@ import {
   RetireDto,
   UpdateDemographicsDto,
 } from "./patient.dto";
+import { IDENTIFIER_REVEAL_PERMISSION, withIdentifierMasking } from "./identifier-masking";
 import { PatientRecordService } from "./patient-record.service";
 import { PatientRegistrationService } from "./patient-registration.service";
 import { PatientSearchService } from "./patient-search.service";
@@ -58,8 +59,10 @@ export class PatientController {
 
   @Get(":patientId")
   @RequirePermissions("patient.read")
-  get(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string) {
-    return this.records.getDetail(actor, patientId);
+  async get(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string) {
+    const detail = await this.records.getDetail(actor, patientId);
+    const reveal = actor.permissions.has(IDENTIFIER_REVEAL_PERMISSION);
+    return { ...detail, identifiers: withIdentifierMasking(detail.identifiers, reveal), identifiersMasked: !reveal };
   }
 
   @Patch(":patientId")

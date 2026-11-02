@@ -1,6 +1,7 @@
 import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequirePermissions } from "@healthcare/core";
+import { IDENTIFIER_REVEAL_PERMISSION, withIdentifierMasking } from "../identifier-masking";
 import { MergePatientDto, MergePreviewQueryDto, UnmergePatientDto } from "./patient-merge.dto";
 import { PatientMergeService } from "./patient-merge.service";
 
@@ -13,8 +14,14 @@ export class PatientMergeController {
   @Get(":patientId/merge-preview")
   @RequirePermissions("patient.read", "patient.merge")
   @ApiOperation({ summary: "Compare this record (to retire) with the surviving record: flagged differences and work in progress that blocks a merge" })
-  preview(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Query() query: MergePreviewQueryDto) {
-    return this.merges.preview(actor, patientId, query.into);
+  async preview(@CurrentActor() actor: Actor, @Param("patientId", ParseUUIDPipe) patientId: string, @Query() query: MergePreviewQueryDto) {
+    const preview = await this.merges.preview(actor, patientId, query.into);
+    const reveal = actor.permissions.has(IDENTIFIER_REVEAL_PERMISSION);
+    return {
+      ...preview,
+      retired: { ...preview.retired, identifiers: withIdentifierMasking(preview.retired.identifiers, reveal) },
+      survivor: { ...preview.survivor, identifiers: withIdentifierMasking(preview.survivor.identifiers, reveal) },
+    };
   }
 
   @Post(":patientId/merge")

@@ -76,6 +76,8 @@ export interface PatientDetail {
   contacts: Array<Pick<PatientContactPointRecord, "id" | "system" | "value" | "use" | "isPrimary">>;
   addresses: Array<Omit<PatientAddressRecord, "organizationId" | "patientId" | "status" | "createdBy" | "retiredAt" | "retiredBy">>;
   identifiers: Array<Pick<PatientIdentifierRecord, "id" | "type" | "value" | "issuer" | "validFrom" | "validUntil">>;
+  /** Set by the HTTP controller: the identifier values above are masked because the caller lacks `patient.identifier.reveal`. */
+  identifiersMasked?: boolean;
   relationships: Array<
     Pick<PatientRelationshipRecord, "id" | "relationship" | "relatedPatientId" | "name" | "contactNumber" | "isEmergencyContact" | "isLegalGuardian" | "notes">
   >;

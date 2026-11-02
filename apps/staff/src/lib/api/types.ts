@@ -181,6 +181,8 @@ export interface PatientDetail {
   contacts: PatientContact[];
   addresses: PatientAddress[];
   identifiers: PatientIdentifier[];
+  /** The numbers above are masked: this member may not see them in full (`patient.identifier.reveal`). */
+  identifiersMasked?: boolean;
   relationships: PatientRelationship[];
   consents: PatientConsent[];
   communicationPreferences: Array<{ channel: string; category: string; optedIn: boolean }>;

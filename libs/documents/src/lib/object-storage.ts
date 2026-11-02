@@ -175,7 +175,7 @@ export class InMemoryObjectStorage implements ObjectStorage {
    */
   put(key: string, info: StoredObjectInfo, body?: Buffer): void {
     this.objects.set(key, info);
-    this.contents.set(key, body ? Buffer.from(body) : signedPlaceholder(info.contentType, info.sizeBytes));
+    this.contents.set(key, body ? Buffer.from(body) : signedPlaceholder(info.contentType ?? "", info.sizeBytes));
   }
 }
 
