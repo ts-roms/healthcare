@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
 import { type StaffSecurityMailer, StaffSecurityMailers } from "@healthcare/auth";
-import { APP_CONFIG, type AppConfig, systemActor } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, devSecretsLogged, systemActor } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 
 /**
@@ -31,7 +31,7 @@ export class StaffSecurityNotices implements StaffSecurityMailer, OnModuleInit {
     }
     const link = `${base}/reset-password#token=${input.token}`;
     // The link is a credential: in development, with no mail provider, it is here so the flow can be tried.
-    if (this.config.NODE_ENV === "development") this.logger.warn(`Staff password reset link (development only): ${link}`);
+    if (devSecretsLogged(this.config)) this.logger.warn(`Staff password reset link (development only): ${link}`);
     await this.notifications.send(systemActor(input.organizationId, null, "staff-password-reset"), {
       recipient: { type: "user", userId: input.userId },
       channel: "email",

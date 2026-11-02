@@ -67,6 +67,9 @@ const appConfigSchema = z
     // Screens new passwords against the Pwned Passwords range API (docs/security/access-control.md); when on, a password
     // that cannot be checked is refused. Unset: on in production, off elsewhere (development, tests and CI may be offline).
     PASSWORD_BREACH_CHECK: booleanString.optional(),
+    // Prints single-use reset links and verification codes to the log so the flows can be tried without a mail provider.
+    // Off unless set, and only ever in development (a mis-set NODE_ENV on a deployed instance must not log credentials).
+    DEV_LOG_SECRETS: booleanString.optional(),
     S3_ENDPOINT: z.string().url().optional(),
     S3_REGION: z.string().default("ap-southeast-1"),
     S3_BUCKET: z.string().default("healthcare-documents"),
@@ -169,6 +172,9 @@ const appConfigSchema = z
         message: "Set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT together, or none of them",
       });
     }
+    if (config.NODE_ENV === "production") {
+      for (const problem of placeholderSecretProblems(config)) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
+    }
     const problem = integrationKeyringProblem(config);
     if (problem) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
     if (config.PAYMONGO_SECRET_KEY && (!config.PAYMONGO_WEBHOOK_SECRET || !config.PAYMONGO_PAYMENT_METHODS)) {
@@ -181,6 +187,29 @@ const appConfigSchema = z
   });
 
 export type AppConfig = z.infer<typeof appConfigSchema>;
+
+/** The sample MFA key in `.env.example`: public, so never acceptable in production. */
+const SAMPLE_MFA_ENCRYPTION_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+
+/**
+ * Secrets that pass the length checks but were copied from an example file or are plainly guessable. Checked in
+ * production only, so development and tests keep their sample values.
+ */
+export function placeholderSecretProblems(config: Pick<AppConfig, "JWT_ACCESS_SECRET" | "MFA_ENCRYPTION_KEY">): Array<{ path: string; message: string }> {
+  const problems: Array<{ path: string; message: string }> = [];
+  if (/change[-_ ]?me|example|placeholder|password|secret/i.test(config.JWT_ACCESS_SECRET) || new Set(config.JWT_ACCESS_SECRET).size < 12) {
+    problems.push({ path: "JWT_ACCESS_SECRET", message: "looks like a placeholder or a guessable value; generate one with `openssl rand -base64 48`" });
+  }
+  if (config.MFA_ENCRYPTION_KEY === SAMPLE_MFA_ENCRYPTION_KEY) {
+    problems.push({ path: "MFA_ENCRYPTION_KEY", message: "is the sample key from .env.example; generate one with `openssl rand -base64 32`" });
+  }
+  return problems;
+}
+
+/** Whether credentials (reset links, verification codes) may be written to the log: development with `DEV_LOG_SECRETS` on. */
+export function devSecretsLogged(config: Pick<AppConfig, "NODE_ENV" | "DEV_LOG_SECRETS">): boolean {
+  return config.NODE_ENV === "development" && config.DEV_LOG_SECRETS === true;
+}
 
 /** Whether new passwords are screened against breached passwords: `PASSWORD_BREACH_CHECK`, else only in production. */
 export function passwordBreachCheckEnabled(config: Pick<AppConfig, "NODE_ENV" | "PASSWORD_BREACH_CHECK">): boolean {

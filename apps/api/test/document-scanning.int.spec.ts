@@ -68,8 +68,18 @@ describe("document scanning and checksums", () => {
     expect((await ctx.http().get("/api/v1/health/ready").expect(200)).body.checks.malwareScanner).toBe("ok");
   });
 
+  it("refuses an upload whose contents are not the declared file type, leaving it pending", async () => {
+    const body = Buffer.from("<html><script>alert(1)</script></html>");
+    const id = (await register({ sizeBytes: body.length }).expect(201)).body.document.id as string;
+    ctx.storage.put(await key(id), { sizeBytes: body.length, contentType: "application/pdf" }, body);
+    await complete(id)
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("upload_content_mismatch"));
+    expect((await row(id)).status).toBe("pending_upload");
+  });
+
   it("refuses an upload whose bytes differ from the declared checksum, and accepts a matching one", async () => {
-    const body = Buffer.from("declared content");
+    const body = Buffer.from("%PDF-1.4 declared content");
     const wrong = "0".repeat(64);
     const bad = (await register({ sizeBytes: body.length, sha256: wrong }).expect(201)).body.document.id as string;
     ctx.storage.put(await key(bad), { sizeBytes: body.length, contentType: "application/pdf" }, body);
@@ -87,7 +97,7 @@ describe("document scanning and checksums", () => {
   });
 
   it("quarantines an infected upload: never available, refused everywhere, audited, and the records office told", async () => {
-    const body = Buffer.from(`prefix ${EICAR} suffix`, "latin1");
+    const body = Buffer.from(`%PDF-1.4 prefix ${EICAR} suffix`, "latin1");
     const id = (await register({ sizeBytes: body.length, title: "Not this one" }).expect(201)).body.document.id as string;
     ctx.storage.put(await key(id), { sizeBytes: body.length, contentType: "application/pdf" }, body);
     await complete(id)
@@ -126,7 +136,7 @@ describe("document scanning and checksums", () => {
   });
 
   it("refuses completion while the scanner is unreachable, leaving the upload pending for a retry", async () => {
-    const body = Buffer.from("fine");
+    const body = Buffer.from("%PDF-1.4 fine");
     const id = (await register({ sizeBytes: body.length }).expect(201)).body.document.id as string;
     ctx.storage.put(await key(id), { sizeBytes: body.length, contentType: "application/pdf" }, body);
     scanner.down = true;
@@ -165,7 +175,7 @@ describe("documents without a scanner", () => {
   afterAll(() => ctx.close());
 
   it("completes uploads as not scanned, with the checksum, and says so on readiness", async () => {
-    const body = Buffer.from("unscanned");
+    const body = Buffer.from("%PDF-1.4 unscanned");
     const created = await ctx
       .http()
       .post("/api/v1/documents")

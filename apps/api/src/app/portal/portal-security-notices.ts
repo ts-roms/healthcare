@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, type OnModuleInit } from "@nestjs/common";
-import { APP_CONFIG, type AppConfig, systemActor } from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, devSecretsLogged, systemActor } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { PortalSecurityMailers, type PortalSecurityMailer, type SecurityAlertEvent } from "@healthcare/patient";
@@ -35,7 +35,7 @@ export class PortalSecurityNotices implements PortalSecurityMailer, OnModuleInit
     }
     const link = `${base}/reset-password#token=${input.token}`;
     // The link is a credential: in development, with no mail provider, it is here so the flow can be tried.
-    if (this.config.NODE_ENV === "development") this.logger.warn(`Password reset link (development only): ${link}`);
+    if (devSecretsLogged(this.config)) this.logger.warn(`Password reset link (development only): ${link}`);
     const organization = await this.organizations.getOrganization(input.organizationId);
     await this.notifications.send(systemActor(input.organizationId, null, "portal-password-reset"), {
       recipient: { type: "patient", patientId: input.patientId },
@@ -55,7 +55,7 @@ export class PortalSecurityNotices implements PortalSecurityMailer, OnModuleInit
     validMinutes: number;
   }): Promise<void> {
     // The code is a credential: in development, with no mail provider, it is here so the flow can be tried.
-    if (this.config.NODE_ENV === "development") this.logger.warn(`MyHealth verification code for ${input.email} (development only): ${input.code}`);
+    if (devSecretsLogged(this.config)) this.logger.warn(`MyHealth verification code for ${input.email} (development only): ${input.code}`);
     const organization = await this.organizations.getOrganization(input.organizationId);
     await this.notifications.send(
       systemActor(input.organizationId, null, "portal-email-verification"),

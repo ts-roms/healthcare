@@ -54,6 +54,7 @@ import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
 import { DocumentNotifications } from "./document-notifications";
 import { LaboratoryQualityNotifications } from "./laboratory-quality-notifications";
+import { IdempotencyPurge } from "./idempotency-purge";
 import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { ManagementDashboardController } from "./management-dashboard/management-dashboard.controller";
@@ -293,6 +294,7 @@ export class AppModule implements NestModule {
         LaboratoryNotifications,
         LaboratoryQualityNotifications,
         DocumentNotifications,
+        IdempotencyPurge,
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,

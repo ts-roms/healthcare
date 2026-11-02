@@ -15,6 +15,7 @@ import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
 import { configureApp } from "./app/configure-app";
+import { IdempotencyPurge } from "./app/idempotency-purge";
 import { LaboratoryQualityReminders } from "./app/laboratory-quality-reminders";
 import { PatientMessageReminders } from "./app/portal/patient-message-reminders";
 import { CrmApprovalReminders } from "./app/outreach/crm-approval-notices";
@@ -41,6 +42,7 @@ async function bootstrap(): Promise<void> {
   app.get(WaitlistOffersService).start();
   // Hourly: laboratory temperature readings missed and competency reassessments due (in-app, quality managers).
   app.get(LaboratoryQualityReminders).start();
+  app.get(IdempotencyPurge).start();
   // Hourly: MyHealth conversations past the clinic's response target (one in-app reminder per breach; docs/domains/patient-messaging.md).
   app.get(PatientMessageReminders).start();
   // Hourly: outreach campaigns still waiting for approval two days after submission (one in-app reminder to the approvers).

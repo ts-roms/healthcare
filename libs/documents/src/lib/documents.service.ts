@@ -18,6 +18,7 @@ import {
 } from "@healthcare/core";
 import { and, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
+import { matchesDeclaredType } from "./content-signature";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
 import { blocksServing } from "./document-integrity.rules";
 import {
@@ -257,6 +258,9 @@ export class DocumentsService {
     }
     const bytes = await this.storage.get(record.storageKey);
     if (!bytes) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
+    if (!matchesDeclaredType(bytes, record.contentType as (typeof ALLOWED_CONTENT_TYPES)[number])) {
+      throw new BusinessRuleError("The file's contents do not match its declared type", "upload_content_mismatch", { declared: record.contentType });
+    }
     const sha256 = sha256Hex(bytes);
     if (record.declaredSha256 && record.declaredSha256 !== sha256) {
       throw new BusinessRuleError("The uploaded file does not match the declared checksum", "checksum_mismatch", {

@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
-import { integrationPayloadKeyring, loadAppConfig, passwordBreachCheckEnabled } from "./app-config";
+import { devSecretsLogged, integrationPayloadKeyring, loadAppConfig, passwordBreachCheckEnabled } from "./app-config";
 
 const key = () => randomBytes(32).toString("base64");
 const mfa = key();
-const base = { DATABASE_URL: "postgres://u:p@localhost:5432/db", JWT_ACCESS_SECRET: "x".repeat(32), MFA_ENCRYPTION_KEY: mfa };
+const base = { DATABASE_URL: "postgres://u:p@localhost:5432/db", JWT_ACCESS_SECRET: randomBytes(32).toString("hex"), MFA_ENCRYPTION_KEY: mfa };
 
 describe("integration payload keys", () => {
   it("falls back to MFA_ENCRYPTION_KEY outside production only", () => {
@@ -112,5 +112,39 @@ describe("breached-password screening", () => {
   it("rejects a blank or malformed PASSWORD_BREACH_CHECK", () => {
     expect(() => loadAppConfig({ ...base, PASSWORD_BREACH_CHECK: "" })).toThrow("PASSWORD_BREACH_CHECK");
     expect(() => loadAppConfig({ ...base, PASSWORD_BREACH_CHECK: "yes" })).toThrow("PASSWORD_BREACH_CHECK");
+  });
+});
+
+describe("placeholder secrets", () => {
+  const production = { DATABASE_URL: "postgres://u:p@localhost:5432/db", NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+  const strong = { JWT_ACCESS_SECRET: randomBytes(32).toString("hex"), MFA_ENCRYPTION_KEY: key() };
+
+  it("refuses the examples from .env.example and guessable secrets in production", () => {
+    const load = (env: Record<string, string>) => () => loadAppConfig({ ...production, ...strong, ...env });
+    expect(load({})).not.toThrow();
+    expect(load({ JWT_ACCESS_SECRET: "change-me-change-me-change-me-change-me" })).toThrow("JWT_ACCESS_SECRET");
+    expect(load({ JWT_ACCESS_SECRET: "a".repeat(40) })).toThrow("JWT_ACCESS_SECRET");
+    expect(load({ MFA_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" })).toThrow("MFA_ENCRYPTION_KEY");
+  });
+
+  it("keeps the examples usable in development", () => {
+    expect(() =>
+      loadAppConfig({
+        DATABASE_URL: "postgres://u:p@localhost:5432/db",
+        JWT_ACCESS_SECRET: "change-me-change-me-change-me-change-me",
+        MFA_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("devSecretsLogged", () => {
+  const load = (env: Record<string, string>) =>
+    loadAppConfig({ DATABASE_URL: "postgres://u:p@localhost:5432/db", JWT_ACCESS_SECRET: randomBytes(32).toString("hex"), MFA_ENCRYPTION_KEY: key(), ...env });
+
+  it("is off unless DEV_LOG_SECRETS is set, and never outside development", () => {
+    expect(devSecretsLogged(load({}))).toBe(false);
+    expect(devSecretsLogged(load({ DEV_LOG_SECRETS: "true" }))).toBe(true);
+    expect(devSecretsLogged(load({ DEV_LOG_SECRETS: "true", NODE_ENV: "test" }))).toBe(false);
   });
 });
