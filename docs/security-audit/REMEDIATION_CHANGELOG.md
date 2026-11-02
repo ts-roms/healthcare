@@ -19,7 +19,7 @@ Status vocabulary: Fixed - Pending Verification means the change is made and uni
 | VR-13        | Web Push endpoints must be public https addresses (default port, no credentials, no IP literal, `localhost` or internal suffix) on both the staff and MyHealth routes. Does not stop DNS rebinding: restrict the sender's egress too                                 | `libs/notification/src/lib/push/push-endpoint.ts`, both push controllers | `push-endpoint.spec.ts`; new case in `staff-push.int.spec.ts`                      | Fixed - Pending Verification (partial mitigation)                              |
 | VR-12        | While Redis is unreachable the rate limiter counts per instance in memory (same window and block) instead of letting everything through; credential routes stay limited; counts are not shared across instances                                                      | `apps/api/src/app/redis-throttler-storage.ts`                            | Updated unit spec and `rate-limit.int.spec.ts` (10 sign-ins pass, the 11th is 429) | Fixed - Pending Verification                                                   |
 
-Full integration suite after this batch: 117 suites, 1091 tests, all pass. E2E after this batch: see below.
+Full integration suite after this batch: 117 suites, 1091 tests, all pass. E2E after this batch: full Playwright run passed (`.last-run.json` status passed, no failures).
 
 ## Retest results so far (2026-11-02)
 
