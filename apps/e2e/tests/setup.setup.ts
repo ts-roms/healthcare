@@ -45,6 +45,8 @@ setup("configure the clinic", async () => {
     }
   }
   await admin.post("/clinic/coding-systems", { key: "icd10", name: "ICD-10", version: "2019" });
+  // The guided tour opens a dialog on first visit that covers the screen; the journeys drive the screens themselves.
+  await admin.put("/organization/tour-setting", { enabled: false, version: 0 });
 
   const chemistry = await admin.post<{ id: string }>("/laboratory/departments", { code: "chem", name: "Chemistry" });
   const serum = await admin.post<{ id: string }>("/laboratory/specimen-types", { code: "serum", name: "Serum" });

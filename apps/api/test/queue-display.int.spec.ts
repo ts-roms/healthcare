@@ -137,6 +137,6 @@ describe("waiting-room display", () => {
         reject(new Error(JSON.stringify(payload)));
       });
     });
-    expect(ready).toEqual({ facilityId: tenant.facilityId, channels: ["queue"] });
+    expect(ready).toEqual({ facilityId: tenant.facilityId, channels: ["queue", "notices"] });
   });
 });
