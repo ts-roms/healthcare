@@ -101,6 +101,9 @@ export class ContextPool extends Pool {
     private readonly mode: RowLevelSecurityMode,
   ) {
     super(config);
+    // An idle client can fail (database restart or failover). Without a listener Node treats the event as unhandled
+    // and ends the process; pg drops the broken client and the next query opens a new one.
+    this.on("error", (error) => this.logger.error({ event: "db.pool_error", error: error.message }));
   }
 
   override connect(): Promise<PoolClient>;
