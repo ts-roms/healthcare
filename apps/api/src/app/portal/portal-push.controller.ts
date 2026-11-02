@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { AuditService } from "@healthcare/audit";
 import { APP_CONFIG, type AppConfig, BusinessRuleError, Public, systemActor } from "@healthcare/core";
-import { NotificationService, PushSubscriptionService } from "@healthcare/notification";
+import { NotificationService, PushSubscriptionService, webPushEndpointSchema } from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { CurrentPatient, PatientAccessGuard, patientAuditContext, PushDeviceCounts, type PortalPrincipal } from "@healthcare/patient";
 import { createZodDto } from "nestjs-zod";
@@ -13,7 +13,7 @@ import { z } from "zod";
 
 const base64url = z.string().regex(/^[A-Za-z0-9_-]+={0,2}$/);
 class RegisterDeviceDto extends createZodDto(
-  z.object({ endpoint: z.url().max(2048).startsWith("https://"), keys: z.object({ p256dh: base64url.min(40).max(200), auth: base64url.min(10).max(100) }) }),
+  z.object({ endpoint: webPushEndpointSchema, keys: z.object({ p256dh: base64url.min(40).max(200), auth: base64url.min(10).max(100) }) }),
 ) {}
 class RegisterMobileDeviceDto extends createZodDto(
   z.object({

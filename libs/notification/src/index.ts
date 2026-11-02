@@ -9,6 +9,7 @@ export * from "./lib/templates";
 export * from "./lib/push/push-subscription.service";
 export * from "./lib/push/push-subscription.schema";
 export * from "./lib/push/web-push.sender";
+export * from "./lib/push/push-endpoint";
 export * from "./lib/push/expo-push.transport";
 export * from "./lib/push/expo-push-receipts";
 export * from "./lib/push/staff-push-preference.service";

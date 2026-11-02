@@ -6,8 +6,9 @@ import { localDate } from "@healthcare/core";
 /**
  * Rate-limit counters shared by every API instance (docs/security/access-control.md): one Redis script per check counts
  * the hit in a fixed window of `ttl` and, once over the limit, blocks the key for `blockDuration`. Keys live under
- * `<prefix><key>` and always expire. When Redis cannot be reached the request is let through (account lockout, kept in
- * PostgreSQL, still applies) and a warning is logged at most once a minute.
+ * `<prefix><key>` and always expire. When Redis cannot be reached the same count is kept in this process's memory, so a
+ * client is still limited (per instance, not across instances) and a request is never held or refused for lack of Redis;
+ * account lockout, kept in PostgreSQL, applies as well. A warning is logged at most once a minute.
  */
 const INCREMENT_SCRIPT = `
 local hits = redis.call('INCR', KEYS[1])
@@ -31,6 +32,14 @@ return {hits, ttl, 0, 0}
 type ThrottlerStorageRecord = Awaited<ReturnType<ThrottlerStorage["increment"]>>;
 
 const COMMAND_TIMEOUT_MS = 250;
+/** Counters held in memory while Redis is unreachable; expired ones are dropped once this many accumulate. */
+const LOCAL_MAX_KEYS = 20_000;
+
+interface LocalCounter {
+  hits: number;
+  windowEndsAt: number;
+  blockedUntil: number;
+}
 const WARNING_INTERVAL_MS = 60_000;
 
 /** How long refusal counts are kept, and the day they are counted in (platform-wide, like the communication log). */
@@ -58,6 +67,7 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnApplicationShu
   private readonly logger = new Logger(RedisThrottlerStorage.name);
   private lastWarningAt = 0;
   private readonly redis: RedisLike;
+  private readonly local = new Map<string, LocalCounter>();
 
   constructor(
     redisUrlOrClient: string | RedisLike,
@@ -100,8 +110,32 @@ export class RedisThrottlerStorage implements ThrottlerStorage, OnApplicationShu
       };
     } catch (error) {
       this.warn(error as Error);
-      return { totalHits: 0, timeToExpire: Math.ceil(ttl / 1000), isBlocked: false, timeToBlockExpire: 0 };
+      return this.incrementLocally(hitKey, ttl, limit, blockDuration);
     }
+  }
+
+  /** The same fixed window and block as the Redis script, kept in this process while Redis cannot be reached. */
+  private incrementLocally(hitKey: string, ttl: number, limit: number, blockDuration: number, now = Date.now()): ThrottlerStorageRecord {
+    if (this.local.size >= LOCAL_MAX_KEYS) {
+      for (const [key, counter] of this.local) if (counter.windowEndsAt <= now && counter.blockedUntil <= now) this.local.delete(key);
+    }
+    let counter = this.local.get(hitKey);
+    if (!counter || counter.windowEndsAt <= now) {
+      counter = { hits: 0, windowEndsAt: now + Math.max(1, ttl), blockedUntil: counter?.blockedUntil ?? 0 };
+      this.local.set(hitKey, counter);
+    }
+    counter.hits += 1;
+    if (counter.blockedUntil > now) return this.record(counter.hits, counter.windowEndsAt - now, counter.blockedUntil - now);
+    if (counter.hits > limit) {
+      const block = blockDuration > 0 ? blockDuration : counter.windowEndsAt - now;
+      if (blockDuration > 0) counter.blockedUntil = now + block;
+      return this.record(counter.hits, counter.windowEndsAt - now, block);
+    }
+    return { totalHits: counter.hits, timeToExpire: Math.ceil((counter.windowEndsAt - now) / 1000), isBlocked: false, timeToBlockExpire: 0 };
+  }
+
+  private record(hits: number, windowLeft: number, blockLeft: number): ThrottlerStorageRecord {
+    return { totalHits: hits, timeToExpire: Math.ceil(windowLeft / 1000), isBlocked: true, timeToBlockExpire: Math.ceil(blockLeft / 1000) };
   }
 
   /**

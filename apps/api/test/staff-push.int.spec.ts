@@ -106,6 +106,18 @@ describe("staff push notifications", () => {
       .expect((r) => expect(r.body.error.code).toBe("no_push_device"));
   });
 
+  it("refuses a push address that is not a public push service", async () => {
+    for (const bad of [
+      "https://127.0.0.1/push",
+      "https://169.254.169.254/latest",
+      "https://localhost/push",
+      "https://db.railway.internal/push",
+      "https://push.example.test:8443/x",
+    ]) {
+      await ctx.http().post("/api/v1/me/push/subscriptions").set(as(nurse, tenant.facilityId)).send({ endpoint: bad, keys }).expect(400);
+    }
+  });
+
   it("registers a browser for the member, keeps five at most, and lets them remove one", async () => {
     await me(nurse).post("/subscriptions", { endpoint: "http://push.example.test/x", keys }).expect(400);
     const created = (await register(nurse, 1).expect(201)).body;

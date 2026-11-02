@@ -71,12 +71,14 @@ describe("shared rate limits", () => {
     for (let i = 0; i < 3; i += 1) await first.http().get("/api/v1/health/live").expect(200);
   });
 
-  it("lets requests through while Redis is unreachable", async () => {
+  it("keeps limiting sign-ins from its own count while Redis is unreachable", async () => {
     const offline = await createTestApp({ disableRateLimit: false, rateLimitStorage: { redisUrl: "redis://127.0.0.1:1", keyPrefix } });
     try {
       const again = await createTenant(offline.pool, "limits-org");
       await createStaff(offline.pool, again, "clerk@limits.ph", ["receptionist"]);
-      for (let i = 0; i < 12; i += 1) await signIn(offline).expect(200);
+      // Never held for lack of Redis, but still limited (10 a minute per client) by this instance's own count.
+      for (let i = 0; i < 10; i += 1) await signIn(offline).expect(200);
+      await signIn(offline).expect(429);
     } finally {
       await offline.close();
     }

@@ -309,6 +309,7 @@ export class UsersService {
   async grantRole(actor: Actor, userId: string, input: z.infer<typeof grantRoleSchema>): Promise<StaffUserView> {
     const targetRole = await this.findUsableRole(actor.organizationId, input.roleId);
     await this.assertCanDelegate(actor, targetRole.permissions);
+    await this.assertGrantWithinScope(actor, userId, input.facilityId);
     if (input.facilityId) {
       const facility = await this.organizations.findFacility(actor.organizationId, input.facilityId);
       if (!facility) throw new NotFoundError("Facility");
@@ -480,6 +481,38 @@ export class UsersService {
     const updated = (await this.listRoles(actor.organizationId)).find((r) => r.id === roleId);
     if (!updated) throw new NotFoundError("Role");
     return updated;
+  }
+
+  /**
+   * Roles are granted for the whole organization or one facility. Someone who manages users at certain facilities only
+   * may grant at those facilities (never organization-wide or elsewhere), and nobody grants roles to themselves, so
+   * `user.manage` cannot be used to widen one's own reach. Platform administrators are exempt.
+   */
+  private async assertGrantWithinScope(actor: Actor, userId: string, facilityId: string | undefined): Promise<void> {
+    if (actor.isPlatformAdmin) return;
+    if (userId === actor.userId) throw new BusinessRuleError("You cannot grant roles to yourself", "self_modification");
+    const held = await this.db
+      .selectDistinct({ facilityId: roleAssignment.facilityId })
+      .from(roleAssignment)
+      .innerJoin(rolePermission, eq(rolePermission.roleId, roleAssignment.roleId))
+      .where(
+        and(
+          eq(roleAssignment.organizationId, actor.organizationId),
+          eq(roleAssignment.userId, actor.userId),
+          isNull(roleAssignment.revokedAt),
+          eq(rolePermission.permissionKey, "user.manage"),
+        ),
+      );
+    if (held.some((h) => h.facilityId === null)) return;
+    if (facilityId && held.some((h) => h.facilityId === facilityId)) return;
+    await this.audit.recordStandalone(actor, {
+      action: "access.deny",
+      resourceType: "role_assignment",
+      outcome: "denied",
+      reason: "grant_outside_actor_scope",
+      metadata: { facilityId: facilityId ?? null },
+    });
+    throw new ForbiddenError("You can only grant roles at the facilities you manage", "grant_outside_actor_scope");
   }
 
   /**

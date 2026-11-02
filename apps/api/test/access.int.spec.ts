@@ -103,6 +103,41 @@ describe("access control", () => {
     expect(escalation).toHaveLength(1);
   });
 
+  it("keeps a facility-scoped user manager to their own facility and away from themselves", async () => {
+    const branchManagerId = await createStaff(ctx.pool, tenant, "branch-manager@example.ph", []);
+    const targetId = await createStaff(ctx.pool, tenant, "branch-target@example.ph", []);
+    await ctx.pool.query(
+      `INSERT INTO role (organization_id, key, name) VALUES ($1, 'branch_user_manager', 'Branch user manager'), ($1, 'user_viewer', 'User viewer')`,
+      [tenant.organizationId],
+    );
+    await ctx.pool.query(
+      `INSERT INTO role_permission (role_id, permission_key)
+       SELECT r.id, p FROM role r, unnest(ARRAY['user.read', 'user.manage']) AS p WHERE r.key = 'branch_user_manager' AND r.organization_id = $1
+       UNION ALL SELECT r.id, 'user.read' FROM role r WHERE r.key = 'user_viewer' AND r.organization_id = $1`,
+      [tenant.organizationId],
+    );
+    await ctx.pool.query(
+      `INSERT INTO role_assignment (organization_id, user_id, role_id, facility_id)
+       SELECT $1, $2, id, $3 FROM role WHERE key = 'branch_user_manager' AND organization_id = $1`,
+      [tenant.organizationId, branchManagerId, tenant.otherFacilityId],
+    );
+    const viewerId = (await ctx.pool.query(`SELECT id FROM role WHERE key = 'user_viewer' AND organization_id = $1`, [tenant.organizationId])).rows[0].id;
+    const { accessToken } = await login(ctx, "branch-manager@example.ph");
+    const grant = (userId: string, body: object) =>
+      ctx.http().post(`/api/v1/users/${userId}/role-assignments`).set(as(accessToken, tenant.otherFacilityId)).send(body);
+
+    await grant(targetId, { roleId: viewerId, facilityId: tenant.otherFacilityId }).expect(201);
+    await grant(targetId, { roleId: viewerId })
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe("grant_outside_actor_scope"));
+    await grant(targetId, { roleId: viewerId, facilityId: tenant.facilityId })
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe("grant_outside_actor_scope"));
+    await grant(branchManagerId, { roleId: viewerId, facilityId: tenant.otherFacilityId })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("self_modification"));
+  });
+
   it("lets an administrator add staff, grant a scoped role and suspend them", async () => {
     const admin = await login(ctx, "admin@example.ph");
     const created = await ctx
