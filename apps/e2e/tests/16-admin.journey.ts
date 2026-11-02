@@ -281,7 +281,7 @@ test("a suspended member is signed out and refused, and can sign in again once r
 
 test("a department and a second facility are added, and the facility can be set inactive", async () => {
   await admin.goto("/admin/facilities");
-  const main = admin.locator('section[data-slot="card"]').filter({ has: admin.getByRole("heading", { name: "E2E Main Clinic", exact: true }) });
+  const main = admin.getByRole("article", { name: "E2E Main Clinic", exact: true });
   await main.getByRole("button", { name: "Add department…" }).click();
   await main.getByLabel("Name", { exact: true }).fill(DEPARTMENT.name);
   await main.getByLabel("Code", { exact: true }).fill(DEPARTMENT.code);
@@ -295,7 +295,7 @@ test("a department and a second facility are added, and the facility can be set 
   await dialog.locator("#new-facility-name").fill(FACILITY.name);
   await dialog.getByRole("button", { name: "Add facility" }).click();
   await toast(admin, `${FACILITY.name} added`);
-  const satellite = admin.locator('section[data-slot="card"]').filter({ has: admin.getByRole("heading", { name: FACILITY.name, exact: true }) });
+  const satellite = admin.getByRole("article", { name: FACILITY.name, exact: true });
   await expect(satellite.getByText("Active", { exact: true })).toBeVisible();
 
   await satellite.getByRole("button", { name: "Edit…" }).click();

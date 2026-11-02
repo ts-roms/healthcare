@@ -27,13 +27,21 @@ const shot = async (page: Page, name: string) => {
 
 const scan = async (page: Page, value: string) => {
   await page.goto("/patients/scan");
-  await page.locator("#qr-scan-field").fill(value);
-  await page.getByRole("button", { name: "Find" }).click();
+  // Typing before the page has hydrated is lost, so submit again until the screen answers (a patient or an alert).
+  const field = page.locator("#qr-scan-field");
+  const answer = page.getByRole("alert").or(page.getByRole("link", { name: "Open record" })).first();
+  await expect(async () => {
+    await field.fill(value);
+    await field.press("Enter");
+    await expect(answer).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 };
 
 test.beforeAll(async ({ browser }) => {
   admin = await staffPage(browser, STAFF.admin, errors);
   desk = await staffPage(browser, STAFF.desk, errors);
+  // The scan page opens the camera by default; a desk with a hand-held scanner keeps that mode (remembered by the browser).
+  await desk.context().addInitScript(() => window.localStorage.setItem("hp.scan.mode", "scanner"));
 });
 
 test.afterAll(async () => {
@@ -103,7 +111,7 @@ test("scanning the code finds the patient", async () => {
   await desk.waitForURL(new RegExp(`/patients/${patient.id}$`));
 
   await scan(desk, "not a patient code");
-  await expect(desk.locator("p[role=alert]")).toContainText("not a patient QR code");
+  await expect(desk.getByRole("alert").filter({ hasText: "Could not find that patient" })).toContainText("not a patient QR code");
   await shot(desk, "6-scan-not-a-code");
 });
 
@@ -120,7 +128,7 @@ test("regenerating replaces the code in one step", async () => {
   const qr = await api.get<{ active: { payload: string } }>(`/patient-qr/patients/${patient.id}`);
   await api.dispose();
   await scan(desk, payload);
-  await expect(desk.locator("p[role=alert]")).toContainText("revoked");
+  await expect(desk.getByRole("alert").filter({ hasText: "Could not find that patient" })).toContainText("revoked");
   payload = qr.active.payload;
   await scan(desk, payload);
   await expect(desk.getByText(new RegExp(patient.family, "i")).first()).toBeVisible();
@@ -137,7 +145,7 @@ test("a lost card is revoked and its scans are refused", async () => {
   await shot(desk, "7-record-revoked");
 
   await scan(desk, payload);
-  await expect(desk.locator("p[role=alert]")).toContainText("revoked");
+  await expect(desk.getByRole("alert").filter({ hasText: "Could not find that patient" })).toContainText("revoked");
   await shot(desk, "8-scan-revoked");
 
   await desk.goto(`/patients/${patient.id}?tab=portal`);
@@ -190,6 +198,6 @@ test("the administrator turns the feature off and scans are refused", async () =
   await admin.getByRole("button", { name: "Save settings" }).click();
   await toast(admin, "Settings saved");
   await scan(desk, payload);
-  await expect(desk.locator("p[role=alert]")).toContainText("not turned on");
+  await expect(desk.getByRole("alert").filter({ hasText: "Could not find that patient" })).toContainText("not turned on");
   await shot(desk, "10-scan-feature-off");
 });
