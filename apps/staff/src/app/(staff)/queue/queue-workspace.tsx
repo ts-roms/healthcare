@@ -62,7 +62,14 @@ export function QueueWorkspace({
   canConsult,
   canOpenEncounter,
   canRecordProcedure = false,
+  renderedAt,
 }: {
+  /**
+   * The server's clock when the page was rendered. The first render on the client uses the same instant, so the text it
+   * shows (the update time, waiting minutes) matches the server's HTML: reading the clock again during hydration gives a
+   * different minute now and then, which React reports as a hydration mismatch.
+   */
+  renderedAt: string;
   visits: QueueVisit[];
   /** The facility's active service points (migration 0113); none = the single consultation line. */
   servicePoints?: ServicePoint[];
@@ -91,7 +98,7 @@ export function QueueWorkspace({
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
   const [pending, startTransition] = React.useTransition();
-  const [now, setNow] = React.useState(() => new Date());
+  const [now, setNow] = React.useState(() => new Date(renderedAt));
 
   // Live updates over the realtime socket, polling as a fallback; the tick keeps waiting times current.
   const live = useQueueUpdates(() => setNow(new Date()));

@@ -86,6 +86,9 @@ export default defineConfig({
       cwd: `${root}/apps/staff`,
       url: `${STAFF_URL}/login`,
       env: { API_BASE_URL: API_URL, REALTIME_URL: `http://localhost:${API_PORT}/realtime` },
+      // E2E_SERVER_LOGS=1 shows the staff server's output in the report (a failure with no visible cause).
+      stdout: process.env.E2E_SERVER_LOGS ? "pipe" : "ignore",
+      stderr: "pipe",
       timeout: 120_000,
       reuseExistingServer: false,
     },

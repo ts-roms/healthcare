@@ -66,3 +66,14 @@ VR-03/04/24 (restricted DB role and RLS enforcement: deployment decisions), VR-0
 
 - Roles that rely on `user.manage` today to administer an org admin will now be refused; this is intended, but confirm no operational runbook depends on it.
 - `assertOutranks` compares permission keys only, not facility scope.
+
+## E2E stabilization (2026-11-03)
+
+Intermittent failures in full Playwright runs (`9-queue-checkin`, `16-admin`, once `20-change-password`) were investigated; no security finding is affected. Causes and changes:
+
+- **Hydration mismatch in the app (real defect):** the queue board and the waiting-room display seeded their clock with `new Date()` on both server and client, so a minute boundary between server render and hydration gave React error #418. Both now receive the server's render time (`renderedAt`) and start from it (`apps/staff/src/app/(staff)/queue`, `(display)/display/queue`). The appointments day view and two MyHealth components use the same pattern but do not render the clock text; unchanged.
+- **Hydration race in the tests:** a click right after `goto` could land before React attached to the control. The staff and MyHealth page helpers now wait (up to 3 s) for the page's controls to hydrate after sign-in (`apps/e2e/support/pages.ts`), a `clickUntilVisible` helper repeats a click until what it opens appears, and a navigation aborted by the app's own redirect is retried once. A first version of the wait, installed before sign-in, delayed the sign-in check and caused 5 to 7 failures per run; it was corrected.
+- **`16-admin`:** the journey no longer navigates to `/` again after the server has already redirected there.
+- **`20-change-password`:** one failure (a second sign-in landed on the app's error page) was not reproduced in 4 isolated runs or in the last 2 full runs and has no known cause. `E2E_SERVER_LOGS=1` now shows the staff server's output in the report to help if it recurs.
+
+Result: two consecutive full Playwright runs after these changes each passed 126 of 126 tests (about 16 and 20 minutes).

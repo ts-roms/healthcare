@@ -37,7 +37,15 @@ export default async function QueueDisplayPage() {
     // The board keeps trying (live updates, then every 15 s); a sign-in problem still goes to the sign-in page.
     unstable_rethrow(error);
   }
-  return <DisplayBoard display={display} facilityName={facility.name} timeZone={facility.timezone} canLeave={!isDisplayOnly(session.permissions)} />;
+  return (
+    <DisplayBoard
+      renderedAt={new Date().toISOString()}
+      display={display}
+      facilityName={facility.name}
+      timeZone={facility.timezone}
+      canLeave={!isDisplayOnly(session.permissions)}
+    />
+  );
 }
 
 function Notice({ children }: { children: React.ReactNode }) {

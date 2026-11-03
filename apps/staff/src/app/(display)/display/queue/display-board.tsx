@@ -48,13 +48,20 @@ export function DisplayBoard({
   facilityName,
   timeZone,
   canLeave,
+  renderedAt,
 }: {
+  /**
+   * The server's clock when the page was rendered. The first render on the client uses the same instant, so the text it
+   * shows (the update time, waiting minutes) matches the server's HTML: reading the clock again during hydration gives a
+   * different minute now and then, which React reports as a hydration mismatch.
+   */
+  renderedAt: string;
   display: QueueDisplay | null;
   facilityName: string;
   timeZone: string;
   canLeave: boolean;
 }) {
-  const [now, setNow] = React.useState(() => new Date());
+  const [now, setNow] = React.useState(() => new Date(renderedAt));
   const status = useQueueUpdates(() => setNow(new Date()));
   const [current, ...earlier] = display?.calls ?? [];
   const callKey = currentCallKey(display);
