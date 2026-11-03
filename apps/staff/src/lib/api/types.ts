@@ -465,6 +465,12 @@ export interface QueueVisit {
   servicePoint: ServicePointBrief | null;
   /** The visit's route (migration 0115), in order; empty when none was planned. */
   route: RouteStep[];
+  /** How many times the desk sent a called patient who did not come forward back into the line (migration 0137). */
+  skippedCount: number;
+  /** When a called patient never came forward and the visit was closed as a no-show (migration 0138). */
+  noShowAt: string | null;
+  /** How many times a closed visit was put back in line (migration 0138). */
+  requeuedCount: number;
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call, route). */
@@ -5375,6 +5381,8 @@ export interface StaffBadges {
   caseReports: number | null;
   outsideResultsUnreviewed: number | null;
   outsideResultSubmissions: number | null;
+  /** New-patient registrations typed at a kiosk, waiting for reception at the selected facility. */
+  kioskRegistrations: number | null;
 }
 
 // ---- procedures performed at the clinic (docs/domains/clinic.md, "Procedures") ------------------------------------
@@ -5625,4 +5633,48 @@ export interface OutreachSeriesOccurrence {
   status: OutreachCampaignStatus;
   sendAt: string | null;
   completedAt: string | null;
+}
+
+// ---- kiosk registrations (docs/domains/kiosk.md) --------------------------------------------------------------------
+
+/** `GET /kiosk/admin/registrations`: a registration waiting for reception; no personal data (that is behind the detail). */
+export interface KioskRegistrationItem {
+  id: string;
+  reference: string;
+  submittedAt: string;
+  expiresAt: string;
+  kiosk: string;
+  possibleDuplicates: number;
+}
+
+/** What a new patient typed at the kiosk (the registration's own shape), as `GET /kiosk/admin/registrations/:id` returns it. */
+export interface KioskRegistrationForm {
+  familyName: string;
+  givenName: string;
+  middleName?: string;
+  suffix?: string;
+  sex: string;
+  birthDate: string;
+  civilStatus?: string;
+  contacts: Array<{ system: "mobile" | "phone" | "email"; value: string; use?: string; isPrimary?: boolean }>;
+  addresses: Array<{ line1?: string; barangay?: string; cityMunicipality: string; province?: string; postalCode?: string }>;
+  identifiers: Array<{ type: string; value: string; issuer?: string }>;
+  emergencyContact: { name: string; contactNumber: string; relationship: string };
+}
+
+export interface KioskDuplicateCandidate {
+  patient: { id: string; patientNumber: string; displayName: string; sex: string; birthDate: string; age: number; primaryMobileMasked: string | null };
+  /** The Patient Master's own assessment of how likely it is the same person. */
+  level?: string;
+  score?: number;
+  reasons?: string[];
+}
+
+export interface KioskRegistrationDetail {
+  id: string;
+  reference: string;
+  submittedAt: string;
+  expiresAt: string;
+  registration: KioskRegistrationForm;
+  possibleDuplicates: KioskDuplicateCandidate[];
 }

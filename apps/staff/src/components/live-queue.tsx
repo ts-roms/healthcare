@@ -7,6 +7,7 @@ import type { Socket } from "socket.io-client";
 import { realtimeTicket } from "@/app/(staff)/actions";
 import {
   LAB_EVENTS,
+  REGISTRATION_EVENTS,
   LIVE_REFRESH_DEBOUNCE_MS,
   type LiveStatus,
   liveStatusLabel,
@@ -151,6 +152,11 @@ export function LiveQueueRefresh({ events = QUEUE_EVENTS }: { events?: readonly 
 export function LiveMessagesRefresh() {
   useQueueUpdates(undefined, MESSAGE_EVENTS);
   return null;
+}
+
+/** Keeps the kiosk registrations list current: live when one arrives or is decided, polling while the socket is down. */
+export function LiveRegistrationsRefresh() {
+  return <LiveIndicator status={useQueueUpdates(undefined, REGISTRATION_EVENTS)} />;
 }
 
 /** Keeps a laboratory screen (worklists, critical results) current and shows the indicator. */

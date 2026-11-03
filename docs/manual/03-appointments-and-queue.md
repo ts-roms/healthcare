@@ -193,6 +193,36 @@ physician signs the encounter.
 Patients who enter the MyHealth waiting room for an online consultation are checked in automatically and appear as **Ready for provider**. Their
 panel offers **Open in Telemedicine** instead of **Start consultation**; the consultation starts there (see [Telemedicine](05-telemedicine.md)).
 
+### Recall, no-show and putting a patient back in line
+
+These appear in the ticket panel next to **Call patient to**.
+
+1. **Recall** repeats the call to the same place. Use it when the patient was called and did not come: the waiting-room
+   screen announces the ticket again. It appears once the patient has been called.
+2. **No-show…** closes the visit when the patient never came forward. Add a note if you like and choose **Mark no-show**.
+   The visit leaves the waiting list and is counted as a no-show in the figures above the board. You cannot mark a
+   no-show for a patient who is already with the provider.
+3. **Put back in line** is on a visit closed as left without being seen (a no-show, or someone who stepped out and came
+   back). Say why, then choose **Put back in line**: the patient keeps their ticket but joins behind those who arrived
+   since. It works on the same day only, up to three times per visit, and not if the patient has checked in again.
+
+If you would rather keep the visit open, use **Skip** (the patient goes back behind later arrivals).
+
+### How to review a registration typed at a kiosk
+
+New patients can register on a kiosk in the waiting area. They are not patients yet: open **Queue → Registrations** (the
+number shows how many are waiting, and the list updates by itself).
+
+1. Choose **Review** on a row. You see what the person typed and any existing records that look like them.
+2. Check the person's identification against the details, then tick **I checked the person's identification**.
+3. Decide: **Approve and register** creates the record (choose a service under **Put in the queue for** to give them a
+   ticket at the same time); **Same person — link** closes the registration against the existing record; **Decline…**
+   needs a reason.
+4. If there are possible matches, approving needs you to confirm that this is a different person and say why.
+5. To correct a mistyped detail, approve, then use **Edit details** on the patient record.
+
+The typed details are erased as soon as you decide, and after 24 hours if nobody does.
+
 ### How to work a patient's route
 
 A route is the planned sequence of service points for one visit — say **Emergency room → Laboratory → X-ray**. It is planned at triage (the

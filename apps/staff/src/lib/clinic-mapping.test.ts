@@ -48,6 +48,9 @@ const visit: QueueVisit = {
   patient: { patientNumber: "P00000001", displayName: "DELA CRUZ, Juan", sex: "male", age: 46 },
   servicePointId: null,
   servicePoint: null,
+  skippedCount: 0,
+  noShowAt: null,
+  requeuedCount: 0,
 };
 
 describe("queueFigures", () => {
@@ -75,8 +78,36 @@ describe("queueFigures", () => {
     expect(figures.longestWait).toEqual({ minutes: 30, patientName: "SANTOS, Maria", ticket: "A-007", priority: "routine" });
   });
 
+  it("counts who is being called, who was seen, who was skipped and who did not show", () => {
+    const calledAt = "2026-09-27T01:50:00Z";
+    const figures = queueFigures(
+      [
+        { ...at(10, "waiting"), calledAt },
+        { ...at(20, "awaiting_consultation"), skippedCount: 2 },
+        { ...at(30, "in_consultation"), calledAt },
+        at(90, "completed"),
+        { ...at(80, "left_without_being_seen"), noShowAt: calledAt },
+        at(70, "left_without_being_seen"),
+      ],
+      now,
+    );
+    // A patient already with the provider is no longer being called.
+    expect(figures).toMatchObject({ serving: 1, completed: 1, skipped: 1, noShow: 1, done: 3 });
+  });
+
   it("has no waits when nobody is waiting", () => {
-    expect(queueFigures([], now)).toEqual({ inQueue: 0, done: 0, waiting: 0, withProvider: 0, averageWaitMinutes: null, longestWait: null });
+    expect(queueFigures([], now)).toEqual({
+      inQueue: 0,
+      done: 0,
+      waiting: 0,
+      withProvider: 0,
+      serving: 0,
+      completed: 0,
+      skipped: 0,
+      noShow: 0,
+      averageWaitMinutes: null,
+      longestWait: null,
+    });
     expect(queueFigures([at(5, "in_consultation")], now).longestWait).toBeNull();
   });
 });

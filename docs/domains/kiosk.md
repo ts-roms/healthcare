@@ -82,12 +82,30 @@ two missed heartbeats. Touch targets are at least 4rem tall, type is 20px and up
 what the kiosk does until the organization sets its own wording). Tested by unit tests in `apps/kiosk` and the browser
 journey `apps/e2e/tests/27-kiosk.journey.ts`.
 
+## Reception review (phase 4)
+
+Staff `/queue/registrations` (tab **Registrations** of the Queue module, with a count that updates at once): the open
+list for the selected facility (`GET /kiosk/admin/registrations`: reference, time, kiosk, number of possible
+duplicates, when it will be erased; no personal data), live through the realtime channel `registrations.updated`
+(`kiosk.registration.review`; the socket joins it at connect; a registration arriving or decided tells reviewers' open
+pages to refetch, nothing about it travels) and the badge `kioskRegistrations` in `/me/badges`. Opening one
+(`/queue/registrations/[id]`, audited as a view of personal data) shows what the person typed, the Patient Master's
+possible existing records with their match reasons, and the decision: **Patient verification** (a checklist step for
+the desk — the identification was checked against the details; a screen step, not stored), **Approve and register**
+(the ordinary registration with its duplicate rules: with possible matches the reviewer must confirm the candidates are
+a different person and say why; optionally queues the new patient for a walk-in service), **Same person — link**
+(closes the submission against an existing record), or **Decline** with a reason. A detail the person mistyped is
+corrected after approval on the patient record (**Edit details**); the submission itself is never edited. The typed
+payload is erased on any decision. The queue board's actions (recall, no-show, put back in line) are in
+[clinic](clinic.md#queue-actions-at-the-desk). Counters are not a separate entity: a counter is a service point
+(its `location` is where the call sends the patient).
+
 ## Not built yet
 
 Thermal ticket printing and the print agent (the kiosk reports its printer as `none`; there is no print button until an
 approved mechanism exists), a QR code on the ticket, an on-screen keyboard (the device's own is expected), Filipino
 wording, department grouping and voice settings on the public display, queue counters, staff screens for devices and
-registration review, realtime push of kiosk status. Hardware behaviour (full screen, touch, printer) is verified only
+device administration (registering a kiosk is an API call), realtime push of kiosk status. Hardware behaviour (full screen, touch, printer) is verified only
 on the target devices.
 
 ## Open questions / assumptions

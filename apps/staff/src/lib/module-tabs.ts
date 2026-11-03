@@ -26,6 +26,14 @@ interface ModuleDefinition {
 
 const MODULES: ModuleDefinition[] = [
   {
+    label: "Queue",
+    prefixes: ["/queue"],
+    tabs: [
+      { label: "Board", href: "/queue", permissions: ["clinic.queue.read"] },
+      { label: "Registrations", href: "/queue/registrations", permissions: ["kiosk.registration.review"], count: (b) => b.kioskRegistrations, alert: true },
+    ],
+  },
+  {
     label: "Laboratory",
     prefixes: ["/laboratory"],
     tabs: [

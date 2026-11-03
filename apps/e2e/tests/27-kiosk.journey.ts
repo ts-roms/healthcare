@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { loadState, type StaffApi, staffApi } from "../support/api";
 import { KIOSK_URL, STAFF, STAFF_PASSWORD } from "../support/env";
-import { watchErrors } from "../support/pages";
+import { staffPage, toast, watchErrors } from "../support/pages";
 
 /**
  * The patient self-service kiosk in a real browser (docs/domains/kiosk.md): the device signs in once, an existing patient
@@ -17,6 +17,8 @@ const errors: string[] = [];
 const patient = { id: "", number: "", given: "Kioskita", family: "Kioskuser" };
 
 let page: Page;
+/** The reference a new patient was given at the kiosk, for reception to find (set by the registration test). */
+let reference = "";
 /** Reception, signed in once for the whole file (sign-ins are rate limited). */
 let desk: StaffApi;
 
@@ -175,7 +177,7 @@ test("a new patient registers, reviews the answers and leaves a reference for re
   await page.getByRole("button", { name: "Yes, send to reception" }).click();
 
   await expect(page.getByRole("heading", { name: "We received your details" })).toBeVisible();
-  const reference = /KR-[A-HJ-NP-Z2-9]{6}/.exec(await page.getByLabel("Your registration reference").innerText())?.[0];
+  reference = /KR-[A-HJ-NP-Z2-9]{6}/.exec(await page.getByLabel("Your registration reference").innerText())?.[0] ?? "";
   expect(reference).toBeTruthy();
   // What was typed is gone from the screen.
   await expect(page.locator("body")).not.toContainText("Newcomer");
@@ -185,9 +187,120 @@ test("a new patient registers, reviews the answers and leaves a reference for re
   await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
 
   const pending = (await desk.get<{ items: Array<{ id: string; reference: string }> }>("/kiosk/admin/registrations")).items;
-  const mine = pending.find((r) => r.reference === reference);
-  expect(mine, "the registration is waiting for reception").toBeTruthy();
-  await desk.post(`/kiosk/admin/registrations/${mine!.id}/reject`, { reason: "End-to-end test registration" });
+  expect(
+    pending.some((r) => r.reference === reference),
+    "the registration is waiting for reception",
+  ).toBe(true);
+});
+
+test("reception reviews the registration in the staff app and approves it into a patient in the queue", async ({ browser }) => {
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    await reception.goto("/queue/registrations");
+    const row = reception.getByRole("row", { name: new RegExp(reference) });
+    await expect(row).toBeVisible();
+    await row.getByRole("link", { name: "Review" }).click();
+
+    // What was typed, for the desk to check against the person's identification.
+    await expect(reception.getByRole("heading", { name: `Registration ${reference}` })).toBeVisible();
+    await expect(reception.getByText("Nena Newcomer")).toBeVisible();
+    await expect(reception.getByText("+639185550199")).toBeVisible();
+
+    // Nothing can be decided before the identification check is ticked.
+    const approve = reception.getByRole("button", { name: "Approve and register" });
+    await expect(approve).toBeDisabled();
+    await reception.getByRole("checkbox", { name: /I checked the person/ }).check();
+    await reception.locator("#visit-type").selectOption({ label: state.kioskVisitType.name });
+    await expect(approve).toBeEnabled();
+    await approve.click();
+
+    await expect(reception.getByText("Patient registered")).toBeVisible();
+    await expect(reception.getByText(/^P\d{8}$/)).toBeVisible();
+
+    // It is no longer waiting, and the new patient is on the queue board.
+    const pending = (await desk.get<{ items: Array<{ reference: string }> }>("/kiosk/admin/registrations")).items;
+    expect(pending.some((r) => r.reference === reference)).toBe(false);
+    await reception.goto("/queue");
+    await expect(reception.getByRole("button", { name: /A-\d+.*Newcomer/i })).toBeVisible();
+  } finally {
+    await reception.context().close();
+  }
+});
+
+test("a registration appears on reception's open list at once, without a reload", async ({ browser }) => {
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    await reception.goto("/queue/registrations");
+    // The list is live: the socket is connected before anything is sent from the kiosk.
+    await expect(reception.getByRole("status").filter({ hasText: "Live" })).toBeVisible();
+
+    await startAtWelcome();
+    await page.getByRole("button", { name: "Touch here to check in" }).click();
+    await page.getByRole("button", { name: "No, this is my first visit" }).click();
+    await page.locator("#familyName").fill("Livearrival");
+    await page.locator("#givenName").fill("Lia");
+    await page.locator("#birth-day").fill("9");
+    await page.locator("#birth-month").selectOption({ label: "August" });
+    await page.locator("#birth-year").fill("1975");
+    await page.locator("#sex").selectOption({ label: "Female" });
+    await page.locator("#mobile").fill("0919 555 0155");
+    await page.locator("#cityMunicipality").fill("Makati");
+    await page.locator("#emergencyName").fill("Lito Livearrival");
+    await page.locator("#emergencyNumber").fill("09175550155");
+    await page.locator("#emergencyRelationship").selectOption({ label: "Brother or sister" });
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Check my answers" }).click();
+    await page.getByRole("button", { name: "Yes, send to reception" }).click();
+    const live = /KR-[A-HJ-NP-Z2-9]{6}/.exec(await page.getByLabel("Your registration reference").innerText())?.[0] ?? "";
+    expect(live).toBeTruthy();
+
+    // Reception's page was not reloaded: the new row arrives over the socket.
+    await expect(reception.getByRole("row", { name: new RegExp(live) })).toBeVisible();
+
+    await page.getByRole("button", { name: "Done" }).click();
+    const pending = (await desk.get<{ items: Array<{ id: string; reference: string }> }>("/kiosk/admin/registrations")).items;
+    const mine = pending.find((r) => r.reference === live)!;
+    await desk.post(`/kiosk/admin/registrations/${mine.id}/reject`, { reason: "End-to-end test: live update" });
+    // Deciding it removes the row from the open list, again without a reload.
+    await expect(reception.getByRole("row", { name: new RegExp(live) })).toHaveCount(0);
+  } finally {
+    await reception.context().close();
+  }
+});
+
+test("reception recalls a called patient, marks a no-show and puts the patient back in line", async ({ browser }) => {
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    await reception.goto("/queue");
+    // The patient who checked in at the kiosk earlier in this journey.
+    await reception.getByRole("button", { name: new RegExp(`A-\\d+.*${patient.family}`, "i") }).click();
+    const panel = reception.getByRole("complementary", { name: /^Ticket A-\d+$/ });
+
+    // Recall and no-show are offered only once the patient has been called.
+    await expect(panel.getByRole("button", { name: "Recall" })).toHaveCount(0);
+    await panel.getByLabel("Call patient to").fill("Room 9");
+    await panel.getByRole("button", { name: "Call", exact: true }).click();
+    await toast(reception, /called to Room 9/);
+
+    await panel.getByRole("button", { name: "Recall" }).click();
+    await toast(reception, /called again/);
+
+    await panel.getByRole("button", { name: "No-show…" }).click();
+    await panel.getByRole("button", { name: "Mark no-show" }).click();
+    await toast(reception, /marked a no-show/);
+    await expect(panel.getByText("Marked a no-show").first()).toBeVisible();
+
+    // A reason is needed to put the visit back in line.
+    const again = panel.getByRole("button", { name: "Put back in line" });
+    await expect(again).toBeDisabled();
+    await panel.getByLabel(/Put back in line: why/).fill("Patient was in the restroom");
+    await again.click();
+    await toast(reception, /is back in line/);
+    await expect(panel.getByRole("button", { name: "Put back in line" })).toHaveCount(0);
+    await expect(panel.getByText("Waiting").first()).toBeVisible();
+  } finally {
+    await reception.context().close();
+  }
 });
 
 test("Start over clears the screen and ends the session", async () => {

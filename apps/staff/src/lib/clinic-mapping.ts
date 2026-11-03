@@ -88,6 +88,14 @@ export interface QueueFigures {
   done: number;
   waiting: number;
   withProvider: number;
+  /** Called and not yet with the provider: the tickets the desk is calling now. */
+  serving: number;
+  /** Seen by a provider today. */
+  completed: number;
+  /** Sent back into the line at least once after a call nobody answered. */
+  skipped: number;
+  /** Called patients who never came forward and were closed as a no-show. */
+  noShow: number;
   averageWaitMinutes: number | null;
   longestWait: { minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null;
 }
@@ -111,6 +119,10 @@ export function queueFigures(visits: readonly QueueVisit[], now: Date): QueueFig
     done: visits.filter((v) => ["completed", "cancelled", "left_without_being_seen"].includes(v.status)).length,
     waiting: waits.length,
     withProvider: visits.filter((v) => v.status === "in_consultation").length,
+    serving: visits.filter((v) => STILL_WAITING.includes(v.status) && v.calledAt !== null).length,
+    completed: visits.filter((v) => v.status === "completed").length,
+    skipped: visits.filter((v) => v.skippedCount > 0).length,
+    noShow: visits.filter((v) => v.noShowAt !== null).length,
     averageWaitMinutes: waits.length ? Math.round(waits.reduce((sum, w) => sum + w.minutes, 0) / waits.length) : null,
     longestWait: longest,
   };
@@ -120,6 +132,9 @@ export function queueFigures(visits: readonly QueueVisit[], now: Date): QueueFig
 export function checkedInOnline(v: Pick<QueueVisit, "checkedInVia" | "modality">): boolean {
   return v.checkedInVia === "patient_portal" && v.modality === "in_person";
 }
+
+/** How many times a visit closed as left-without-being-seen may be put back in line (the API's `MAX_REQUEUES`; it decides). */
+export const MAX_REQUEUES = 3;
 
 export type QueueMove = "in_triage" | "awaiting_consultation" | "cancelled" | "left_without_being_seen";
 

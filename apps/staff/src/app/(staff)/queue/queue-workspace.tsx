@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLinkIcon, HandIcon, MegaphoneIcon, SendIcon, StethoscopeIcon, XIcon } from "lucide-react";
+import { ExternalLinkIcon, HandIcon, MegaphoneIcon, RotateCcwIcon, SendIcon, StethoscopeIcon, Undo2Icon, UserXIcon, XIcon } from "lucide-react";
 import { clinicalTime, QueueBoard, SENIOR_AGE, sexLabel, WaitPill } from "@healthcare/ui/healthcare";
 import { Badge, Button, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import type { ActionResult } from "@/lib/api/action-result";
@@ -13,6 +13,7 @@ import {
   canStartConsultation,
   checkedInOnline,
   canTriage,
+  MAX_REQUEUES,
   moveNeedsReason,
   QUEUE_BOARD_STATUSES,
   QUEUE_MOVE_LABEL,
@@ -27,7 +28,7 @@ import {
 } from "@/lib/clinic-mapping";
 import { useQueueUpdates } from "@/components/live-queue";
 import { StartConsultationButton } from "../clinic/encounters/start-consultation-button";
-import { advanceRoute, callVisit, moveVisit, planRoute, routeVisit, skipRouteStep } from "./actions";
+import { advanceRoute, callVisit, moveVisit, noShowVisit, planRoute, recallVisit, requeueVisit, routeVisit, skipRouteStep } from "./actions";
 import { EmptyQueue, type TodayAppointments } from "./queue-empty";
 import { QueueHeader, type QueueChrome } from "./queue-header";
 import { QueueStats } from "./queue-stats";
@@ -178,6 +179,13 @@ export function QueueWorkspace({
                   onCall={(calledTo) =>
                     run(() => callVisit({ visitId: selected.id, calledTo, version: selected.version }), `${selected.ticket} called to ${calledTo}`)
                   }
+                  onRecall={() => run(() => recallVisit({ visitId: selected.id, version: selected.version }), `${selected.ticket} called again`)}
+                  onNoShow={(reason) =>
+                    run(() => noShowVisit({ visitId: selected.id, reason, version: selected.version }), `${selected.ticket} marked a no-show`)
+                  }
+                  onRequeue={(reason) =>
+                    run(() => requeueVisit({ visitId: selected.id, reason, version: selected.version }), `${selected.ticket} is back in line`)
+                  }
                   onRoute={(servicePointId, name) =>
                     run(() => routeVisit({ visitId: selected.id, servicePointId, version: selected.version }), `${selected.ticket} sent to ${name}`)
                   }
@@ -226,6 +234,9 @@ function VisitPanel({
   onClose,
   onMove,
   onCall,
+  onRecall,
+  onNoShow,
+  onRequeue,
   onRoute,
   onAdvance,
   onSkip,
@@ -248,6 +259,9 @@ function VisitPanel({
   onClose: () => void;
   onMove: (move: QueueMove, reason?: string) => void;
   onCall: (calledTo: string) => void;
+  onRecall: () => void;
+  onNoShow: (reason?: string) => void;
+  onRequeue: (reason: string) => void;
   onRoute: (servicePointId: string, name: string) => void;
   onAdvance: (note?: string) => void;
   onSkip: (stepId: string, reason: string) => void;
@@ -261,6 +275,9 @@ function VisitPanel({
   const routable = canManage && canRouteVisit(visit.status) && servicePoints.length > 0;
   const [closing, setClosing] = React.useState<QueueMove | null>(null);
   const [reason, setReason] = React.useState("");
+  const [noShowing, setNoShowing] = React.useState(false);
+  const [noShowNote, setNoShowNote] = React.useState("");
+  const [requeueReason, setRequeueReason] = React.useState("");
   const moves = queueMoves(visit.status);
   const open = moves.length > 0;
   /**
@@ -419,6 +436,44 @@ function VisitPanel({
                 <MegaphoneIcon /> Call
               </Button>
             </form>
+            {visit.calledAt ? (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" disabled={pending} onClick={onRecall}>
+                  <RotateCcwIcon /> Recall
+                </Button>
+                {visit.status !== "in_consultation" ? (
+                  <Button variant="ghost" size="sm" disabled={pending} onClick={() => setNoShowing(true)} aria-pressed={noShowing}>
+                    <UserXIcon /> No-show…
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+            {noShowing ? (
+              <form
+                className="flex flex-col gap-2 rounded-md border border-warning/40 p-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onNoShow(noShowNote.trim() || undefined);
+                }}
+              >
+                <Label htmlFor="no-show-note">The patient did not come forward. Note (optional)</Label>
+                <Input
+                  id="no-show-note"
+                  value={noShowNote}
+                  maxLength={500}
+                  onChange={(e) => setNoShowNote(e.target.value)}
+                  placeholder="Recorded in the audit trail"
+                />
+                <div className="flex gap-2">
+                  <Button type="submit" variant="destructive" size="sm" disabled={pending}>
+                    Mark no-show
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setNoShowing(false)}>
+                    Keep in queue
+                  </Button>
+                </div>
+              </form>
+            ) : null}
             {routable ? (
               <form
                 className="flex items-end gap-2"
@@ -493,6 +548,35 @@ function VisitPanel({
           </>
         ) : null}
         {visit.status === "in_consultation" ? <p className="text-table text-muted-foreground">With the provider. The encounter closes the visit.</p> : null}
+        {visit.status === "left_without_being_seen" ? (
+          <div className="flex flex-col gap-2 border-t pt-3">
+            <p className="text-table text-muted-foreground">
+              {visit.noShowAt ? "Marked a no-show" : "Left without being seen"}
+              {visit.requeuedCount > 0 ? ` · put back in line ${visit.requeuedCount} time${visit.requeuedCount === 1 ? "" : "s"}` : ""}
+            </p>
+            {canManage && visit.requeuedCount < MAX_REQUEUES ? (
+              <form
+                className="flex flex-col gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  onRequeue(requeueReason.trim());
+                }}
+              >
+                <Label htmlFor="requeue-reason">Put back in line: why? *</Label>
+                <Input
+                  id="requeue-reason"
+                  value={requeueReason}
+                  maxLength={500}
+                  onChange={(e) => setRequeueReason(e.target.value)}
+                  placeholder="Recorded in the audit trail"
+                />
+                <Button type="submit" size="sm" variant="outline" disabled={pending || requeueReason.trim().length < 5}>
+                  <Undo2Icon /> Put back in line
+                </Button>
+              </form>
+            ) : null}
+          </div>
+        ) : null}
 
         <section aria-label="Timeline" className="border-t pt-3">
           <h3 className="text-meta font-semibold tracking-wide text-muted-foreground uppercase">Timeline</h3>
@@ -511,6 +595,12 @@ function VisitPanel({
               <li className="contents">
                 <span className="tabular text-muted-foreground">{clinicalTime(visit.calledAt)}</span>
                 <span>Called to {visit.calledTo}</span>
+              </li>
+            ) : null}
+            {visit.noShowAt ? (
+              <li className="contents">
+                <span className="tabular text-muted-foreground">{clinicalTime(visit.noShowAt)}</span>
+                <span>Marked a no-show</span>
               </li>
             ) : null}
             {waiting || visit.status === "in_consultation" ? (

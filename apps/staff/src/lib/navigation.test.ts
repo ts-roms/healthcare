@@ -272,6 +272,7 @@ describe("moduleTabsFor", () => {
     caseReports: null,
     outsideResultsUnreviewed: null,
     outsideResultSubmissions: null,
+    kioskRegistrations: null,
   };
 
   it("offers a module's tabs by permission, with counts that need action marked", () => {
@@ -316,6 +317,7 @@ describe("withBadgeCounts", () => {
       caseReports: 2,
       outsideResultsUnreviewed: null,
       outsideResultSubmissions: null,
+      kioskRegistrations: null,
     });
     expect(counted.map((i) => i.count ?? null)).toEqual([3, null, null, 2, null]);
   });
@@ -329,6 +331,7 @@ describe("withBadgeCounts", () => {
       caseReports: null,
       outsideResultsUnreviewed: null,
       outsideResultSubmissions: null,
+      kioskRegistrations: null,
     });
     expect(counted.find((i) => i.href === "/laboratory")).toMatchObject({ count: 2, countAlert: true });
   });

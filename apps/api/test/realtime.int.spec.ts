@@ -68,7 +68,7 @@ describe("realtime queue and laboratory updates", () => {
 
   it("pushes queue changes to subscribers of the facility, without patient details", async () => {
     const socket = connect({ token: desk, facilityId: tenant.facilityId });
-    await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "notices"] });
+    await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "registrations", "notices"] });
 
     const admin = (await login(ctx, "admin@example.ph")).accessToken;
     const visitType = await ctx
@@ -292,7 +292,7 @@ describe("realtime queue and laboratory updates", () => {
       expect(issued.body).toEqual({ ticket: expect.any(String), expiresInSeconds: 60 });
 
       const socket = connect({ ticket: issued.body.ticket });
-      await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "notices"] });
+      await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "registrations", "notices"] });
     });
 
     it("needs a facility, and a ticket is never accepted as an access token", async () => {
@@ -321,7 +321,7 @@ describe("realtime queue and laboratory updates", () => {
 
   it("reaches a browser connected to another instance (rooms shared through Redis)", async () => {
     const elsewhere = connect({ token: desk, facilityId: tenant.facilityId }, secondUrl);
-    await expect(next(elsewhere, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "notices"] });
+    await expect(next(elsewhere, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "registrations", "notices"] });
     const admin = (await login(ctx, "admin@example.ph")).accessToken;
     const visitType = await ctx
       .http()
@@ -358,7 +358,7 @@ describe("realtime queue and laboratory updates", () => {
       const token = (await login(offline, "desk@example.ph")).accessToken;
       const admin = (await login(offline, "admin@example.ph")).accessToken;
       const local = connect({ token, facilityId: again.facilityId }, realtimeUrl(offline));
-      await expect(next(local, "ready")).resolves.toMatchObject({ channels: ["queue", "messages", "notices"] });
+      await expect(next(local, "ready")).resolves.toMatchObject({ channels: ["queue", "messages", "registrations", "notices"] });
       const visitType = await offline
         .http()
         .post("/api/v1/clinic/visit-types")

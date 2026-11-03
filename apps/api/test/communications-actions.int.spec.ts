@@ -135,6 +135,7 @@ describe("communication log actions and badges", () => {
       caseReports: 0,
       outsideResultsUnreviewed: null,
       outsideResultSubmissions: 0,
+      kioskRegistrations: 0,
     });
     const forNurse = (await staff(nurse).get("/me/badges").expect(200)).body;
     expect(forNurse).toMatchObject({ messagesAwaiting: 0, criticalResults: 0, recordsRequests: null, caseReports: null });
