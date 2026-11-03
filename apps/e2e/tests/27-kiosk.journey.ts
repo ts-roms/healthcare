@@ -66,6 +66,12 @@ test("the kiosk answers with browser hardening headers and is never cached", asy
   expect(headers["cache-control"]).toBe("no-store");
 });
 
+test("a mistyped address shows a plain page with one way back, not a technical error", async ({ page: visitor }) => {
+  await visitor.goto(`${KIOSK_URL}/setup/nowhere-at-all`);
+  await expect(visitor.getByRole("heading", { name: "We cannot find that page" })).toBeVisible();
+  await expect(visitor.getByRole("link", { name: "Go to the start" })).toBeVisible();
+});
+
 test("a screen that is not signed in goes to set-up, and the kiosk account signs it in once", async () => {
   await page.goto("/");
   await expect(page).toHaveURL(/\/setup$/);
