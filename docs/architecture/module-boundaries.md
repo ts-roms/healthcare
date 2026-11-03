@@ -37,6 +37,7 @@ app → feature → ui → data-access → contract → domain → util
 | `scope:shared`                         | `scope:shared`                                                                 |
 | `scope:staff`, `scope:portal`          | its own scope, `scope:shared`, any clinical domain scope                       |
 | `scope:mobile`                         | `type:domain` libraries only (platform-neutral; today `@healthcare/domain`)    |
+| `scope:kiosk`                          | its own scope and `scope:shared` only (design system, web session); no domain  |
 | `scope:<domain>` (e.g. `scope:clinic`) | its own scope, `scope:shared`, and **any `type:contract` lib**                 |
 | `scope:api`                            | its own scope, `scope:shared`, any clinical domain scope (composition root)    |
 | `scope:worker`                         | its own scope, `scope:shared`, `scope:interoperability` (integration adapters) |
@@ -63,6 +64,7 @@ number), it defines a **port** implemented by an adapter in `apps/api` rather th
 | --------------------------------------------------------------------------------------------- | ---------------------------------------- |
 | `apps/staff`                                                                                  | `scope:staff`, `type:app`                |
 | `apps/portal`                                                                                 | `scope:portal`, `type:app`               |
+| `apps/kiosk` (patient self-service kiosk; API client)                                         | `scope:kiosk`, `type:app`                |
 | `apps/mobile` (Expo; API client)                                                              | `scope:mobile`, `type:app`               |
 | `apps/api`                                                                                    | `scope:api`, `type:app`                  |
 | `apps/e2e` (imports no workspace project; drives the built apps through the browser and HTTP) | `scope:e2e`, `type:e2e`                  |

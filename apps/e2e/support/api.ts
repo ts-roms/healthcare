@@ -55,6 +55,10 @@ export interface SeedState {
   telePractitionerId: string;
   consultVisitTypeId: string;
   onlineVisitTypeId: string;
+  /** A walk-in service the kiosk offers (journey 27). */
+  kioskVisitType: { id: string; name: string };
+  /** The kiosk's registered device (journey 27). */
+  kioskDeviceCode: string;
   /** A patient with an active MyHealth account (journey 2). */
   onlinePatient: { id: string; email: string; displayName: string };
 }

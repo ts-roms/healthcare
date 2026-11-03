@@ -60,6 +60,8 @@ export const depConstraints = [
   ...Object.entries(LAYERS).map(([sourceTag, onlyDependOnLibsWithTags]) => ({ sourceTag, onlyDependOnLibsWithTags })),
   { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] },
   { sourceTag: "scope:staff", onlyDependOnLibsWithTags: ["scope:staff", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
+  // The kiosk shows no clinical record: it needs only the design system and the shared web session code.
+  { sourceTag: "scope:kiosk", onlyDependOnLibsWithTags: ["scope:kiosk", "scope:shared"] },
   { sourceTag: "scope:portal", onlyDependOnLibsWithTags: ["scope:portal", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
   // The patient mobile app is an API client: only platform-neutral types and wording (type:domain), never backend
   // libraries (NestJS) or web-only ones (ui, web-session).

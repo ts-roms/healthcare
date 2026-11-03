@@ -1,6 +1,18 @@
 import { randomBytes } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
-import { API_PORT, API_URL, E2E_APP_DATABASE_URL, ORGANIZATION_CODE, PORTAL_PORT, PORTAL_URL, REDIS_URL, STAFF_PORT, STAFF_URL } from "./support/env";
+import {
+  API_PORT,
+  API_URL,
+  E2E_APP_DATABASE_URL,
+  KIOSK_PORT,
+  KIOSK_URL,
+  ORGANIZATION_CODE,
+  PORTAL_PORT,
+  PORTAL_URL,
+  REDIS_URL,
+  STAFF_PORT,
+  STAFF_URL,
+} from "./support/env";
 
 /**
  * Critical journeys (CLAUDE.md §31) against the built applications: the API (apps/api/dist), the staff app and the
@@ -23,7 +35,7 @@ const apiEnv = {
   REDIS_URL,
   JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
   MFA_ENCRYPTION_KEY: randomBytes(32).toString("base64"),
-  CORS_ORIGINS: `${STAFF_URL},${PORTAL_URL}`,
+  CORS_ORIGINS: `${STAFF_URL},${PORTAL_URL},${KIOSK_URL}`,
   // MyHealth's address: the relying party of its passkeys (journey 7) and the links in its emails.
   PORTAL_BASE_URL: PORTAL_URL,
   TRUST_PROXY: "true",
@@ -98,6 +110,15 @@ export default defineConfig({
       cwd: `${root}/apps/portal`,
       url: `${PORTAL_URL}/login`,
       env: { API_BASE_URL: API_URL, PORTAL_ORGANIZATION_CODE: ORGANIZATION_CODE },
+      timeout: 120_000,
+      reuseExistingServer: false,
+    },
+    {
+      name: "kiosk",
+      command: `pnpm exec next start --port ${KIOSK_PORT}`,
+      cwd: `${root}/apps/kiosk`,
+      url: `${KIOSK_URL}/setup`,
+      env: { API_BASE_URL: API_URL },
       timeout: 120_000,
       reuseExistingServer: false,
     },
