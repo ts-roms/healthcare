@@ -77,6 +77,19 @@ export function onlineCheckInWindow(startsAt: Date, now: Date, rules: BookingRul
   return null;
 }
 
+export type OnSiteCheckInRefusal = "too_early" | "too_late";
+
+/**
+ * Whether a patient standing at the facility's kiosk may check in for an appointment starting at `startsAt`: the
+ * facility's own window around the start, whether or not it offers online check-in (the patient is on site). Outside it
+ * the patient is sent to the desk, where staff decide.
+ */
+export function onSiteCheckInWindow(startsAt: Date, now: Date, rules: BookingRules = DEFAULT_BOOKING_RULES): OnSiteCheckInRefusal | null {
+  if (now.getTime() < startsAt.getTime() - rules.checkInOpensMinutes * 60_000) return "too_early";
+  if (now.getTime() > startsAt.getTime() + rules.checkInClosesMinutes * 60_000) return "too_late";
+  return null;
+}
+
 /**
  * Whether an appointment nobody attended is due to be marked as a no-show automatically: the facility has it on, the
  * appointment has ended, and the local time is past the facility's hour on the appointment's own day (so a morning

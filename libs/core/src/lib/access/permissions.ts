@@ -38,6 +38,11 @@ export const PERMISSIONS = [
   "clinic.queue.manage",
   // Waiting-room display: called tickets only (migration 0112)
   "clinic.queue.display",
+  // Patient self-service kiosk (migration 0137)
+  "kiosk.session.use",
+  "kiosk.device.read",
+  "kiosk.device.manage",
+  "kiosk.registration.review",
   "clinic.triage.write",
   "clinical.read",
   "allergy.manage",

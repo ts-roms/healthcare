@@ -17,6 +17,7 @@ import * as prescription from "@healthcare/prescription";
 import * as telemedicine from "@healthcare/telemedicine";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import * as auditArchive from "../src/app/audit-retention/audit-archive.schema";
+import * as kiosk from "../src/app/kiosk/kiosk.schema";
 import * as managementReports from "../src/app/management-dashboard/management-report.schema";
 import * as crm from "@healthcare/crm";
 import { Pool } from "pg";
@@ -49,6 +50,7 @@ describe("Drizzle schema matches migrations", () => {
     // The API's own tables (ADR-0011): scheduled management reports.
     managementReports,
     auditArchive,
+    kiosk,
     crm,
   ]
     .flatMap((module) => Object.values(module))

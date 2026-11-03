@@ -291,3 +291,42 @@ their condition; the display keeps ticket and place only).
 service point, kiosks and routing at check-in are separate decisions. Who may send a patient to the emergency room,
 and under what criteria, is the organization's policy (compliance register). Billing, laboratory and dental read
 nothing new; the timeline's queue entries are unchanged.
+
+## ADR-0015 Patient self-service kiosk: a restricted staff account, short sessions, staged registrations
+
+**Status:** accepted (2026-11-03). **Context:** reception is the bottleneck on busy mornings. The brief (`docs/kiosk/`)
+asked for a touchscreen kiosk, a staged new-patient registration and a thermal ticket, and proposed sixteen new queue
+tables. The platform already has the queue (`visit`, one atomic ticket counter per facility and day, one active visit
+per patient), service points, the waiting-room display, appointment check-in and patient registration with duplicate
+review; a second queue model would have duplicated all of it.
+
+**Decision.** Reuse the queue and add only what is new (migration 0137): **devices**, **sessions** and **staged
+registrations**. A kiosk is a **staff account holding only the `kiosk_device` role** (`kiosk.session.use`, no patient
+permission; the pattern of the waiting-room display, migration 0112), registered as a `kiosk_device` of one facility.
+The device's identity is its sign-in; the code in its address only routes the page. Registration refuses an account
+that holds `patient.read`. A person at the kiosk is served in a **`kiosk_session`**: an opaque token (hash stored) bound
+to the device, ended by the person, after two idle minutes, at fifteen in all, or at the third failed identification.
+Identification (`PatientIdentityService` in the patient domain) needs a patient or mobile number, the exact date of
+birth and the given name to agree on one active patient, answers every miss alike, shows initials only, and is counted
+before it is answered. **Check-in** goes through the clinic's own visit code (`VisitService.kioskWalkIn` /
+`kioskCheckInAppointment`, origin `visit.checked_in_via = 'kiosk'`, no staff user), so the ticket counter and the
+one-active-visit rule are the existing ones. Which services a kiosk offers is the organization's choice
+(`visit_type.kiosk_enabled`). A **new patient never becomes a patient on their own**: the typed registration is sealed
+with the integration key ring in `kiosk_registration`, listed to reception without personal data, and approved through
+the ordinary registration (duplicate rules intact), linked to an existing patient, or rejected; the sealed content is
+erased on any decision and after 24 hours. The orchestration lives in the API (`apps/api/src/app/kiosk`, own tables as
+ADR-0011): it spans patient and clinic, which may not import each other.
+
+**Also added.** `POST /queue/visits/:id/skip` for a called patient who did not come forward: the call is withdrawn and
+the visit goes back behind later arrivals of the same priority (`visit.queued_at`; arrival time unchanged), at most
+three times (`MAX_SKIPS`), then staff close the visit.
+
+**Alternatives rejected.** A `queue_ticket` family of tables (duplicates `visit`); a kiosk-specific token issuer (a
+second authentication system; the staff sign-in already has lockout, rotation and audit); letting the kiosk create
+patients directly (a public screen would write the Patient Master); a patient lookup returning the record for the
+screen to confirm (an enumeration oracle).
+
+**Consequences.** Not built in this decision: the kiosk web app, the print agent and print queue, the public display's
+department grouping, counters, and "requeue" of a closed visit (reopening a closed visit is a clinical-record
+decision). Hardware is verified only on the target devices. The privacy notice text and what a kiosk may collect are
+the organization's (compliance register).

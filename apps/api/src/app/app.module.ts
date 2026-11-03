@@ -55,6 +55,13 @@ import { LaboratoryNotifications } from "./laboratory-notifications";
 import { DocumentNotifications } from "./document-notifications";
 import { LaboratoryQualityNotifications } from "./laboratory-quality-notifications";
 import { IdempotencyPurge } from "./idempotency-purge";
+import { KioskAdminController } from "./kiosk/kiosk-admin.controller";
+import { KioskCheckInService } from "./kiosk/kiosk-checkin.service";
+import { KioskController } from "./kiosk/kiosk.controller";
+import { KioskDeviceService } from "./kiosk/kiosk-device.service";
+import { KioskHousekeeping } from "./kiosk/kiosk-housekeeping";
+import { KioskRegistrationService } from "./kiosk/kiosk-registration.service";
+import { KioskSessionService } from "./kiosk/kiosk-session.service";
 import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { ManagementDashboardController } from "./management-dashboard/management-dashboard.controller";
@@ -280,6 +287,8 @@ export class AppModule implements NestModule {
         BadgesController,
         StaffPushController,
         ControlledRegisterController,
+        KioskController,
+        KioskAdminController,
       ],
       providers: [
         FhirRecordComposer,
@@ -295,6 +304,11 @@ export class AppModule implements NestModule {
         LaboratoryQualityNotifications,
         DocumentNotifications,
         IdempotencyPurge,
+        KioskDeviceService,
+        KioskSessionService,
+        KioskCheckInService,
+        KioskRegistrationService,
+        KioskHousekeeping,
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,

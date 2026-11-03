@@ -66,6 +66,8 @@ export const visitType = pgTable("visit_type", {
   createdAt: ts("created_at").notNull().defaultNow(),
   /** Patients may book this visit type themselves in MyHealth. */
   onlineBooking: boolean("online_booking").notNull().default(false),
+  /** A patient kiosk offers this visit type for a walk-in check-in (migration 0137). */
+  kioskEnabled: boolean("kiosk_enabled").notNull().default(false),
   version: integer("version").notNull().default(1),
 });
 
@@ -386,7 +388,7 @@ export const visit = pgTable("visit", {
   chiefComplaint: text("chief_complaint"),
   checkedInAt: ts("checked_in_at").notNull().defaultNow(),
   checkedInBy: uuid("checked_in_by"),
-  checkedInVia: text("checked_in_via").$type<"staff" | "patient_portal">().notNull().default("staff"),
+  checkedInVia: text("checked_in_via").$type<"staff" | "patient_portal" | "kiosk">().notNull().default("staff"),
   calledAt: ts("called_at"),
   calledTo: text("called_to"),
   triageStartedAt: ts("triage_started_at"),
@@ -397,6 +399,9 @@ export const visit = pgTable("visit", {
   version: integer("version").notNull().default(1),
   /** Where the visit is now (migration 0113); null = the facility's consultation line. */
   servicePointId: uuid("service_point_id"),
+  /** The time the queue orders by: null until the visit is skipped (migration 0137), then the time it went back in line. */
+  queuedAt: ts("queued_at"),
+  skippedCount: integer("skipped_count").notNull().default(0),
 });
 
 export const triageAssessment = pgTable("triage_assessment", {

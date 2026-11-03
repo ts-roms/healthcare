@@ -52,6 +52,8 @@ export const createVisitTypeSchema = z.object({
   requiresTriage: z.boolean().default(true),
   /** Patients may book this visit type themselves in MyHealth. */
   onlineBooking: z.boolean().default(false),
+  /** A patient kiosk offers this visit type for a walk-in check-in. */
+  kioskEnabled: z.boolean().default(false),
 });
 export class CreateVisitTypeDto extends createZodDto(createVisitTypeSchema) {}
 
@@ -59,6 +61,7 @@ export const updateVisitTypeSchema = z.object({
   name: text(120).optional(),
   defaultDurationMinutes: z.number().int().min(5).max(480).optional(),
   onlineBooking: z.boolean().optional(),
+  kioskEnabled: z.boolean().optional(),
   status: z.enum(["active", "inactive"]).optional(),
   version: z.number().int().positive(),
 });
@@ -317,6 +320,10 @@ export const moveVisitSchema = z.object({
   version: z.number().int().positive(),
 });
 export class MoveVisitDto extends createZodDto(moveVisitSchema) {}
+
+/** A called patient who did not come forward goes back into the line (migration 0137). */
+export const skipVisitSchema = z.object({ reason: reason.optional(), version: z.number().int().positive() });
+export class SkipVisitDto extends createZodDto(skipVisitSchema) {}
 
 export const callVisitSchema = z.object({ calledTo: text(60), version: z.number().int().positive() });
 export class CallVisitDto extends createZodDto(callVisitSchema) {}

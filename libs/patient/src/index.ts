@@ -9,6 +9,8 @@ export * from "./lib/patient-record.service";
 export * from "./lib/patient-reporting.queries";
 export * from "./lib/patient-timeline.queries";
 export * from "./lib/patient-registration.service";
+export * from "./lib/identity/identity.rules";
+export * from "./lib/identity/patient-identity.service";
 export * from "./lib/qr/qr.rules";
 export * from "./lib/qr/qr.schema";
 export * from "./lib/qr/qr.service";

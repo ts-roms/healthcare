@@ -10,6 +10,7 @@ import {
   AvailabilityQueryDto,
   BookAppointmentDto,
   CallVisitDto,
+  SkipVisitDto,
   CancelAppointmentDto,
   CheckInDto,
   CloseWaitlistDto,
@@ -454,6 +455,13 @@ export class QueueController {
   @RequirePermissions("clinic.queue.manage")
   move(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: MoveVisitDto) {
     return this.visits.move(actor, id, body);
+  }
+
+  @Post("visits/:visitId/skip")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  skip(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: SkipVisitDto) {
+    return this.visits.skip(actor, id, body);
   }
 
   @Post("visits/:visitId/call")

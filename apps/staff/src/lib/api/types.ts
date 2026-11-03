@@ -442,7 +442,7 @@ export interface QueueVisit {
   appointmentId: string | null;
   arrivalMode: "walk_in" | "appointment";
   /** The patient checked in from MyHealth (an online consultation's waiting room, or online check-in for an in-person visit). */
-  checkedInVia: "staff" | "patient_portal";
+  checkedInVia: "staff" | "patient_portal" | "kiosk";
   ticket: string;
   queueNumber: number;
   queueDate: string;

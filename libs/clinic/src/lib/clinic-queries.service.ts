@@ -34,7 +34,7 @@ import {
 import { publicView } from "./clinic-support";
 import { referralOverdue } from "./referrals/referral.rules";
 import { canApply } from "./domain/appointment-state";
-import { type BookingRules, isPastForPatient, onlineCheckInWindow, patientMayChange } from "./domain/patient-booking";
+import { type BookingRules, isPastForPatient, onlineCheckInWindow, onSiteCheckInWindow, patientMayChange } from "./domain/patient-booking";
 import { ACTIVE_VISIT_STATUSES, queueTicket } from "./domain/queue-state";
 import { BookingRulesService } from "./config/booking-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
@@ -1007,6 +1007,75 @@ export class ClinicQueries {
       .from(referral)
       .where(and(eq(referral.organizationId, organizationId), filedAsPatient(referral.patientId, patientId)))
       .orderBy(asc(referral.issuedAt), asc(referral.id));
+  }
+
+  /**
+   * What a patient kiosk offers for a walk-in: the organization's active, in-person visit types it switched on for
+   * kiosks. Names only (migration 0137).
+   */
+  async kioskVisitTypes(organizationId: string): Promise<Array<{ id: string; name: string }>> {
+    return this.db
+      .select({ id: visitType.id, name: visitType.name })
+      .from(visitType)
+      .where(
+        and(
+          eq(visitType.organizationId, organizationId),
+          eq(visitType.status, "active"),
+          eq(visitType.kioskEnabled, true),
+          eq(visitType.modality, "in_person"),
+        ),
+      )
+      .orderBy(asc(visitType.name));
+  }
+
+  /**
+   * One patient's in-person appointments today at a facility, for the kiosk screen that follows identification: the
+   * time, the service, the doctor's display name and whether check-in is open now (`open`), still early or too late
+   * (the patient is sent to the desk), or already done. Nothing else about the appointment is returned.
+   */
+  async kioskAppointments(
+    organizationId: string,
+    facilityId: string,
+    patientId: string,
+    now = new Date(),
+  ): Promise<Array<{ id: string; startsAt: Date; service: string; practitioner: string; checkIn: "open" | "too_early" | "too_late" | "done" }>> {
+    const [site] = await this.db
+      .select({ timezone: facility.timezone })
+      .from(facility)
+      .where(and(eq(facility.organizationId, organizationId), eq(facility.id, facilityId)));
+    if (!site) return [];
+    const day = localDayBounds(localDate(now, site.timezone), site.timezone);
+    const rules = await this.bookingRules.forFacility(organizationId, facilityId);
+    const rows = await this.db
+      .select({
+        id: appointment.id,
+        startsAt: appointment.startsAt,
+        status: appointment.status,
+        service: visitType.name,
+        practitioner: practitioner.displayName,
+      })
+      .from(appointment)
+      .innerJoin(visitType, and(eq(visitType.organizationId, appointment.organizationId), eq(visitType.id, appointment.visitTypeId)))
+      .innerJoin(practitioner, and(eq(practitioner.organizationId, appointment.organizationId), eq(practitioner.id, appointment.practitionerId)))
+      .where(
+        and(
+          eq(appointment.organizationId, organizationId),
+          eq(appointment.facilityId, facilityId),
+          eq(appointment.patientId, patientId),
+          eq(visitType.modality, "in_person"),
+          gte(appointment.startsAt, day.start),
+          lt(appointment.startsAt, day.end),
+          inArray(appointment.status, ["booked", "confirmed", "checked_in"]),
+        ),
+      )
+      .orderBy(asc(appointment.startsAt));
+    return rows.map((r) => ({
+      id: r.id,
+      startsAt: r.startsAt,
+      service: r.service,
+      practitioner: r.practitioner,
+      checkIn: r.status === "checked_in" ? "done" : (onSiteCheckInWindow(r.startsAt, now, rules) ?? "open"),
+    }));
   }
 
   /** Practitioner records by id (record exports). */

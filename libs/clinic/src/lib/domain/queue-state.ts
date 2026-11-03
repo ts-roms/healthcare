@@ -63,6 +63,23 @@ export function servicePointQueue<T extends { priority: VisitPriority; checkedIn
   return rows.filter((r) => r.servicePointId === servicePointId).sort(compareQueueOrder);
 }
 
+/** How many times a called patient who did not come forward goes back in line before staff must close the visit. */
+export const MAX_SKIPS = 3;
+
+export type SkipRefusal = "visit_closed" | "not_called" | "skip_limit_reached" | "not_waiting";
+
+/**
+ * Whether a called visit may go back into the line: it is open, it was called, it is still waiting for care (not with
+ * the provider), and it has not been skipped too often.
+ */
+export function skipRefusal(visit: { status: VisitStatus; calledAt: Date | null; skippedCount: number }): SkipRefusal | null {
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status)) return "visit_closed";
+  if (visit.status === "in_consultation") return "not_waiting";
+  if (!visit.calledAt) return "not_called";
+  if (visit.skippedCount >= MAX_SKIPS) return "skip_limit_reached";
+  return null;
+}
+
 /** "A-007" style ticket label shown on display boards. */
 export function queueTicket(queueNumber: number): string {
   return `A-${String(queueNumber).padStart(3, "0")}`;

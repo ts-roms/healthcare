@@ -17,6 +17,7 @@ export * from "./lib/online/online-visit.service";
 export * from "./lib/ports";
 export * from "./lib/external/external-records.service";
 export type { VitalsView } from "./lib/triage/triage.service";
+export { VisitService } from "./lib/queue/visit.service";
 export type { VisitView, QueueEntryView, VisitRoutingView } from "./lib/queue/visit.service";
 export { compareServicePoints, type ServicePointBrief, type ServicePointSettingsView, type ServicePointView } from "./lib/config/service-point.service";
 export type { RouteStepView } from "./lib/queue/visit-route.queries";
