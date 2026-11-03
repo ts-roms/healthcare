@@ -10,6 +10,9 @@ import {
   AvailabilityQueryDto,
   BookAppointmentDto,
   CallVisitDto,
+  NoShowVisitDto,
+  RecallVisitDto,
+  RequeueVisitDto,
   SkipVisitDto,
   CancelAppointmentDto,
   CheckInDto,
@@ -462,6 +465,28 @@ export class QueueController {
   @RequirePermissions("clinic.queue.manage")
   skip(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: SkipVisitDto) {
     return this.visits.skip(actor, id, body);
+  }
+
+  @Post("visits/:visitId/recall")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  recall(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: RecallVisitDto) {
+    return this.visits.recall(actor, id, body);
+  }
+
+  @Post("visits/:visitId/no-show")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  noShow(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: NoShowVisitDto) {
+    return this.visits.noShow(actor, id, body);
+  }
+
+  @Post("visits/:visitId/requeue")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @RequireFacility()
+  requeue(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: RequeueVisitDto) {
+    return this.visits.requeue(actor, id, body);
   }
 
   @Post("visits/:visitId/call")

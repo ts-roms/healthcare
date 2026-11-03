@@ -471,6 +471,27 @@ describe("patient self-service kiosk", () => {
       await k(kiosk.one, known).delete("/sessions");
       await staff(kiosk.one).get("/kiosk/admin/registrations").expect(403);
     });
+
+    it("counts the registrations waiting in the navigation badge, for reviewers only", async () => {
+      const badge = async (token: string) => (await staff(token).get("/me/badges").expect(200)).body.kioskRegistrations as number | null;
+      const before = await badge(desk);
+      expect(before).toEqual(expect.any(Number));
+      expect(await badge(kiosk.one)).toBeNull();
+
+      const session = await openSession(kiosk.three);
+      const reference = (
+        await k(kiosk.three, session)
+          .post("/registrations", typed({ givenName: "Badge", familyName: "Counter", birthDate: "1970-07-07" }))
+          .expect(201)
+      ).body.reference as string;
+      expect(await badge(desk)).toBe(before! + 1);
+
+      const item = ((await staff(desk).get("/kiosk/admin/registrations").expect(200)).body.items as Array<{ id: string; reference: string }>).find(
+        (r) => r.reference === reference,
+      )!;
+      await staff(desk).post(`/kiosk/admin/registrations/${item.id}/reject`, { reason: "Counted, then declined" }).expect(200);
+      expect(await badge(desk)).toBe(before);
+    });
   });
 
   describe("skipping a called patient", () => {

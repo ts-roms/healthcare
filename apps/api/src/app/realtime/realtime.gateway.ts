@@ -17,6 +17,11 @@ function laboratoryRoom(facilityId: string): string {
   return `laboratory:${facilityId}`;
 }
 
+/** Kiosk registration updates go only to sockets allowed to review them (they signal that the list changed; no detail). */
+function registrationsRoom(facilityId: string): string {
+  return `registrations:${facilityId}`;
+}
+
 /** A patient's own room: the conversation updates of their own MyHealth account, never anyone else's. */
 function patientRoom(patientId: string): string {
   return `patient:${patientId}`;
@@ -39,7 +44,8 @@ function messagesRoom(facilityId: string): string {
  * clients may use { auth: { token, facilityId } }. Either way the session and
  * account are checked on connect, and the socket joins the channels its permissions at that facility allow:
  * `queue.updated` with clinic.queue.read or clinic.queue.display (the waiting-room display, migration 0112),
- * `lab.updated` with lab.order.read, `messages.updated` with patient.message.read, and `notices.updated` for every
+ * `lab.updated` with lab.order.read, `messages.updated` with patient.message.read, `registrations.updated` with
+ * kiosk.registration.review (a kiosk registration arrived or was decided: the list refetches, nothing is sent about it), and `notices.updated` for every
  * staff member with any permission at the facility (their own in-app notices only, so the top bar's unread count
  * moves at once); a socket with no permission there is refused.
  * Messages carry ids and statuses only — clients refetch details through the authorized REST API.
@@ -58,6 +64,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
     this.handlers.on("QueueEntryUpdated", "realtime.queue", async (event) => this.broadcastQueue(event));
     this.handlers.on([...LAB_REALTIME_EVENTS], "realtime.laboratory", async (event) => this.broadcastLaboratory(event));
     this.handlers.on("PatientMessageSent", "realtime.messages", async (event) => this.broadcastMessages(event));
+    this.handlers.on(["KioskRegistrationSubmitted", "KioskRegistrationDecided"], "realtime.registrations", async (event) => this.broadcastRegistrations(event));
     this.handlers.on("StaffNoticeCreated", "realtime.notices", async (event) => this.broadcastNotice(event));
   }
 
@@ -88,6 +95,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
         ...(actor.permissions.has("clinic.queue.read") || actor.permissions.has("clinic.queue.display") ? ["queue" as const] : []),
         ...(actor.permissions.has("lab.order.read") ? ["laboratory" as const] : []),
         ...(actor.permissions.has("patient.message.read") ? ["messages" as const] : []),
+        ...(actor.permissions.has("kiosk.registration.review") ? ["registrations" as const] : []),
         // Anyone who holds a permission at this facility hears their own notices; someone with none here is refused.
         ...(actor.permissions.size > 0 ? ["notices" as const] : []),
       ];
@@ -95,6 +103,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
       if (channels.includes("queue")) await client.join(facilityRoom(actor.facilityId));
       if (channels.includes("laboratory")) await client.join(laboratoryRoom(actor.facilityId));
       if (channels.includes("messages")) await client.join(messagesRoom(actor.facilityId));
+      if (channels.includes("registrations")) await client.join(registrationsRoom(actor.facilityId));
       await client.join(userRoom(actor.userId));
       client.emit("ready", { facilityId: actor.facilityId, channels });
     } catch (error) {
@@ -131,6 +140,12 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit {
       occurredAt: event.occurredAt,
       ...event.payload,
     });
+  }
+
+  /** A kiosk registration arrived or was decided: reviewers' sockets refetch the list (no detail travels). */
+  private async broadcastRegistrations(event: DomainEventRecord): Promise<void> {
+    if (!event.facilityId || !this.server) return;
+    this.server.to(registrationsRoom(event.facilityId)).emit("registrations.updated", { occurredAt: event.occurredAt });
   }
 
   /** A staff member got an in-app notice: only their own sockets hear it, and only that something new arrived. */

@@ -18,7 +18,18 @@ import {
 import { OrganizationService } from "@healthcare/organization";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
-import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, routeVisitSchema, skipVisitSchema, walkInSchema } from "../clinic.dto";
+import type {
+  assignVisitSchema,
+  callVisitSchema,
+  checkInSchema,
+  moveVisitSchema,
+  noShowVisitSchema,
+  recallVisitSchema,
+  requeueVisitSchema,
+  routeVisitSchema,
+  skipVisitSchema,
+  walkInSchema,
+} from "../clinic.dto";
 import {
   appointment,
   encounter,
@@ -44,6 +55,9 @@ import {
   canRouteVisit,
   canTransition,
   compareQueueOrder,
+  noShowRefusal,
+  recallRefusal,
+  requeueRefusal,
   SENIOR_AGE,
   type QueueDisplayCall,
   queueDisplay,
@@ -328,6 +342,88 @@ export class VisitService {
         reason: input.reason,
       };
     });
+  }
+
+  /**
+   * The desk calls a patient again, to the same place: `called_at` moves to now, so the waiting-room display announces
+   * the ticket once more. Nothing else about the visit changes.
+   */
+  async recall(actor: Actor, visitId: string, input: z.infer<typeof recallVisitSchema>): Promise<VisitView> {
+    return this.update(actor, visitId, input.version, (current) => {
+      const refusal = recallRefusal(current);
+      if (refusal) {
+        throw new BusinessRuleError(refusal === "visit_closed" ? "The visit is closed" : "Only a patient who was called can be called again", refusal);
+      }
+      return { changes: { calledAt: new Date() }, action: "visit.recall" };
+    });
+  }
+
+  /**
+   * A called patient never came forward: the visit is closed as left-without-being-seen and marked a no-show, so the
+   * figures tell it apart from a patient who walked out. The patient can be put back in line with `requeue`.
+   */
+  async noShow(actor: Actor, visitId: string, input: z.infer<typeof noShowVisitSchema>): Promise<VisitView> {
+    return this.update(actor, visitId, input.version, (current) => {
+      const refusal = noShowRefusal(current);
+      if (refusal) {
+        const message = {
+          visit_closed: "The visit is closed",
+          not_waiting: "The patient is with the provider",
+          not_called: "Call the patient before marking a no-show",
+        }[refusal];
+        throw new BusinessRuleError(message, refusal);
+      }
+      const now = new Date();
+      return {
+        changes: {
+          status: "left_without_being_seen",
+          calledAt: null,
+          calledTo: null,
+          completedAt: now,
+          noShowAt: now,
+          closedReason: input.reason ?? "No-show after being called",
+        },
+        action: "visit.no-show",
+        reason: input.reason,
+      };
+    });
+  }
+
+  /**
+   * A visit closed as left-without-being-seen (a no-show, or someone who stepped out) goes back in line behind those who
+   * arrived since, the same day and a limited number of times (`MAX_REQUEUES`). The ticket and arrival time are kept.
+   * A patient already in the queue again cannot be put back (`already_in_queue`).
+   */
+  async requeue(actor: Actor, visitId: string, input: z.infer<typeof requeueVisitSchema>): Promise<VisitView> {
+    const facility = await this.organizations.getFacility(actor.organizationId, requireFacilityId(actor));
+    const today = localDate(new Date(), facility.timezone);
+    return this.guardArrival(undefined, () =>
+      this.update(actor, visitId, input.version, (current) => {
+        const refusal = requeueRefusal(current, today);
+        if (refusal) {
+          const message = {
+            not_left: "Only a visit closed as left without being seen can be put back in line",
+            not_today: "Only today’s visits can be put back in line",
+            requeue_limit_reached: "This visit has been put back in line too often",
+          }[refusal];
+          throw new BusinessRuleError(message, refusal);
+        }
+        return {
+          changes: {
+            status: "waiting",
+            calledAt: null,
+            calledTo: null,
+            completedAt: null,
+            closedReason: null,
+            noShowAt: null,
+            queuedAt: new Date(),
+            requeuedCount: current.requeuedCount + 1,
+          },
+          action: "visit.requeue",
+          reason: input.reason,
+        };
+      }),
+    );
   }
 
   /**

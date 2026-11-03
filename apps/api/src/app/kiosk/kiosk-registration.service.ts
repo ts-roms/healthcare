@@ -171,6 +171,22 @@ export class KioskRegistrationService {
     }));
   }
 
+  /** How many registrations wait at the actor's facility (the navigation badge); null when no facility is selected. */
+  async countPending(actor: Actor): Promise<number | null> {
+    if (!actor.facilityId) return null;
+    const [row] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(kioskRegistration)
+      .where(
+        and(
+          eq(kioskRegistration.organizationId, actor.organizationId),
+          eq(kioskRegistration.facilityId, actor.facilityId),
+          eq(kioskRegistration.status, "pending"),
+        ),
+      );
+    return row?.n ?? 0;
+  }
+
   /** What the person typed, and who the Patient Master thinks they might be now. Audited as a view of personal data. */
   async get(actor: Actor, registrationId: string) {
     const row = await this.requirePending(this.db, actor, registrationId);

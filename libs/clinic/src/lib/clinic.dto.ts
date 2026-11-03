@@ -325,6 +325,18 @@ export class MoveVisitDto extends createZodDto(moveVisitSchema) {}
 export const skipVisitSchema = z.object({ reason: reason.optional(), version: z.number().int().positive() });
 export class SkipVisitDto extends createZodDto(skipVisitSchema) {}
 
+/** The desk calls a called patient again, to the same place (the waiting-room display announces it again). */
+export const recallVisitSchema = z.object({ version: z.number().int().positive() });
+export class RecallVisitDto extends createZodDto(recallVisitSchema) {}
+
+/** A called patient never came forward: the visit is closed as a no-show. */
+export const noShowVisitSchema = z.object({ reason: reason.optional(), version: z.number().int().positive() });
+export class NoShowVisitDto extends createZodDto(noShowVisitSchema) {}
+
+/** A visit closed as left-without-being-seen goes back in line (the reason is kept in the audit trail). */
+export const requeueVisitSchema = z.object({ reason, version: z.number().int().positive() });
+export class RequeueVisitDto extends createZodDto(requeueVisitSchema) {}
+
 export const callVisitSchema = z.object({ calledTo: text(60), version: z.number().int().positive() });
 export class CallVisitDto extends createZodDto(callVisitSchema) {}
 

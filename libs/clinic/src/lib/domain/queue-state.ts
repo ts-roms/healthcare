@@ -80,6 +80,44 @@ export function skipRefusal(visit: { status: VisitStatus; calledAt: Date | null;
   return null;
 }
 
+/** How many times a visit closed as left-without-being-seen may be put back in line. */
+export const MAX_REQUEUES = 3;
+
+export type RecallRefusal = "visit_closed" | "not_called";
+
+/** A recall repeats the call to the same place: the visit must be open and already called. */
+export function recallRefusal(visit: { status: VisitStatus; calledAt: Date | null }): RecallRefusal | null {
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status)) return "visit_closed";
+  if (!visit.calledAt) return "not_called";
+  return null;
+}
+
+export type NoShowRefusal = "visit_closed" | "not_called" | "not_waiting";
+
+/**
+ * A called patient who never came forward is closed as a no-show. Only a patient who was called (so the desk tried),
+ * who is still waiting for care (not with the provider), and whose visit is open.
+ */
+export function noShowRefusal(visit: { status: VisitStatus; calledAt: Date | null }): NoShowRefusal | null {
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status)) return "visit_closed";
+  if (visit.status === "in_consultation") return "not_waiting";
+  if (!visit.calledAt) return "not_called";
+  return null;
+}
+
+export type RequeueRefusal = "not_left" | "not_today" | "requeue_limit_reached";
+
+/**
+ * A visit closed as left-without-being-seen (including a no-show) may go back in line the same day, a limited number
+ * of times. Cancelled visits (checked in by mistake) and completed visits never reopen.
+ */
+export function requeueRefusal(visit: { status: VisitStatus; queueDate: string; requeuedCount: number }, today: string): RequeueRefusal | null {
+  if (visit.status !== "left_without_being_seen") return "not_left";
+  if (visit.queueDate !== today) return "not_today";
+  if (visit.requeuedCount >= MAX_REQUEUES) return "requeue_limit_reached";
+  return null;
+}
+
 /** "A-007" style ticket label shown on display boards. */
 export function queueTicket(queueNumber: number): string {
   return `A-${String(queueNumber).padStart(3, "0")}`;

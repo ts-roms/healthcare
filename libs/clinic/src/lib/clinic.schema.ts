@@ -402,6 +402,10 @@ export const visit = pgTable("visit", {
   /** The time the queue orders by: null until the visit is skipped (migration 0137), then the time it went back in line. */
   queuedAt: ts("queued_at"),
   skippedCount: integer("skipped_count").notNull().default(0),
+  /** Set when a called patient never came forward and the visit was closed as a no-show (migration 0138). */
+  noShowAt: ts("no_show_at"),
+  /** How many times a closed visit was put back in line (migration 0138). */
+  requeuedCount: integer("requeued_count").notNull().default(0),
 });
 
 export const triageAssessment = pgTable("triage_assessment", {

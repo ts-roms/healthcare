@@ -6,9 +6,13 @@ import {
   canTransition,
   compareQueueOrder,
   currentRouteStep,
+  MAX_REQUEUES,
   nextRouteStep,
+  noShowRefusal,
   queueDisplay,
   queueTicket,
+  recallRefusal,
+  requeueRefusal,
   requiresReason,
   routeComplete,
   routeInPlan,
@@ -208,5 +212,32 @@ describe("vital signs", () => {
   it("computes BMI for display", () => {
     expect(bodyMassIndex(70, 170)).toBe(24.2);
     expect(bodyMassIndex(null, 170)).toBeNull();
+  });
+});
+
+describe("reception queue actions", () => {
+  const called = new Date("2026-11-03T01:00:00Z");
+
+  it("recalls only an open visit that was called", () => {
+    expect(recallRefusal({ status: "waiting", calledAt: called })).toBeNull();
+    expect(recallRefusal({ status: "waiting", calledAt: null })).toBe("not_called");
+    expect(recallRefusal({ status: "completed", calledAt: called })).toBe("visit_closed");
+  });
+
+  it("marks a no-show only for a called patient who is still waiting for care", () => {
+    expect(noShowRefusal({ status: "awaiting_consultation", calledAt: called })).toBeNull();
+    expect(noShowRefusal({ status: "waiting", calledAt: null })).toBe("not_called");
+    expect(noShowRefusal({ status: "in_consultation", calledAt: called })).toBe("not_waiting");
+    expect(noShowRefusal({ status: "left_without_being_seen", calledAt: called })).toBe("visit_closed");
+  });
+
+  it("puts back in line only today's left-without-being-seen visits, a limited number of times", () => {
+    const left = { status: "left_without_being_seen" as const, queueDate: "2026-11-03", requeuedCount: 0 };
+    expect(requeueRefusal(left, "2026-11-03")).toBeNull();
+    expect(requeueRefusal(left, "2026-11-04")).toBe("not_today");
+    expect(requeueRefusal({ ...left, status: "cancelled" }, "2026-11-03")).toBe("not_left");
+    expect(requeueRefusal({ ...left, status: "completed" }, "2026-11-03")).toBe("not_left");
+    expect(requeueRefusal({ ...left, requeuedCount: MAX_REQUEUES - 1 }, "2026-11-03")).toBeNull();
+    expect(requeueRefusal({ ...left, requeuedCount: MAX_REQUEUES }, "2026-11-03")).toBe("requeue_limit_reached");
   });
 });
