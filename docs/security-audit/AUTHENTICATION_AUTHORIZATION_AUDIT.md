@@ -10,18 +10,18 @@ Status vocabulary: Verified secure / Tested no issue (none: nothing was executed
 
 ## 1. Summary
 
-| Area | Result |
-| --- | --- |
-| JWT validation (algorithm, issuer, audience, type) | Verified secure |
-| Staff and portal session handling, refresh rotation, revocation | Verified secure, with two minor limits (AUTH-008, AUTH-009) |
-| Password hashing and policy | Verified secure (see the cryptography audit) |
-| Lockout and brute force | Verified present; lockout can be used against a victim (AUTH-007) |
-| Staff MFA / portal MFA / passkeys / trusted devices | Verified secure in design; staff MFA is optional by default (AUTH-005) |
-| Guardian access (`X-Acting-For`) | Verified secure |
-| Cross-tenant isolation in the application queries | Verified secure on every sampled route |
-| Cross-tenant isolation in the database (RLS) | Incomplete implementation by default (AUTH-004) |
-| Role and user management | Confirmed vulnerabilities (AUTH-001, AUTH-002) |
-| Facility scoping of reads | Incomplete implementation (AUTH-003) |
+| Area                                                            | Result                                                                 |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| JWT validation (algorithm, issuer, audience, type)              | Verified secure                                                        |
+| Staff and portal session handling, refresh rotation, revocation | Verified secure, with two minor limits (AUTH-008, AUTH-009)            |
+| Password hashing and policy                                     | Verified secure (see the cryptography audit)                           |
+| Lockout and brute force                                         | Verified present; lockout can be used against a victim (AUTH-007)      |
+| Staff MFA / portal MFA / passkeys / trusted devices             | Verified secure in design; staff MFA is optional by default (AUTH-005) |
+| Guardian access (`X-Acting-For`)                                | Verified secure                                                        |
+| Cross-tenant isolation in the application queries               | Verified secure on every sampled route                                 |
+| Cross-tenant isolation in the database (RLS)                    | Incomplete implementation by default (AUTH-004)                        |
+| Role and user management                                        | Confirmed vulnerabilities (AUTH-001, AUTH-002)                         |
+| Facility scoping of reads                                       | Incomplete implementation (AUTH-003)                                   |
 
 Findings: 1 HIGH, 4 MEDIUM, 7 LOW, 3 INFO. No CRITICAL finding.
 
@@ -142,40 +142,40 @@ What does not (see findings): the delegation check compares permission names onl
 
 "Org" means the query filters on `actor.organizationId`. "Facility" means the service compares the record's facility with the request facility.
 
-| # | Route | Evidence | Org | Facility | Result |
-| --- | --- | --- | --- | --- | --- |
-| 1 | GET /encounters/:id | `clinic/encounters/encounter.service.ts:151-153` | yes | no | Secure across tenants; AUTH-003 |
-| 2 | GET /encounters/:id/history | `encounter.service.ts:182-185` | yes | no | same |
-| 3 | GET /patients/:id/encounters | `encounter.service.ts:205` (`filedAsPatient`) | yes | no | same |
-| 4 | POST /encounters (start) | `encounter.service.ts:31-35` | yes | yes (visit) | Secure |
-| 5 | POST /encounters/:id/sign | `encounter.service.ts:238-250` (lock by org, responsible practitioner only) | yes | no | Secure |
-| 6 | POST /encounters/:id/amend | `encounter.service.ts:296-300` | yes | no | Secure |
-| 7 | GET /prescriptions/:id | `prescription.service.ts:157-166` | yes | no | AUTH-003 |
-| 8 | GET /billing/invoices/:id | `billing/invoices/invoice.service.ts:456-468` | yes | no | AUTH-003 |
-| 9 | POST invoice discount/issue/void | `invoice.service.ts:709-718` | yes | only if header sent | Secure for scoped users (a scoped grant needs the header) |
-| 10 | GET credit note | `credit-notes/credit-note.service.ts:207` | yes | if header sent | Secure |
-| 11 | GET debit note | `debit-note.service.ts:118` | yes | if header sent | Secure |
-| 12 | GET billing worklist / charges | `charge.service.ts:290-327` | yes | yes | Secure |
-| 13 | PATCH billing service | `billing-catalog.service.ts:120-136` | yes | n/a (catalog) | Secure |
-| 14 | POST lab results verify / approve | `laboratory/results/lab-result.service.ts:481-485`, `assertFacility` 704 | yes | yes | Secure; separation of duties in `signOffDecision` (498-503) |
-| 15 | POST lab results release / releaseOrder | `lab-result.service.ts:149-175` | yes | yes | Secure |
-| 16 | POST lab results correct | `lab-result.service.ts:187-193`; permission checked in service (193-195) | yes | yes | Secure |
-| 17 | POST lab results cancel | `lab-result.service.ts:216-220` | yes | yes | Secure |
-| 18 | POST order-items/:id/results (enter) | `lab-result.service.ts:103-106` | yes | yes | Secure |
-| 19 | GET lab worklist | `lab-worklist.service.ts:40-139` | yes | yes | Secure |
-| 20 | POST critical-results/:id/acknowledge | `lab-result.service.ts:445-475`; controller permission `lab.result.read` (`laboratory.controllers.ts:426-428`) | yes | no | AUTH-012 |
-| 21 | GET documents/:id and download-url | `documents/documents.service.ts:369, 433-460, 605-610` | yes | no | Secure across tenants; domain-managed documents excluded by `managedBy` scope; coarse `document.read` (AUTH-003) |
-| 22 | PATCH coding-systems/:id | `clinic/config/clinic-config.service.ts:173-187` | yes | n/a | Secure |
-| 23 | care plan goal and activity updates | `care-plan/care-plan.service.ts:318-340, 380-399` (plan locked by org) | yes | n/a | Secure |
-| 24 | POST users/:id/role-assignments | `users.service.ts:307-344` | yes | no | AUTH-002 |
-| 25 | DELETE users/:id/role-assignments/:aid | `users.service.ts:346-370` | yes | no | AUTH-001 |
-| 26 | POST users/:id/password-reset | `users.service.ts:248-305` | yes | no | AUTH-001 |
-| 27 | PATCH users/:id/membership | `users.service.ts:222-241` | yes | no | AUTH-001 |
-| 28 | PUT roles/:id | `users.service.ts:442-480` | yes | no | Secure (delegation checked) |
-| 29 | GET portal results report.pdf | `lab-report.ts:131-141` (org, order id, `filedAsPatient`, visible results only) | yes | n/a | Secure |
-| 30 | GET portal certificates/:id/link | `clinic/certificates/medical-certificate.service.ts:215-229` | yes | n/a | Secure |
-| 31 | GET portal referrals/:id/link | `clinic/referrals/referral.service.ts:420-432` | yes | n/a | Secure |
-| 32 | GET portal message attachment link | `patient/messaging/patient-message.service.ts:238-247` (thread must be the patient's) | yes | n/a | Secure |
+| #   | Route                                   | Evidence                                                                                                       | Org | Facility            | Result                                                                                                           |
+| --- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------- | --- | ------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| 1   | GET /encounters/:id                     | `clinic/encounters/encounter.service.ts:151-153`                                                               | yes | no                  | Secure across tenants; AUTH-003                                                                                  |
+| 2   | GET /encounters/:id/history             | `encounter.service.ts:182-185`                                                                                 | yes | no                  | same                                                                                                             |
+| 3   | GET /patients/:id/encounters            | `encounter.service.ts:205` (`filedAsPatient`)                                                                  | yes | no                  | same                                                                                                             |
+| 4   | POST /encounters (start)                | `encounter.service.ts:31-35`                                                                                   | yes | yes (visit)         | Secure                                                                                                           |
+| 5   | POST /encounters/:id/sign               | `encounter.service.ts:238-250` (lock by org, responsible practitioner only)                                    | yes | no                  | Secure                                                                                                           |
+| 6   | POST /encounters/:id/amend              | `encounter.service.ts:296-300`                                                                                 | yes | no                  | Secure                                                                                                           |
+| 7   | GET /prescriptions/:id                  | `prescription.service.ts:157-166`                                                                              | yes | no                  | AUTH-003                                                                                                         |
+| 8   | GET /billing/invoices/:id               | `billing/invoices/invoice.service.ts:456-468`                                                                  | yes | no                  | AUTH-003                                                                                                         |
+| 9   | POST invoice discount/issue/void        | `invoice.service.ts:709-718`                                                                                   | yes | only if header sent | Secure for scoped users (a scoped grant needs the header)                                                        |
+| 10  | GET credit note                         | `credit-notes/credit-note.service.ts:207`                                                                      | yes | if header sent      | Secure                                                                                                           |
+| 11  | GET debit note                          | `debit-note.service.ts:118`                                                                                    | yes | if header sent      | Secure                                                                                                           |
+| 12  | GET billing worklist / charges          | `charge.service.ts:290-327`                                                                                    | yes | yes                 | Secure                                                                                                           |
+| 13  | PATCH billing service                   | `billing-catalog.service.ts:120-136`                                                                           | yes | n/a (catalog)       | Secure                                                                                                           |
+| 14  | POST lab results verify / approve       | `laboratory/results/lab-result.service.ts:481-485`, `assertFacility` 704                                       | yes | yes                 | Secure; separation of duties in `signOffDecision` (498-503)                                                      |
+| 15  | POST lab results release / releaseOrder | `lab-result.service.ts:149-175`                                                                                | yes | yes                 | Secure                                                                                                           |
+| 16  | POST lab results correct                | `lab-result.service.ts:187-193`; permission checked in service (193-195)                                       | yes | yes                 | Secure                                                                                                           |
+| 17  | POST lab results cancel                 | `lab-result.service.ts:216-220`                                                                                | yes | yes                 | Secure                                                                                                           |
+| 18  | POST order-items/:id/results (enter)    | `lab-result.service.ts:103-106`                                                                                | yes | yes                 | Secure                                                                                                           |
+| 19  | GET lab worklist                        | `lab-worklist.service.ts:40-139`                                                                               | yes | yes                 | Secure                                                                                                           |
+| 20  | POST critical-results/:id/acknowledge   | `lab-result.service.ts:445-475`; controller permission `lab.result.read` (`laboratory.controllers.ts:426-428`) | yes | no                  | AUTH-012                                                                                                         |
+| 21  | GET documents/:id and download-url      | `documents/documents.service.ts:369, 433-460, 605-610`                                                         | yes | no                  | Secure across tenants; domain-managed documents excluded by `managedBy` scope; coarse `document.read` (AUTH-003) |
+| 22  | PATCH coding-systems/:id                | `clinic/config/clinic-config.service.ts:173-187`                                                               | yes | n/a                 | Secure                                                                                                           |
+| 23  | care plan goal and activity updates     | `care-plan/care-plan.service.ts:318-340, 380-399` (plan locked by org)                                         | yes | n/a                 | Secure                                                                                                           |
+| 24  | POST users/:id/role-assignments         | `users.service.ts:307-344`                                                                                     | yes | no                  | AUTH-002                                                                                                         |
+| 25  | DELETE users/:id/role-assignments/:aid  | `users.service.ts:346-370`                                                                                     | yes | no                  | AUTH-001                                                                                                         |
+| 26  | POST users/:id/password-reset           | `users.service.ts:248-305`                                                                                     | yes | no                  | AUTH-001                                                                                                         |
+| 27  | PATCH users/:id/membership              | `users.service.ts:222-241`                                                                                     | yes | no                  | AUTH-001                                                                                                         |
+| 28  | PUT roles/:id                           | `users.service.ts:442-480`                                                                                     | yes | no                  | Secure (delegation checked)                                                                                      |
+| 29  | GET portal results report.pdf           | `lab-report.ts:131-141` (org, order id, `filedAsPatient`, visible results only)                                | yes | n/a                 | Secure                                                                                                           |
+| 30  | GET portal certificates/:id/link        | `clinic/certificates/medical-certificate.service.ts:215-229`                                                   | yes | n/a                 | Secure                                                                                                           |
+| 31  | GET portal referrals/:id/link           | `clinic/referrals/referral.service.ts:420-432`                                                                 | yes | n/a                 | Secure                                                                                                           |
+| 32  | GET portal message attachment link      | `patient/messaging/patient-message.service.ts:238-247` (thread must be the patient's)                          | yes | n/a                 | Secure                                                                                                           |
 
 Also checked: staff invite/disable portal account (`portal-account.service.ts:154-166, 203-210`, org + patient existence) and staff message attachment link (`patient-message.service.ts:362-371`).
 

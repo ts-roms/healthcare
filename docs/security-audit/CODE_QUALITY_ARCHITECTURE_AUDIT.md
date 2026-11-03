@@ -48,13 +48,13 @@ Method: `NX_DAEMON=false pnpm nx graph --file=<scratchpad>/graph.json`, then a D
 
 Method: `grep -rEn` over `apps/` and `libs/` `*.ts`/`*.tsx`, excluding `node_modules`, `dist`, `.next`, `.nx`, `worktrees`.
 
-| Measure | Count | Notes |
-|---|---|---|
-| `: any` / `as any` as types | 0 | All 13 raw matches are English prose in comments ("as any of them") |
-| `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck` | 0 | |
-| `eslint-disable` | 9 real (10 raw) | `apps/staff/src/app/(staff)/doctors/[id]/practitioner-editor.tsx:43`, `.../offline/offline-workspace.tsx:104`, `.../patients/[id]/patient-qr-card.tsx:34`, `apps/staff/src/components/offline-banner.tsx:52`, `.../outside-results/report-preview.tsx:65`, `libs/core/src/lib/http/request-augmentation.ts:4`, `libs/interoperability/src/lib/instruments/instrument-messages.ts:72,142,148`, `libs/ui/src/healthcare/lab-worklist.tsx:84` |
-| Non-null assertion (`x!` followed by `. ; ) ,`), grep approximation | 449 matches, 112 outside tests | Regex under-counts (`x![0]`, `x!` before other tokens) |
-| `no-non-null-assertion` lint warnings | 972 | NOT re-measured; taken from `docs/audit/2026-10-20-codebase-audit-report.md` section 7 |
+| Measure                                                             | Count                          | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `: any` / `as any` as types                                         | 0                              | All 13 raw matches are English prose in comments ("as any of them")                                                                                                                                                                                                                                                                                                                                                                        |
+| `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`                     | 0                              |                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `eslint-disable`                                                    | 9 real (10 raw)                | `apps/staff/src/app/(staff)/doctors/[id]/practitioner-editor.tsx:43`, `.../offline/offline-workspace.tsx:104`, `.../patients/[id]/patient-qr-card.tsx:34`, `apps/staff/src/components/offline-banner.tsx:52`, `.../outside-results/report-preview.tsx:65`, `libs/core/src/lib/http/request-augmentation.ts:4`, `libs/interoperability/src/lib/instruments/instrument-messages.ts:72,142,148`, `libs/ui/src/healthcare/lab-worklist.tsx:84` |
+| Non-null assertion (`x!` followed by `. ; ) ,`), grep approximation | 449 matches, 112 outside tests | Regex under-counts (`x![0]`, `x!` before other tokens)                                                                                                                                                                                                                                                                                                                                                                                     |
+| `no-non-null-assertion` lint warnings                               | 972                            | NOT re-measured; taken from `docs/audit/2026-10-20-codebase-audit-report.md` section 7                                                                                                                                                                                                                                                                                                                                                     |
 
 Type discipline is strong. Example guarded assertions: `libs/interoperability/src/lib/instruments/instrument-links.ts` (around lines 56-57, after length checks).
 
@@ -62,26 +62,26 @@ Type discipline is strong. Example guarded assertions: `libs/interoperability/sr
 
 Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/`, `tests/`, `*.journey.ts`). Line coverage was NOT measured.
 
-| Project | src files | test files | Comment |
-|---|---:|---:|---|
-| libs/billing | 25 | 1 | 7 billing API integration specs compensate |
-| libs/inventory | 18 | 1 | 4 integration specs |
-| libs/crm | 10 | 1 | `crm-outreach.int.spec.ts` |
-| libs/telemedicine | 13 | 1 | `telemedicine.int.spec.ts` |
-| libs/audit | 5 | 1 | |
-| libs/auth | 25 | 3 | many integration specs |
-| libs/ui | 93 | 4 | components rely on Storybook |
-| libs/organization | 19 | 2 | |
-| libs/prescription | 14 | 2 | |
-| libs/care-plan | 9 | 1 | |
-| apps/notification-worker | 3 | 0 | none |
-| apps/integration-worker | 3 | 0 | none |
-| apps/staff | 545 | 56 | |
-| apps/portal | 131 | 21 | |
-| apps/mobile | 28 | 5 | |
-| libs/clinic | 82 | 8 | heavy integration coverage |
-| libs/patient | 72 | 14 | |
-| apps/api | 90 | 125 | 117 `*.int.spec.ts`, 869 test cases (grep of `it(`/`test(`) |
+| Project                  | src files | test files | Comment                                                     |
+| ------------------------ | --------: | ---------: | ----------------------------------------------------------- |
+| libs/billing             |        25 |          1 | 7 billing API integration specs compensate                  |
+| libs/inventory           |        18 |          1 | 4 integration specs                                         |
+| libs/crm                 |        10 |          1 | `crm-outreach.int.spec.ts`                                  |
+| libs/telemedicine        |        13 |          1 | `telemedicine.int.spec.ts`                                  |
+| libs/audit               |         5 |          1 |                                                             |
+| libs/auth                |        25 |          3 | many integration specs                                      |
+| libs/ui                  |        93 |          4 | components rely on Storybook                                |
+| libs/organization        |        19 |          2 |                                                             |
+| libs/prescription        |        14 |          2 |                                                             |
+| libs/care-plan           |         9 |          1 |                                                             |
+| apps/notification-worker |         3 |          0 | none                                                        |
+| apps/integration-worker  |         3 |          0 | none                                                        |
+| apps/staff               |       545 |         56 |                                                             |
+| apps/portal              |       131 |         21 |                                                             |
+| apps/mobile              |        28 |          5 |                                                             |
+| libs/clinic              |        82 |          8 | heavy integration coverage                                  |
+| libs/patient             |        72 |         14 |                                                             |
+| apps/api                 |        90 |        125 | 117 `*.int.spec.ts`, 869 test cases (grep of `it(`/`test(`) |
 
 ## 7. Dead code and the 2026-10-20 audit
 
@@ -99,6 +99,7 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 ## Findings
 
 ### QA-001 HIGH `@healthcare/ui:lint` cannot start; CI lint gate broken
+
 - Location: `libs/ui/eslint.config.mjs:6`; root `package.json` (missing devDependency); commit `db3d1bba`.
 - Evidence: `Error: Cannot find module 'eslint-plugin-react'` raised from `@nx/eslint-plugin`; package only transitive (`pnpm-lock.yaml:19993`).
 - Impact: `nx affected -t lint` fails for ui and dependents; the design system is currently unlinted.
@@ -106,6 +107,7 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 - Status: Open
 
 ### QA-002 MEDIUM Dependency removals not re-validated with full lint
+
 - Location: `docs/audit/2026-10-20-codebase-audit-report.md:127-130`, validation plan section 7.
 - Evidence: the plan required lint/typecheck/build after removals; QA-001 shows it was not repeated after `db3d1bba`.
 - Impact: tooling regressions slip through.
@@ -113,6 +115,7 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 - Status: Open
 
 ### QA-003 LOW 972 `no-non-null-assertion` warnings
+
 - Location: repo-wide; sample `libs/interoperability/src/lib/instruments/instrument-links.ts` (~56-57).
 - Evidence: figure from the 2026-10-20 report (not re-measured).
 - Impact: latent `undefined` at runtime; mostly guarded.
@@ -120,6 +123,7 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 - Status: Open
 
 ### QA-004 MEDIUM Thin unit-test files in billing, inventory, crm, telemedicine, ui; none in two workers
+
 - Location: `libs/billing`, `libs/inventory`, `libs/crm`, `libs/telemedicine`, `libs/ui`, `apps/notification-worker`, `apps/integration-worker`.
 - Evidence: section 6 file counts (line coverage unmeasured).
 - Impact: money, stock and campaign rules are exercised only by DB-backed integration tests; worker bootstrap/shutdown untested.
@@ -127,6 +131,7 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 - Status: Open
 
 ### QA-005 LOW No dead-code, duplication, dependency-policy or SAST step in CI
+
 - Location: `.github/workflows/ci.yml`.
 - Evidence: workflow has sync:check, prettier, lint, typecheck, test, integration, e2e, build, terraform only.
 - Impact: earlier audit findings can recur; vulnerable dependencies are not caught.
@@ -134,6 +139,7 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 - Status: Open
 
 ### QA-006 LOW Duplicate migration number prefixes
+
 - Location: `database/migrations/` (0052, 0058, 0061, 0067, 0068, 0079, 0080, 0081, 0083, 0084 each twice).
 - Evidence: `ls database/migrations | cut -c1-4 | sort | uniq -d`.
 - Impact: docs such as "migration 0079" are ambiguous; ordering of same-prefix files depends on filename sort.
@@ -141,6 +147,7 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 - Status: Open
 
 ### QA-007 LOW Local Node differs from `.nvmrc`
+
 - Location: `.nvmrc` (22) vs observed v24.21.0.
 - Evidence: `node -v` this session.
 - Impact: audit results come from Node 24 and may differ from CI.
@@ -148,5 +155,6 @@ Method: non-test `.ts/.tsx` under `src` vs `*.spec.ts|*.test.ts(x)` (plus `test/
 - Status: Open
 
 ### QA-008 INFO Type safety and architecture hygiene are good
+
 - Evidence: 0 real `any`, 0 `@ts-ignore`, 9 `eslint-disable`, 0 project cycles, all 30 projects tagged.
 - Status: Open (informational)

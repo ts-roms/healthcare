@@ -6,104 +6,104 @@ Stage A (read-only), static review. Date: 2026-11-02. No E2E, integration or UI 
 
 Config (`apps/e2e/playwright.config.ts`): projects `setup` then `journeys` (`*.journey.ts`, Desktop Chrome 1440x1000), `workers: 1`, `retries: 0`, `timeout: 120_000`. The run builds API, staff app and portal and uses its own `healthcare_e2e` database. CI runs `nx affected -t e2e` (`.github/workflows/ci.yml:105`). Journeys 18 and 19 do not exist (numbering gap, informational).
 
-| # | File | Journey | Modules exercised |
-|---|---|---|---|
-| 1 | `1-clinic-laboratory-portal.journey.ts` | Register, emergency contact, appointment, check-in, consultation with lab order, collect/receive/enter, verify/approve/release, MyHealth activation, patient sees result (CLAUDE.md section 31 journey A) | patients, appointments, queue, encounters, laboratory, portal |
-| 2 | `2-online-booking-telemedicine.journey.ts` | Online booking, questionnaire, waiting room, consultation, prescription, lab order, follow-up, patient sees it (journey B) | portal, telemedicine, encounters, prescriptions, laboratory |
-| 3 | `3-help.journey.ts` | Staff and patient manuals | help |
-| 4 | `4-cashier.journey.ts` | Cashier selects facility and opens `/billing` (one page-load assertion only) | billing (shallow) |
-| 5 | `5-immunizations.journey.ts` | Dose given and reported dose in MyHealth history | immunizations, portal |
-| 6 | `6-offline.journey.ts` | Offline registration, walk-in, vitals, replay | offline, patients, queue |
-| 7 | `7-passkeys.journey.ts` | Patient passkey add and sign-in | portal security |
-| 8 | `8-waiting-room-display.journey.ts` | Call ticket, display shows no name | queue display |
-| 9 | `9-queue-checkin.journey.ts` | Walk-in, priority order, appointment check-in, call, move, close, triage, service-point routing | queue, triage |
-| 10 | `10-all-modules.journey.ts` | Every screen of every module opens without 5xx/error page; patient record opens in each module | smoke for all modules |
-| 11 | `11-dental.journey.ts` | Exam on odontogram, plan with estimate, decisions, procedure, billing charge, entered in error, unauthorized role | dental, billing |
-| 12 | `12-pharmacy-inventory.journey.ts` | PO draft/approve (separation of duties), receive by lot, FEFO dispense, reversal, reorder level | inventory, dispensing |
-| 13 | `13-referrals-care-plans.journey.ts` | Referrals, care plan, recall, follow-up booking, unsaved-note guard, signing | clinic, care plans |
-| 14 | `14-outreach.journey.ts` | Segment, two-person approval, opt-in enforcement, opt-out link | crm |
-| 15 | `15-records-requests.journey.ts` | Patient request, records office share/decline, record copy PDF, unauthorized role | records, portal |
-| 16 | `16-admin.journey.ts` | Roles, staff, facilities, temporary password, suspension, coding systems, consent wording, audit trail, cashier denied | admin |
-| 17 | `17-route-templates.journey.ts` | Route templates at triage | queue |
-| 20 | `20-change-password.journey.ts` | Password change | auth |
-| 21 | `21-patient-qr.journey.ts` | QR on/off, issue, scan, revoke, activation link | patient QR |
-| 22 | `22-messages-live.journey.ts` | Live message and bell updates | messaging, realtime |
-| 23-25 | `23/24/25-*signature*.journey.ts` | Consent signature (clinic and MyHealth, minor), practitioner signature | signatures |
+| #     | File                                       | Journey                                                                                                                                                                                                   | Modules exercised                                             |
+| ----- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 1     | `1-clinic-laboratory-portal.journey.ts`    | Register, emergency contact, appointment, check-in, consultation with lab order, collect/receive/enter, verify/approve/release, MyHealth activation, patient sees result (CLAUDE.md section 31 journey A) | patients, appointments, queue, encounters, laboratory, portal |
+| 2     | `2-online-booking-telemedicine.journey.ts` | Online booking, questionnaire, waiting room, consultation, prescription, lab order, follow-up, patient sees it (journey B)                                                                                | portal, telemedicine, encounters, prescriptions, laboratory   |
+| 3     | `3-help.journey.ts`                        | Staff and patient manuals                                                                                                                                                                                 | help                                                          |
+| 4     | `4-cashier.journey.ts`                     | Cashier selects facility and opens `/billing` (one page-load assertion only)                                                                                                                              | billing (shallow)                                             |
+| 5     | `5-immunizations.journey.ts`               | Dose given and reported dose in MyHealth history                                                                                                                                                          | immunizations, portal                                         |
+| 6     | `6-offline.journey.ts`                     | Offline registration, walk-in, vitals, replay                                                                                                                                                             | offline, patients, queue                                      |
+| 7     | `7-passkeys.journey.ts`                    | Patient passkey add and sign-in                                                                                                                                                                           | portal security                                               |
+| 8     | `8-waiting-room-display.journey.ts`        | Call ticket, display shows no name                                                                                                                                                                        | queue display                                                 |
+| 9     | `9-queue-checkin.journey.ts`               | Walk-in, priority order, appointment check-in, call, move, close, triage, service-point routing                                                                                                           | queue, triage                                                 |
+| 10    | `10-all-modules.journey.ts`                | Every screen of every module opens without 5xx/error page; patient record opens in each module                                                                                                            | smoke for all modules                                         |
+| 11    | `11-dental.journey.ts`                     | Exam on odontogram, plan with estimate, decisions, procedure, billing charge, entered in error, unauthorized role                                                                                         | dental, billing                                               |
+| 12    | `12-pharmacy-inventory.journey.ts`         | PO draft/approve (separation of duties), receive by lot, FEFO dispense, reversal, reorder level                                                                                                           | inventory, dispensing                                         |
+| 13    | `13-referrals-care-plans.journey.ts`       | Referrals, care plan, recall, follow-up booking, unsaved-note guard, signing                                                                                                                              | clinic, care plans                                            |
+| 14    | `14-outreach.journey.ts`                   | Segment, two-person approval, opt-in enforcement, opt-out link                                                                                                                                            | crm                                                           |
+| 15    | `15-records-requests.journey.ts`           | Patient request, records office share/decline, record copy PDF, unauthorized role                                                                                                                         | records, portal                                               |
+| 16    | `16-admin.journey.ts`                      | Roles, staff, facilities, temporary password, suspension, coding systems, consent wording, audit trail, cashier denied                                                                                    | admin                                                         |
+| 17    | `17-route-templates.journey.ts`            | Route templates at triage                                                                                                                                                                                 | queue                                                         |
+| 20    | `20-change-password.journey.ts`            | Password change                                                                                                                                                                                           | auth                                                          |
+| 21    | `21-patient-qr.journey.ts`                 | QR on/off, issue, scan, revoke, activation link                                                                                                                                                           | patient QR                                                    |
+| 22    | `22-messages-live.journey.ts`              | Live message and bell updates                                                                                                                                                                             | messaging, realtime                                           |
+| 23-25 | `23/24/25-*signature*.journey.ts`          | Consent signature (clinic and MyHealth, minor), practitioner signature                                                                                                                                    | signatures                                                    |
 
 ## 2. Automated coverage by module
 
 Integration counts: `apps/api/test` has 117 `*.int.spec.ts` plus `harness.ts` (grep count of `it(`/`test(` = 869 cases). Presence columns are by grep of spec content and file names, so "Yes" means at least one test touches the aspect, not that it is exhaustive. Unit counts are files from the library coverage table in `CODE_QUALITY_ARCHITECTURE_AUDIT.md`.
 
-| Module | Unit (spec files) | API integration | E2E | Notable absence |
-|---|---|---|---|---|
-| Patients | `libs/patient` 14 | `patients`, `patient-merge`, `patient-qr*`, `patient-history`, `patient-timeline*`, `patient-workspace` | 1, 6, 21 | Search and list pagination: no test matching cursor/offset terms in `patients.int.spec.ts`; no concurrent-edit race test beyond version conflict checks |
-| Appointments / queue | `libs/clinic` 8 | `scheduling`, `clinic-journey`, `service-points`, `route-templates`, `queue-display`, `calendar`, `portal-booking*` | 1, 8, 9, 17 | Double-booking race (concurrent `Promise.all` booking) is not clearly tested in `scheduling`/`portal-booking`; no unauthorized-role E2E for queue |
-| Encounters | `libs/clinic` | `clinic-journey`, `clinic-procedures`, `medical-certificates`, `referrals` | 1, 2, 13 | Amend/entered-in-error covered in integration only; no export or upload E2E |
-| Prescriptions / dispensing | `libs/prescription` 2 | `dispensing`, `prescription-list` | 2, 12 | Drug-allergy override path covered in unit/integration (not verified in E2E); concurrent dispense race: `dispensing.int.spec.ts` uses concurrency terms |
-| Laboratory | `libs/laboratory` 6 | `laboratory`, `lab-*` (9 files), `reference-lab`, `lab-instrument-interface` | 1 | Only the happy path is E2E; no E2E for critical-value acknowledgement, correction of a released result, send-outs, QC; result list pagination untested |
-| Billing | `libs/billing` 1 | `billing`, `billing-deposits`, `billing-notes`, `billing-packages`, `billing-online`, `billing-paymongo`, `billing-tax` | 4 (page load), 11 (charge) | **No E2E for invoice -> discount -> payment -> receipt -> refund**; no invoice list pagination test; PDF export covered only for some documents |
-| Telemedicine | `libs/telemedicine` 1 | `telemedicine` | 2 | LiveKit is a port; media is not tested (needs a LiveKit server); chat and prepayment E2E absent |
-| Dental | `libs/dental` 5 | `dental`, `dental-*` (3), `portal-dental*`, `fhir-dental` | 11 | Image upload/download E2E absent (upload covered in `dental.int.spec.ts`) |
-| Inventory | `libs/inventory` 1 | `inventory`, `inventory-procurement`, `inventory-valuation` | 12 | Supplier invoice and valuation screens not in E2E; stock list pagination n/a (unpaginated, PERF-005) |
-| Portal | `apps/portal` 21 | `portal*` (about 20 files) | 1, 2, 5, 7, 15, 24 | Online payment E2E absent (PayMongo only unit/integration with fakes); mobile app has 5 unit tests and no device test |
-| Admin | `libs/auth`, `organization` | `auth`, `access`, `role-editing`, `mfa-policy`, `audit`, `data-privacy`, `rate-limit`, `row-level-security`, `app-role` | 16, 20 | Staff MFA enrolment flow not in E2E; audit-archive/removal flow integration only |
-| Interoperability | `libs/interoperability` 11, `philhealth` 3 | `fhir*`, `philhealth*`, `doh`, `exchange-review` | none | All adapters are unconfigured; no real-endpoint tests possible |
+| Module                     | Unit (spec files)                          | API integration                                                                                                         | E2E                        | Notable absence                                                                                                                                         |
+| -------------------------- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Patients                   | `libs/patient` 14                          | `patients`, `patient-merge`, `patient-qr*`, `patient-history`, `patient-timeline*`, `patient-workspace`                 | 1, 6, 21                   | Search and list pagination: no test matching cursor/offset terms in `patients.int.spec.ts`; no concurrent-edit race test beyond version conflict checks |
+| Appointments / queue       | `libs/clinic` 8                            | `scheduling`, `clinic-journey`, `service-points`, `route-templates`, `queue-display`, `calendar`, `portal-booking*`     | 1, 8, 9, 17                | Double-booking race (concurrent `Promise.all` booking) is not clearly tested in `scheduling`/`portal-booking`; no unauthorized-role E2E for queue       |
+| Encounters                 | `libs/clinic`                              | `clinic-journey`, `clinic-procedures`, `medical-certificates`, `referrals`                                              | 1, 2, 13                   | Amend/entered-in-error covered in integration only; no export or upload E2E                                                                             |
+| Prescriptions / dispensing | `libs/prescription` 2                      | `dispensing`, `prescription-list`                                                                                       | 2, 12                      | Drug-allergy override path covered in unit/integration (not verified in E2E); concurrent dispense race: `dispensing.int.spec.ts` uses concurrency terms |
+| Laboratory                 | `libs/laboratory` 6                        | `laboratory`, `lab-*` (9 files), `reference-lab`, `lab-instrument-interface`                                            | 1                          | Only the happy path is E2E; no E2E for critical-value acknowledgement, correction of a released result, send-outs, QC; result list pagination untested  |
+| Billing                    | `libs/billing` 1                           | `billing`, `billing-deposits`, `billing-notes`, `billing-packages`, `billing-online`, `billing-paymongo`, `billing-tax` | 4 (page load), 11 (charge) | **No E2E for invoice -> discount -> payment -> receipt -> refund**; no invoice list pagination test; PDF export covered only for some documents         |
+| Telemedicine               | `libs/telemedicine` 1                      | `telemedicine`                                                                                                          | 2                          | LiveKit is a port; media is not tested (needs a LiveKit server); chat and prepayment E2E absent                                                         |
+| Dental                     | `libs/dental` 5                            | `dental`, `dental-*` (3), `portal-dental*`, `fhir-dental`                                                               | 11                         | Image upload/download E2E absent (upload covered in `dental.int.spec.ts`)                                                                               |
+| Inventory                  | `libs/inventory` 1                         | `inventory`, `inventory-procurement`, `inventory-valuation`                                                             | 12                         | Supplier invoice and valuation screens not in E2E; stock list pagination n/a (unpaginated, PERF-005)                                                    |
+| Portal                     | `apps/portal` 21                           | `portal*` (about 20 files)                                                                                              | 1, 2, 5, 7, 15, 24         | Online payment E2E absent (PayMongo only unit/integration with fakes); mobile app has 5 unit tests and no device test                                   |
+| Admin                      | `libs/auth`, `organization`                | `auth`, `access`, `role-editing`, `mfa-policy`, `audit`, `data-privacy`, `rate-limit`, `row-level-security`, `app-role` | 16, 20                     | Staff MFA enrolment flow not in E2E; audit-archive/removal flow integration only                                                                        |
+| Interoperability           | `libs/interoperability` 11, `philhealth` 3 | `fhir*`, `philhealth*`, `doh`, `exchange-review`                                                                        | none                       | All adapters are unconfigured; no real-endpoint tests possible                                                                                          |
 
 Cross-cutting aspects (grep of integration specs, 117 files):
 
-| Aspect | Integration specs touching it | Gap |
-|---|---|---|
-| Unauthorized (403) cases | 83 of 117 | Good; remaining 34 are mostly ancillary |
-| Version conflict / optimistic locking | about 60 | Good |
-| Concurrency (`Promise.all`, race) | 23 files | Strongest in inventory, immunizations, dispensing; absent in billing payments and appointments booking by grep |
-| Pagination | 19 files | Absent for patients, billing, laboratory, inventory, appointments lists |
-| Export (CSV/PDF) | 18 files | Management dashboard, communications, FHIR, record copies covered; billing CSV export not found |
-| Upload | 17 files | Covered (malware scan, checksum, integrity); no E2E upload journey except via outside results in `10`/`15` smoke |
-| CRUD (UI level) | n/a | E2E exercises create/update paths for major modules but delete is rare by design (healthcare records are not deleted) |
+| Aspect                                | Integration specs touching it | Gap                                                                                                                   |
+| ------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Unauthorized (403) cases              | 83 of 117                     | Good; remaining 34 are mostly ancillary                                                                               |
+| Version conflict / optimistic locking | about 60                      | Good                                                                                                                  |
+| Concurrency (`Promise.all`, race)     | 23 files                      | Strongest in inventory, immunizations, dispensing; absent in billing payments and appointments booking by grep        |
+| Pagination                            | 19 files                      | Absent for patients, billing, laboratory, inventory, appointments lists                                               |
+| Export (CSV/PDF)                      | 18 files                      | Management dashboard, communications, FHIR, record copies covered; billing CSV export not found                       |
+| Upload                                | 17 files                      | Covered (malware scan, checksum, integrity); no E2E upload journey except via outside results in `10`/`15` smoke      |
+| CRUD (UI level)                       | n/a                           | E2E exercises create/update paths for major modules but delete is rare by design (healthcare records are not deleted) |
 
 ## 3. Cross-check of 15 CLAUDE.md claims against code
 
 Method: file/symbol existence and configuration checks only (grep/ls); behaviour was not exercised.
 
-| # | Claim | Verified | Result |
-|---|---|---|---|
-| 1 | Document malware scanning via ClamAV with `UnconfiguredMalwareScanner` default | `libs/documents/src/lib/malware-scanner.ts` | Present as claimed |
-| 2 | PhilHealth eClaims gateway is a port with `UnconfiguredPhilHealthGateway` (refuses `integration_not_configured`) | `libs/philhealth/src/lib/gateway.ts` | Present; **stub by design** |
-| 3 | PayMongo adapter on when `PAYMONGO_SECRET_KEY` set | `apps/api/src/app/adapters/paymongo-payment-gateway.ts` | Present; unverified in PayMongo test mode (documented) |
-| 4 | Patient QR scan endpoint and `HPQ1` formats | `libs/patient/src/lib/qr` | Present |
-| 5 | Staff idle sign-out `STAFF_IDLE_MINUTES` | grep in `apps/staff/src`, `libs/core/src` | Present |
-| 6 | Web Push with `VAPID_*` and Expo push (`EXPO_PUSH_ENABLED`) | `libs/core/src/lib/config/app-config.ts`, `libs/notification/src/lib/channel-senders.ts:80-90` | Present |
-| 7 | Row-level security via `apply_rls_policies()` (0111) | `database/migrations/0111*.sql` | Present |
-| 8 | Monthly audit partitions with `ensure_audit_partitions()` (0110) | `database/migrations/0110*.sql` | Present |
-| 9 | Recurring outreach campaigns (migration 0135, `crm_campaign_series`) | `database/migrations/0135_outreach_recurring.sql` | Present |
-| 10 | Analyzer HL7 v2 / ASTM link layers | `libs/interoperability/src/lib/instruments/instrument-links.ts`, `apps/instrument-gateway` | Present; vendor validation pending (documented) |
-| 11 | Offline phase 1 service worker | `apps/staff/public/sw.js` | Present |
-| 12 | FHIR R4 import review queue | `apps/api/src/app/fhir` | Present (route-level grep) |
-| 13 | `libs/reporting` planned only | `libs/reporting` absent | Consistent |
-| 14 | Integration payload key rotation runbook | `docs/runbooks/integration-payload-key-rotation.md` | Present |
-| 15 | Mobile APK script `pnpm mobile:apk` | `tools/mobile/build-apk.ts` | Present |
-| extra | SMS delivery | `libs/notification/src/lib/channel-senders.ts:68-70` | **No SMS provider**: `fallback("sms")`; in production this is `UnconfiguredSender`, so SMS notices (results-ready, reminders, opt-in outreach) are not delivered. CLAUDE.md mentions SMS throughout without saying it has no provider in section 0's main text (the communication section says "SMS and email delivery reports stay dependencies") |
+| #     | Claim                                                                                                            | Verified                                                                                       | Result                                                                                                                                                                                                                                                                                                                                             |
+| ----- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Document malware scanning via ClamAV with `UnconfiguredMalwareScanner` default                                   | `libs/documents/src/lib/malware-scanner.ts`                                                    | Present as claimed                                                                                                                                                                                                                                                                                                                                 |
+| 2     | PhilHealth eClaims gateway is a port with `UnconfiguredPhilHealthGateway` (refuses `integration_not_configured`) | `libs/philhealth/src/lib/gateway.ts`                                                           | Present; **stub by design**                                                                                                                                                                                                                                                                                                                        |
+| 3     | PayMongo adapter on when `PAYMONGO_SECRET_KEY` set                                                               | `apps/api/src/app/adapters/paymongo-payment-gateway.ts`                                        | Present; unverified in PayMongo test mode (documented)                                                                                                                                                                                                                                                                                             |
+| 4     | Patient QR scan endpoint and `HPQ1` formats                                                                      | `libs/patient/src/lib/qr`                                                                      | Present                                                                                                                                                                                                                                                                                                                                            |
+| 5     | Staff idle sign-out `STAFF_IDLE_MINUTES`                                                                         | grep in `apps/staff/src`, `libs/core/src`                                                      | Present                                                                                                                                                                                                                                                                                                                                            |
+| 6     | Web Push with `VAPID_*` and Expo push (`EXPO_PUSH_ENABLED`)                                                      | `libs/core/src/lib/config/app-config.ts`, `libs/notification/src/lib/channel-senders.ts:80-90` | Present                                                                                                                                                                                                                                                                                                                                            |
+| 7     | Row-level security via `apply_rls_policies()` (0111)                                                             | `database/migrations/0111*.sql`                                                                | Present                                                                                                                                                                                                                                                                                                                                            |
+| 8     | Monthly audit partitions with `ensure_audit_partitions()` (0110)                                                 | `database/migrations/0110*.sql`                                                                | Present                                                                                                                                                                                                                                                                                                                                            |
+| 9     | Recurring outreach campaigns (migration 0135, `crm_campaign_series`)                                             | `database/migrations/0135_outreach_recurring.sql`                                              | Present                                                                                                                                                                                                                                                                                                                                            |
+| 10    | Analyzer HL7 v2 / ASTM link layers                                                                               | `libs/interoperability/src/lib/instruments/instrument-links.ts`, `apps/instrument-gateway`     | Present; vendor validation pending (documented)                                                                                                                                                                                                                                                                                                    |
+| 11    | Offline phase 1 service worker                                                                                   | `apps/staff/public/sw.js`                                                                      | Present                                                                                                                                                                                                                                                                                                                                            |
+| 12    | FHIR R4 import review queue                                                                                      | `apps/api/src/app/fhir`                                                                        | Present (route-level grep)                                                                                                                                                                                                                                                                                                                         |
+| 13    | `libs/reporting` planned only                                                                                    | `libs/reporting` absent                                                                        | Consistent                                                                                                                                                                                                                                                                                                                                         |
+| 14    | Integration payload key rotation runbook                                                                         | `docs/runbooks/integration-payload-key-rotation.md`                                            | Present                                                                                                                                                                                                                                                                                                                                            |
+| 15    | Mobile APK script `pnpm mobile:apk`                                                                              | `tools/mobile/build-apk.ts`                                                                    | Present                                                                                                                                                                                                                                                                                                                                            |
+| extra | SMS delivery                                                                                                     | `libs/notification/src/lib/channel-senders.ts:68-70`                                           | **No SMS provider**: `fallback("sms")`; in production this is `UnconfiguredSender`, so SMS notices (results-ready, reminders, opt-in outreach) are not delivered. CLAUDE.md mentions SMS throughout without saying it has no provider in section 0's main text (the communication section says "SMS and email delivery reports stay dependencies") |
 
 No claimed feature in the sample was missing. Items that are present but stubbed or partial: see section 4.
 
 ## 4. Known incomplete, stubbed or unconfigured implementations
 
-| Item | State | Source |
-|---|---|---|
-| PhilHealth eClaims, eligibility, YAKAP | Ports with unconfigured adapters; submissions refused | `libs/philhealth/src/lib/{gateway,eligibility,yakap}.ts` |
-| DOH reporting submission | `DohReportingGateway` unconfigured | `libs/interoperability/src/lib/doh/gateway.ts` |
-| Reference-laboratory electronic exchange | `ReferenceLabGateway` unconfigured | `libs/interoperability/src/lib/reference-lab/gateway.ts` |
-| SMS channel | No provider; logging sender outside production, unconfigured in production | `libs/notification/src/lib/channel-senders.ts:68-70` |
-| Email delivery | Requires `SMTP_URL`; otherwise fallback sender; delivery reports are relay acceptance only | same file |
-| Online payments | PayMongo only with `PAYMONGO_SECRET_KEY`; none by default | `libs/billing/src/lib/payments/payment-gateway.ts` |
-| Malware scanner | Unconfigured scanner when `CLAMAV_HOST` unset | `libs/documents/src/lib/malware-scanner.ts` |
-| Telemedicine video | Requires `LIVEKIT_*` variables (optional in config) | `libs/core/src/lib/config/app-config.ts:114-116` |
-| Demo fixtures | `/preview/patient-360` uses `apps/staff/src/lib/demo-data.ts`, labelled Demo | CLAUDE.md section 0 |
-| Mobile app | First slice; guardian access and consent forms "built but not yet run on a device" | CLAUDE.md section 0 |
-| Offline | Phase 1 only (registration, walk-in, vitals) | CLAUDE.md section 0 |
-| FHIR | Read plus review-queue imports; outside results not in FHIR | CLAUDE.md section 0 |
-| Regulatory content | BIR, DDB/FDA, NPC, RA 9184 and others not encoded (compliance dependencies) | `docs/security/compliance-dependencies.md` |
-| Waiting-room extras | Kiosks, ticket printing, priority lanes not built | CLAUDE.md section 0 |
+| Item                                     | State                                                                                      | Source                                                   |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------- |
+| PhilHealth eClaims, eligibility, YAKAP   | Ports with unconfigured adapters; submissions refused                                      | `libs/philhealth/src/lib/{gateway,eligibility,yakap}.ts` |
+| DOH reporting submission                 | `DohReportingGateway` unconfigured                                                         | `libs/interoperability/src/lib/doh/gateway.ts`           |
+| Reference-laboratory electronic exchange | `ReferenceLabGateway` unconfigured                                                         | `libs/interoperability/src/lib/reference-lab/gateway.ts` |
+| SMS channel                              | No provider; logging sender outside production, unconfigured in production                 | `libs/notification/src/lib/channel-senders.ts:68-70`     |
+| Email delivery                           | Requires `SMTP_URL`; otherwise fallback sender; delivery reports are relay acceptance only | same file                                                |
+| Online payments                          | PayMongo only with `PAYMONGO_SECRET_KEY`; none by default                                  | `libs/billing/src/lib/payments/payment-gateway.ts`       |
+| Malware scanner                          | Unconfigured scanner when `CLAMAV_HOST` unset                                              | `libs/documents/src/lib/malware-scanner.ts`              |
+| Telemedicine video                       | Requires `LIVEKIT_*` variables (optional in config)                                        | `libs/core/src/lib/config/app-config.ts:114-116`         |
+| Demo fixtures                            | `/preview/patient-360` uses `apps/staff/src/lib/demo-data.ts`, labelled Demo               | CLAUDE.md section 0                                      |
+| Mobile app                               | First slice; guardian access and consent forms "built but not yet run on a device"         | CLAUDE.md section 0                                      |
+| Offline                                  | Phase 1 only (registration, walk-in, vitals)                                               | CLAUDE.md section 0                                      |
+| FHIR                                     | Read plus review-queue imports; outside results not in FHIR                                | CLAUDE.md section 0                                      |
+| Regulatory content                       | BIR, DDB/FDA, NPC, RA 9184 and others not encoded (compliance dependencies)                | `docs/security/compliance-dependencies.md`               |
+| Waiting-room extras                      | Kiosks, ticket printing, priority lanes not built                                          | CLAUDE.md section 0                                      |
 
 ## 5. Method limitations
 
@@ -114,6 +114,7 @@ No claimed feature in the sample was missing. Items that are present but stubbed
 ## Findings
 
 ### QA-201 MEDIUM Billing has no E2E coverage of the core cashier journey
+
 - Location: `apps/e2e/tests/4-cashier.journey.ts` (only asserts the desk loads), `apps/e2e/tests/11-dental.journey.ts` (charge only).
 - Evidence: no journey creates an invoice, applies a discount, takes a payment, prints a receipt or refunds; billing logic is covered by 7 API integration specs and 1 unit spec.
 - Impact: UI-level regressions in money handling (issue, payment form, VAT breakdown, void/reissue) can ship undetected.
@@ -121,6 +122,7 @@ No claimed feature in the sample was missing. Items that are present but stubbed
 - Status: Open
 
 ### QA-202 MEDIUM Pagination, sorting and large-list behaviour untested for core lists
+
 - Location: `apps/api/test/patients.int.spec.ts`, `billing*.int.spec.ts`, `laboratory.int.spec.ts`, `inventory*.int.spec.ts`, `scheduling.int.spec.ts`.
 - Evidence: grep of `cursor|offset|pageSize|nextCursor|_count` matches only 19 other specs (timeline, FHIR, notifications, prescriptions, audit, etc.).
 - Impact: list endpoints for patients, invoices, lab orders and stock are not verified for stable ordering or bounds; PERF-005 shows some are unbounded.
@@ -128,6 +130,7 @@ No claimed feature in the sample was missing. Items that are present but stubbed
 - Status: Open
 
 ### QA-203 MEDIUM Concurrency tests missing for appointments booking and payments
+
 - Location: `apps/api/test/scheduling.int.spec.ts`, `portal-booking.int.spec.ts`, `billing.int.spec.ts`.
 - Evidence: files with concurrency terms are inventory, dispensing, immunizations, outside results, referrals, DOH, etc.; booking and billing payment specs do not appear in that list. Database constraints (exclusion constraints, unique indexes) exist per CLAUDE.md, but the application-level race is not asserted.
 - Impact: double-booking or double-payment races could regress silently.
@@ -135,6 +138,7 @@ No claimed feature in the sample was missing. Items that are present but stubbed
 - Status: Open
 
 ### QA-204 MEDIUM SMS notifications have no provider; production sends are unconfigured
+
 - Location: `libs/notification/src/lib/channel-senders.ts:68-70`.
 - Evidence: `fallback("sms")` returns `UnconfiguredSender` in production; comment says provider "to be selected".
 - Impact: results-ready SMS, appointment reminders and outreach over SMS are not delivered, while many UI and docs describe them as working; patients without email or push receive nothing.
@@ -142,6 +146,7 @@ No claimed feature in the sample was missing. Items that are present but stubbed
 - Status: Open
 
 ### QA-205 LOW Several integrations are stubs by design (not defects)
+
 - Location: see section 4.
 - Evidence: unconfigured adapters return `integration_not_configured`.
 - Impact: PhilHealth claims, DOH reporting and reference-lab exchange cannot go live without official specifications; deployment must not advertise them.
@@ -149,6 +154,7 @@ No claimed feature in the sample was missing. Items that are present but stubbed
 - Status: Open
 
 ### QA-206 LOW E2E suite is serial, no retries, depends on shared state
+
 - Location: `apps/e2e/playwright.config.ts` (`workers: 1`, `retries: 0`), `apps/e2e/support/api.ts:30` (waits out the credential rate limit).
 - Evidence: journeys chain tests within a file and comments note rate-limit waits.
 - Impact: slow, order-dependent runs; a flake fails the whole CI job. Test duration not measured here.
@@ -156,5 +162,6 @@ No claimed feature in the sample was missing. Items that are present but stubbed
 - Status: Open
 
 ### QA-207 INFO Sampled CLAUDE.md claims verified present
+
 - Evidence: 15 of 15 sampled features found in code (section 3); one clarification (SMS) in QA-204.
 - Status: Open (informational)

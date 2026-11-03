@@ -28,14 +28,14 @@ Modules inspected: all 30 Nx projects (inventory in `MODULE_COVERAGE.md`; claime
 
 ## 9. Automated testing results (executed this session)
 
-| Check | Result |
-|---|---|
-| `nx run-many -t typecheck` | Passed, all projects |
-| `nx run-many -t test` (unit) | Passed, 27 projects |
-| `nx run-many -t lint` | Failed in `@healthcare/ui` only (missing `eslint-plugin-react`, VR-08); other projects 0 errors with warnings |
-| `pnpm audit` | Executed: 6 critical, 33 high, 45 moderate, 10 low advisories (reachability not assessed) |
-| Circular dependency check | 0 cycles across 30 projects |
-| Integration, E2E, load, ZAP, Semgrep, Gitleaks, Trivy, Burp | **Not executed** |
+| Check                                                       | Result                                                                                                        |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `nx run-many -t typecheck`                                  | Passed, all projects                                                                                          |
+| `nx run-many -t test` (unit)                                | Passed, 27 projects                                                                                           |
+| `nx run-many -t lint`                                       | Failed in `@healthcare/ui` only (missing `eslint-plugin-react`, VR-08); other projects 0 errors with warnings |
+| `pnpm audit`                                                | Executed: 6 critical, 33 high, 45 moderate, 10 low advisories (reachability not assessed)                     |
+| Circular dependency check                                   | 0 cycles across 30 projects                                                                                   |
+| Integration, E2E, load, ZAP, Semgrep, Gitleaks, Trivy, Burp | **Not executed**                                                                                              |
 
 ## 10. Functional defects
 
@@ -55,6 +55,6 @@ See `REMEDIATION_ROADMAP.md`. First: VR-08, VR-07, VR-05, VR-01, then VR-02 and 
 
 ## Status legend used in the area reports
 
-Verified secure / Tested with no issue / Not tested / Incomplete implementation / Confirmed vulnerability. In Stage A nothing qualifies as "Tested with no issue" dynamically; items described as secure are secure *as read*.
+Verified secure / Tested with no issue / Not tested / Incomplete implementation / Confirmed vulnerability. In Stage A nothing qualifies as "Tested with no issue" dynamically; items described as secure are secure _as read_.
 
 **Stage A ends here. Awaiting explicit approval before any Stage B remediation.**

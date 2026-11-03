@@ -8,18 +8,18 @@ Method: static review of the working tree (branch `release/v1.0.0`) plus read-on
 
 ## 1. Summary
 
-| Area | Result |
-| --- | --- |
-| Password hashing (Argon2id 19 MiB, t=2, p=1) | Verified secure (minimum OWASP profile) |
-| Reset, activation, refresh, session and device tokens | Verified secure (random, hashed at rest, single use, expiring) |
-| Constant-time comparison | Verified where secrets are compared (webhook, email verification code); hash-equality lookups elsewhere |
-| JWT | Verified secure (HS256 pinned, issuer, audience, type, expiry); no rotation (CRY-002) |
-| AES-256-GCM sealing and key ring | Verified secure (random 96-bit IV, tag checked, key id authenticated) |
-| TOTP secret encryption | Verified secure; no rotation and no AAD (CRY-003) |
-| HTTPS / HSTS | API: helmet defaults. Web apps: nothing in code (CRY-004). Edge: Not verified |
-| Encryption at rest | Relies on the platform (CRY-007) |
-| Secrets in source control | No private key, token or live key found; placeholder values pass production validation (CRY-001) |
-| `Math.random` for security | None in application code |
+| Area                                                  | Result                                                                                                  |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Password hashing (Argon2id 19 MiB, t=2, p=1)          | Verified secure (minimum OWASP profile)                                                                 |
+| Reset, activation, refresh, session and device tokens | Verified secure (random, hashed at rest, single use, expiring)                                          |
+| Constant-time comparison                              | Verified where secrets are compared (webhook, email verification code); hash-equality lookups elsewhere |
+| JWT                                                   | Verified secure (HS256 pinned, issuer, audience, type, expiry); no rotation (CRY-002)                   |
+| AES-256-GCM sealing and key ring                      | Verified secure (random 96-bit IV, tag checked, key id authenticated)                                   |
+| TOTP secret encryption                                | Verified secure; no rotation and no AAD (CRY-003)                                                       |
+| HTTPS / HSTS                                          | API: helmet defaults. Web apps: nothing in code (CRY-004). Edge: Not verified                           |
+| Encryption at rest                                    | Relies on the platform (CRY-007)                                                                        |
+| Secrets in source control                             | No private key, token or live key found; placeholder values pass production validation (CRY-001)        |
+| `Math.random` for security                            | None in application code                                                                                |
 
 Findings: 0 CRITICAL, 0 HIGH, 4 MEDIUM, 6 LOW, 3 INFO.
 
@@ -35,18 +35,18 @@ Findings: 0 CRITICAL, 0 HIGH, 4 MEDIUM, 6 LOW, 3 INFO.
 
 ## 3. Tokens and codes
 
-| Item | Generation | Storage | Lifetime / limits | Evidence |
-| --- | --- | --- | --- | --- |
-| Staff and portal refresh tokens | `randomBytes(32)` base64url (`libs/core/src/lib/security/crypto.ts:8-10`) | SHA-256 hex | 14 days default; rotated on use, previous hash kept | `session.service.ts:344-391`, `portal-account.service.ts:481-528` |
-| Staff password reset | `randomToken()` | SHA-256 | 30 min, single use, 3 per hour, 5 wrong MFA codes burn it | `staff-password-reset.service.ts:78-97, 122-199` |
-| MyHealth password reset | `randomToken()` | SHA-256 | 30 min, single use, 3 per hour, 5 wrong birth dates burn it | `portal-password-reset.service.ts:45-78, 131-182` |
-| MyHealth activation code | `randomInt` over 31 symbols, 10 characters (about 49 bits) | SHA-256 of normalised code, unsalted | 72 h, 5 attempts | `activation-code.ts:18-30`, `portal-account.service.ts:169-175, 303-305` |
-| Staff recovery codes | `randomInt`, about 49 bits, 10 codes | SHA-256 of `userId:code` | single use, no expiry | `second-factor.ts:8-23` |
-| Portal recovery codes | same scheme | SHA-256 of account id and code | single use | `security/portal-security.rules.ts` (generate/hash), `portal-mfa.service.ts:192-204, 207-214` |
-| Email verification code (portal) | `randomInt(0, 1_000_000)`, 6 digits | SHA-256 of `verificationId:code` | 15 min, 5 attempts; compared with `timingSafeEqual` | `portal-security.rules.ts:16-22`, `portal-email.service.ts:110-130` |
-| Trusted-device token | `randomToken()` | SHA-256 | 30 days, 5 per account | `portal-trusted-device.service.ts:40-47` |
-| Passkey challenge | `randomBytes(32)` | SHA-256 of the base64url challenge | 5 min, single use | `portal-passkey.service.ts:316-355` |
-| TOTP | otplib, SHA-1, 6 digits, 30 s, window ±1 | secret AES-256-GCM | accepted time step stored so a code works once | `totp.ts:5, 34`, `mfa-store.ts:14-27` |
+| Item                             | Generation                                                                | Storage                              | Lifetime / limits                                           | Evidence                                                                                      |
+| -------------------------------- | ------------------------------------------------------------------------- | ------------------------------------ | ----------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Staff and portal refresh tokens  | `randomBytes(32)` base64url (`libs/core/src/lib/security/crypto.ts:8-10`) | SHA-256 hex                          | 14 days default; rotated on use, previous hash kept         | `session.service.ts:344-391`, `portal-account.service.ts:481-528`                             |
+| Staff password reset             | `randomToken()`                                                           | SHA-256                              | 30 min, single use, 3 per hour, 5 wrong MFA codes burn it   | `staff-password-reset.service.ts:78-97, 122-199`                                              |
+| MyHealth password reset          | `randomToken()`                                                           | SHA-256                              | 30 min, single use, 3 per hour, 5 wrong birth dates burn it | `portal-password-reset.service.ts:45-78, 131-182`                                             |
+| MyHealth activation code         | `randomInt` over 31 symbols, 10 characters (about 49 bits)                | SHA-256 of normalised code, unsalted | 72 h, 5 attempts                                            | `activation-code.ts:18-30`, `portal-account.service.ts:169-175, 303-305`                      |
+| Staff recovery codes             | `randomInt`, about 49 bits, 10 codes                                      | SHA-256 of `userId:code`             | single use, no expiry                                       | `second-factor.ts:8-23`                                                                       |
+| Portal recovery codes            | same scheme                                                               | SHA-256 of account id and code       | single use                                                  | `security/portal-security.rules.ts` (generate/hash), `portal-mfa.service.ts:192-204, 207-214` |
+| Email verification code (portal) | `randomInt(0, 1_000_000)`, 6 digits                                       | SHA-256 of `verificationId:code`     | 15 min, 5 attempts; compared with `timingSafeEqual`         | `portal-security.rules.ts:16-22`, `portal-email.service.ts:110-130`                           |
+| Trusted-device token             | `randomToken()`                                                           | SHA-256                              | 30 days, 5 per account                                      | `portal-trusted-device.service.ts:40-47`                                                      |
+| Passkey challenge                | `randomBytes(32)`                                                         | SHA-256 of the base64url challenge   | 5 min, single use                                           | `portal-passkey.service.ts:316-355`                                                           |
+| TOTP                             | otplib, SHA-1, 6 digits, 30 s, window ±1                                  | secret AES-256-GCM                   | accepted time step stored so a code works once              | `totp.ts:5, 34`, `mfa-store.ts:14-27`                                                         |
 
 High-entropy tokens (256 bits) are appropriately stored as plain SHA-256. The lower-entropy codes are discussed in CRY-005.
 
@@ -96,17 +96,17 @@ All security tokens use `crypto.randomBytes` or `crypto.randomInt` (`crypto.ts:8
 
 Commands used (read-only): `git ls-files` for env, key, tfstate and tfvars files; `git grep` for private-key headers, cloud and Slack tokens, live key patterns, and assignments of secret-named variables. Values are not reproduced.
 
-| Check | Result |
-| --- | --- |
-| Tracked `.env` files | Only `.env.example` and `apps/mobile/.env.example` (tracked). A local `.env` exists in the working tree and is ignored (`.gitignore:29-30`, confirmed with `git check-ignore`). Its contents were not read. |
-| Private key headers (RSA, EC, OpenSSH, PGP) | None tracked |
-| AWS access keys, GitHub, Slack, Google API key patterns, `sk_live_` | None tracked |
-| `sk_test_` pattern | One test fixture: `apps/api/test/billing-paymongo.int.spec.ts:7` (obviously fake, test only) |
-| Terraform state and variables | `*.tfstate`, `*.tfvars`, `.terraform/` ignored (`infrastructure/terraform/railway/.gitignore:2-9`); only `terraform.tfvars.example` tracked. Terraform secrets are supplied at apply time and marked sensitive (`variables.tf`) |
-| Placeholder secrets in `.env.example` | `JWT_ACCESS_SECRET` placeholder text (`.env.example:13`) and an `MFA_ENCRYPTION_KEY` that decodes to a printable counting string (`.env.example:17`); both satisfy the production validators (CRY-001). Dev `S3_SECRET_ACCESS_KEY` at `.env.example:42` |
-| Dev credentials in compose and CI | `infrastructure/docker/docker-compose.yml:9` and `.github/workflows/ci.yml:39` (database password for local and CI services), `apps/api/test/harness.ts:23`, `apps/e2e/support/env.ts:10, 32-33` (test roles and passwords) |
-| Seed passwords | `tools/db/seed-demo.ts:20` default demo password for every demo account (CRY-010); `tools/db/seed.ts` and `new-organization.ts` require or generate their own |
-| Binary artifact | `apps/portal/public/downloads/myhealth.apk` (about 98 MB) is tracked (CRY-008) |
+| Check                                                               | Result                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tracked `.env` files                                                | Only `.env.example` and `apps/mobile/.env.example` (tracked). A local `.env` exists in the working tree and is ignored (`.gitignore:29-30`, confirmed with `git check-ignore`). Its contents were not read.                                             |
+| Private key headers (RSA, EC, OpenSSH, PGP)                         | None tracked                                                                                                                                                                                                                                            |
+| AWS access keys, GitHub, Slack, Google API key patterns, `sk_live_` | None tracked                                                                                                                                                                                                                                            |
+| `sk_test_` pattern                                                  | One test fixture: `apps/api/test/billing-paymongo.int.spec.ts:7` (obviously fake, test only)                                                                                                                                                            |
+| Terraform state and variables                                       | `*.tfstate`, `*.tfvars`, `.terraform/` ignored (`infrastructure/terraform/railway/.gitignore:2-9`); only `terraform.tfvars.example` tracked. Terraform secrets are supplied at apply time and marked sensitive (`variables.tf`)                         |
+| Placeholder secrets in `.env.example`                               | `JWT_ACCESS_SECRET` placeholder text (`.env.example:13`) and an `MFA_ENCRYPTION_KEY` that decodes to a printable counting string (`.env.example:17`); both satisfy the production validators (CRY-001). Dev `S3_SECRET_ACCESS_KEY` at `.env.example:42` |
+| Dev credentials in compose and CI                                   | `infrastructure/docker/docker-compose.yml:9` and `.github/workflows/ci.yml:39` (database password for local and CI services), `apps/api/test/harness.ts:23`, `apps/e2e/support/env.ts:10, 32-33` (test roles and passwords)                             |
+| Seed passwords                                                      | `tools/db/seed-demo.ts:20` default demo password for every demo account (CRY-010); `tools/db/seed.ts` and `new-organization.ts` require or generate their own                                                                                           |
+| Binary artifact                                                     | `apps/portal/public/downloads/myhealth.apk` (about 98 MB) is tracked (CRY-008)                                                                                                                                                                          |
 
 Not scanned: the git history before the current tree (a history scan for removed secrets was not run), `node_modules`, `.claude/worktrees`, `ui-redesign`, `ui-review`.
 
@@ -199,6 +199,7 @@ Not scanned: the git history before the current tree (a history scan for removed
 ### CRY-012 — INFO — History not scanned
 
 A scan of removed content in git history was not run. Recommend running a secret scanner over history before release.
+
 - Status: Open
 
 ### CRY-013 — INFO — Items verified as secure (no finding)
