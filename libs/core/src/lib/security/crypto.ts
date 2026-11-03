@@ -11,6 +11,7 @@ export function randomToken(bytes = 32): string {
 
 const ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
+const TAG_BYTES = 16;
 const FORMAT_VERSION = "v1";
 
 /**
@@ -95,14 +96,15 @@ export function openWithKeyring(sealed: string, keyring: Keyring): string {
 
 function seal(plaintext: string, key: Buffer, additionalData?: string): string[] {
   const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
   if (additionalData) cipher.setAAD(Buffer.from(additionalData, "utf8"));
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   return [iv, cipher.getAuthTag(), ciphertext].map((part) => part.toString("base64url"));
 }
 
 function open(iv: string, tag: string, ciphertext: string, key: Buffer, additionalData?: string): string {
-  const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(iv, "base64url"));
+  // The tag length is pinned: without it Node accepts a truncated tag, which weakens GCM authentication.
+  const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(iv, "base64url"), { authTagLength: TAG_BYTES });
   if (additionalData) decipher.setAAD(Buffer.from(additionalData, "utf8"));
   decipher.setAuthTag(Buffer.from(tag, "base64url"));
   return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");

@@ -28,6 +28,12 @@ describe("encryptSecret / decryptSecret", () => {
     expect(() => decryptSecret(parts.join("."), key)).toThrow();
   });
 
+  it("rejects a truncated authentication tag (VR scan: GCM tag length is pinned)", () => {
+    const parts = encryptSecret("secret", key).split(".");
+    parts[2] = Buffer.from(parts[2]!, "base64url").subarray(0, 4).toString("base64url");
+    expect(() => decryptSecret(parts.join("."), key)).toThrow();
+  });
+
   it("rejects the wrong key", () => {
     const payload = encryptSecret("secret", key);
     expect(() => decryptSecret(payload, randomBytes(32).toString("base64"))).toThrow();

@@ -77,3 +77,7 @@ Intermittent failures in full Playwright runs (`9-queue-checkin`, `16-admin`, on
 - **`20-change-password`:** one failure (a second sign-in landed on the app's error page) was not reproduced in 4 isolated runs or in the last 2 full runs and has no known cause. `E2E_SERVER_LOGS=1` now shows the staff server's output in the report to help if it recurs.
 
 Result: two consecutive full Playwright runs after these changes each passed 126 of 126 tests (about 16 and 20 minutes).
+
+## Scanner run (2026-11-03)
+
+Gitleaks 8.30.1 (history, redacted), Trivy 0.76.1 (fs) and Semgrep 1.182.1 ran in Docker; details and triage are in `AUTOMATED_SECURITY_SCAN_REPORT.md`. No real secret and no IaC misconfiguration was found. The one Semgrep finding was real and is fixed: AES-256-GCM decryption in `libs/core/src/lib/security/crypto.ts` now pins the 16-byte authentication tag (a truncated tag is refused; test added; existing sealed values still open). QA-105 is withdrawn as a false alarm (the string is a test key). Status: Fixed - Pending Verification; nothing is Verified Fixed until ZAP and a re-audit by a person other than the author are done.

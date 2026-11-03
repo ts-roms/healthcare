@@ -1,5 +1,34 @@
 # Automated Security Scan Report
 
+## Scan run 2026-11-03 (supersedes the "not executed" rows of the Stage A baseline below)
+
+Run from the working tree at commit 5276e6ed on Windows 11 with Docker Desktop. The scanners ran as container images; no project dependency was added or changed. Scanner output was kept outside the repository and secret matches were redacted.
+
+| Tool | Version | Result |
+|---|---|---|
+| Gitleaks | 8.30.1 | Full git history (491 commits, about 20 MB), redacted: 39 matches, all triaged as non-secrets |
+| Trivy | 0.76.1 | `fs` scan with vuln, secret and misconfig scanners over the lockfile, Terraform and Dockerfiles: 0 secrets, 0 misconfigurations, 1 critical, 8 high, 9 medium and 5 low package vulnerabilities |
+| Semgrep | 1.182.1 | Rule packs `p/typescript`, `p/owasp-top-ten`, `p/nodejs`, `p/nextjs`, `p/jwt`, `p/secrets` over `apps`, `libs` and `tools` (1,704 files; specs, tests, `node_modules`, `dist`, `.next` excluded): 1 finding, 1 partial-parse error |
+| OWASP ZAP, Burp Suite | n/a | Not executed. Both need a running, seeded, non-production target; ZAP is scriptable (commands in section 6), Burp is manual |
+
+### Gitleaks: 39 matches, none a real credential
+All are synthetic or published values: test passwords in specs and E2E fixtures, the public sample TOTP/MFA key in `.env.example` (and the constant the production start-up check uses to refuse it), the dev-only storage master key in the Docker Compose file, and the `sk_test_` payment key in a PayMongo unit test. This corrects QA-105 below: that string is a test key, not `sk_live_`. Matches were not printed; no value needs rotation. Limitation: Gitleaks sees only what looks like a secret, so a low-entropy real password would not be flagged.
+
+### Trivy: no secrets or misconfigurations; package advisories are in tooling
+Almost every advisory is in developer or mobile build tooling (`shell-quote` critical through React Native devtools and webpack-dev-server's launch-editor; `node-forge`, `glob`, `minimatch` and `zod` 3.x through the Expo CLI), which does not run in the deployed API. The deployed surface has: `nestjs-zod > deepmerge` (low, no fixed version) and `@hookform/resolvers > ajv > fast-uri` in the staff app (moderate/low). The earlier Next.js, multer, body-parser, qs and zod advisories no longer appear (fixed in remediation batches 1-2). Trivy skipped the committed Android APK. Reachability of the tooling advisories was not tested; they remain Open as dependency hygiene.
+
+### Semgrep: 1 finding, confirmed and fixed
+- `javascript.node-crypto.security.gcm-no-tag-length` at `libs/core/src/lib/security/crypto.ts` (decryption of sealed secrets). Confirmed: `createDecipheriv` for AES-256-GCM was not given `authTagLength`, so a truncated authentication tag could be accepted, which weakens GCM's forgery protection for the TOTP seeds and integration payloads stored with this helper. Fixed: the cipher and decipher both pin `authTagLength: 16` (the length the code has always produced, so existing sealed values still open). Test added: a truncated tag is rejected. Status: Fixed - Pending Verification.
+- Parse error: `apps/staff/.../clinic/encounters/[id]/care-plans-panel.tsx` was only partially parsed by Semgrep; that one file received partial coverage. No finding is implied.
+- The security rule packs found nothing for SQL injection, unsafe `eval`, path traversal, open redirects, JWT `none`/weak verification or hard-coded secrets in the scanned files. This is evidence about those rule sets, not proof the code is free of such flaws.
+
+### Limitations
+SAST covers source patterns only; authorization logic (permission and facility scoping), business-rule flaws and runtime configuration are not visible to it, and the 2026-11-02 manual review covered those. No DAST was run, so headers, session handling and the deployed configuration were verified only through the E2E header test.
+
+---
+
+## Stage A baseline (2026-11-02, read-only, before the scanners could run)
+
 Stage A (read-only). Date: 2026-11-02. Host: Windows 11, Git Bash, Node v24.21.0, pnpm 10.33.0. No dependency was installed or changed; no database or application was started.
 
 ## 1. Tool availability and execution status
@@ -98,7 +127,7 @@ Burp Suite: manual authenticated testing of staff and MyHealth sessions (refresh
 - Evidence: `pnpm audit --prod --json` 2026-11-02: two critical advisories (RCE in Image Optimization with SVG; RCE in `use cache` returning typed arrays), patched >=16.4.1; further high/moderate (Server Actions DoS, SSRF in image optimization, cache poisoning) patched >=16.3.8.
 - Impact: unauthenticated remote code execution on the servers that hold session cookies for staff and patients, if the affected features are enabled/reachable. Reachability not tested.
 - Recommended fix: upgrade `next` to >=16.4.1 in both apps; disable SVG in `images` config and unused image optimization until upgraded.
-- Status: Open
+- Status: Fixed - Pending Verification (Next 16.4.3; scan of 2026-11-03 no longer lists it)
 
 ### QA-102 HIGH Backend runtime dependencies with known DoS advisories
 - Location: root `package.json` (`zod ^4.6.5` line 78, `nodemailer ^10.0.12` line 70), transitive `multer 2.4.0`, `body-parser`, `qs` via `@nestjs/platform-express`.
@@ -126,7 +155,7 @@ Burp Suite: manual authenticated testing of staff and MyHealth sessions (refresh
 - Evidence: regex match `sk_live_...`; value intentionally not reproduced.
 - Impact: if real, a leaked payment key; if dummy, scanner noise.
 - Recommended fix: confirm dummy; rename to an obviously fake value or build the string at runtime; add the file to the secret scanner allowlist.
-- Status: Open
+- Status: Not Reproducible (Gitleaks, 2026-11-03: the string is a test key, `sk_test_`)
 
 ### QA-106 INFO No DAST/SAST/container results exist
 - Evidence: section 1 (none of ZAP, Semgrep, Gitleaks, Trivy, Burp installed; Docker daemon not running).
