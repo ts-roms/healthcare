@@ -19,20 +19,21 @@ report awaits your approval of a remediation plan).
 
 ## Summary
 
-| #     | Severity      | Finding                                                                                                                                  | Evidence       |
-| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| KA-01 | Medium        | The identification limit (3 per session, 9 per kiosk) can be beaten by sending guesses in parallel                                       | Probe P1 (run) |
-| KA-02 | Medium        | Approving a registration is not one transaction: a failure after the patient is created leaves an orphan                                 | Probe P6 (run) |
-| KA-03 | Low           | A kiosk can overwrite the printer status the print agent reported                                                                        | Probe P9 (run) |
-| KA-04 | Low           | Any print-agent account of a facility can claim any of its kiosks' jobs; the agent is not bound to its kiosk codes                       | Code, probe P8 |
-| KA-05 | Low           | The shared kiosk session lives past its use: `kiosk_session.patient_id` is kept after the session ends, contradicting the code's comment | Code           |
-| KA-06 | Low           | Registration flooding: 50 waiting registrations per kiosk can be reached and block honest ones                                           | Code (not run) |
-| KA-07 | Low           | Limits are per network address; kiosks behind one NAT share them                                                                         | Code           |
-| KA-08 | Low           | A realtime outage can drop an announcement (only the current state is re-read)                                                           | Code (not run) |
-| KA-09 | Informational | No script-src in the kiosk's CSP (same accepted position as staff and portal)                                                            | Code           |
-| KA-10 | Informational | Service names appear on the kiosk screen, the printed ticket and the display                                                             | Code           |
-| KA-11 | Informational | E2E gaps against the Phase 6 list                                                                                                        | Test inventory |
-| KA-12 | Informational | Things that could not be tested here                                                                                                     | —              |
+| #     | Severity      | Finding                                                                                                                                  | Evidence         |
+| ----- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| KA-01 | Medium        | The identification limit (3 per session, 9 per kiosk) can be beaten by sending guesses in parallel                                       | Probe P1 (run)   |
+| KA-02 | Medium        | Approving a registration is not one transaction: a failure after the patient is created leaves an orphan                                 | Probe P6 (run)   |
+| KA-03 | Low           | A kiosk can overwrite the printer status the print agent reported                                                                        | Probe P9 (run)   |
+| KA-04 | Low           | Any print-agent account of a facility can claim any of its kiosks' jobs; the agent is not bound to its kiosk codes                       | Code, probe P8   |
+| KA-05 | Low           | The shared kiosk session lives past its use: `kiosk_session.patient_id` is kept after the session ends, contradicting the code's comment | Code             |
+| KA-06 | Low           | Registration flooding: 50 waiting registrations per kiosk can be reached and block honest ones                                           | Code (not run)   |
+| KA-07 | Low           | Limits are per network address; kiosks behind one NAT share them                                                                         | Code             |
+| KA-08 | Low           | A realtime outage can drop an announcement (only the current state is re-read)                                                           | Code (not run)   |
+| KA-09 | Informational | No script-src in the kiosk's CSP (same accepted position as staff and portal)                                                            | Code             |
+| KA-10 | Informational | Service names appear on the kiosk screen, the printed ticket and the display                                                             | Code             |
+| KA-11 | Informational | E2E gaps against the Phase 6 list                                                                                                        | Test inventory   |
+| KA-12 | Informational | Things that could not be tested here                                                                                                     | —                |
+| KA-13 | Low           | The kiosk screen could be stuck on "One moment…" when a request never came back (found by the new browser journeys)                      | Journey 29 (run) |
 
 No Critical or High findings. The Medium findings are real but need a valid kiosk device token (KA-01) or a concurrent second
 reviewer / invalid input (KA-02), so they are not reachable by an anonymous visitor.
@@ -43,15 +44,17 @@ Approved order, first stage. "Fixed - Pending Verification" means the fix is in,
 suites) and the full E2E run (140 of 140), and it has **not** been retested on the target devices or in a staging environment, so none is
 marked Verified Fixed.
 
-| #                                        | Status                                    | What changed                                                                                                                                                                                                           |
-| ---------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| KA-01                                    | Fixed - Pending Verification              | Each attempt is reserved atomically before the lookup and given back on success; the kiosk budget counts the same way. Test: 30 parallel guesses record exactly 3 failures.                                            |
-| KA-02                                    | Fixed - Pending Verification              | Migration `0141` (reviewer claim, `registration_in_review`); a patient who cannot be queued is still linked to the submission (`queued: false`); a refused approval releases the claim. Tests for all three.           |
-| KA-03                                    | Fixed - Pending Verification              | The kiosk heartbeat carries the app version only; the printer state comes from the print agent. Test: a kiosk heartbeat cannot change it.                                                                              |
-| KA-05                                    | Accepted Risk (pending your confirmation) | Kept the patient id on the session as the record of who was served; comment corrected, retention question added to the compliance register. Clearing it is the alternative.                                            |
-| KA-04                                    | Fixed - Pending Verification              | Migration `0142`: a kiosk can name its print agent account; only that account claims, reports or heartbeats for it (others get not found); unnamed kiosks behave as before. Test in the printing spec; staff Edit row. |
-| KA-07                                    | Fixed - Pending Verification              | `DeviceRateLimitGuard` on the kiosk controllers counts per signed-in device account instead of per address. Test: one kiosk uses its 60 sessions a minute and another on the same address still opens one.             |
-| KA-06, KA-08, KA-09, KA-10, KA-11, KA-12 | Open                                      | Not yet addressed (design decisions, journeys and the hardware/ZAP plan).                                                                                                                                              |
+| #                                 | Status                                    | What changed                                                                                                                                                                                                                   |
+| --------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| KA-01                             | Fixed - Pending Verification              | Each attempt is reserved atomically before the lookup and given back on success; the kiosk budget counts the same way. Test: 30 parallel guesses record exactly 3 failures.                                                    |
+| KA-02                             | Fixed - Pending Verification              | Migration `0141` (reviewer claim, `registration_in_review`); a patient who cannot be queued is still linked to the submission (`queued: false`); a refused approval releases the claim. Tests for all three.                   |
+| KA-03                             | Fixed - Pending Verification              | The kiosk heartbeat carries the app version only; the printer state comes from the print agent. Test: a kiosk heartbeat cannot change it.                                                                                      |
+| KA-05                             | Accepted Risk (pending your confirmation) | Kept the patient id on the session as the record of who was served; comment corrected, retention question added to the compliance register. Clearing it is the alternative.                                                    |
+| KA-04                             | Fixed - Pending Verification              | Migration `0142`: a kiosk can name its print agent account; only that account claims, reports or heartbeats for it (others get not found); unnamed kiosks behave as before. Test in the printing spec; staff Edit row.         |
+| KA-07                             | Fixed - Pending Verification              | `DeviceRateLimitGuard` on the kiosk controllers counts per signed-in device account instead of per address. Test: one kiosk uses its 60 sessions a minute and another on the same address still opens one.                     |
+| KA-11                             | Partly addressed                          | Journey 29 adds appointment check-in, a lost response and a dropped connection in a browser. Still without a browser journey: the voice announcement, queue transfer from a kiosk ticket, a several-browser multi-counter run. |
+| KA-13                             | Fixed - Pending Verification              | Every kiosk call to its server now goes through `safely()`, which turns a call that never came back into a plain message; journey 29 failed before the change and passes after it, unit test added.                            |
+| KA-06, KA-08, KA-09, KA-10, KA-12 | Open                                      | Not yet addressed (design decisions and the hardware/ZAP plan).                                                                                                                                                                |
 
 ## Findings
 
@@ -160,19 +163,29 @@ marked Verified Fixed.
 
 ### KA-11 — E2E coverage against the Phase 6 list (Informational)
 
-Covered in a browser: new-patient registration, reception review, duplicate handling, existing patient walk-in ticket, recall / no-show /
-put back in line, printing and printer failure recovery with a reprint, the display's branding and grouping, live registration list,
-idle/Start over, browser-storage cleanliness, security headers.
-Covered only in integration tests (not in a browser): appointment check-in at the kiosk, session expiry, multi-kiosk concurrency, call
-conflicts.
-Not covered: network interruption and recovery on the kiosk screen, the voice announcement (unit-tested only), the display updating when
-a receptionist calls a ticket (the earlier queue journeys cover the call; the display screen itself is not asserted), queue completion and
-transfer between counters from a kiosk ticket, and a full multi-counter run with several browsers.
+Covered in a browser: new-patient registration, reception review, duplicate handling, existing patient walk-in ticket, **appointment
+check-in** (journey 29), recall / no-show / put back in line, printing and printer failure recovery with a reprint, the display's
+branding and grouping, **the display showing a ticket reception calls, live and without the patient's name** (journey 8; this report
+first said it was not asserted — it is), live registration list, idle/Start over, browser-storage cleanliness, security headers,
+**a response lost on the way back (one ticket, one queue entry) and a dropped connection with recovery** (journey 29).
+Covered only in integration tests (not in a browser): session expiry, multi-kiosk concurrency, call conflicts.
+Not covered: the voice announcement (unit-tested only), queue transfer between counters from a kiosk ticket, and a full multi-counter run
+with several browsers.
 
 ### KA-12 — Not testable here (Informational)
 
 A real printer, kiosk, touch screen, TV, speakers and the Filipino/English voices; ZAP; load and soak tests; the print agent running as an
 operating-system service; the production network layout (firewalling the printer, TLS); backup and restore of the kiosk tables.
+
+### KA-13 — The kiosk screen could be left waiting forever (Low, fixed)
+
+- **Evidence.** The new journey replaced the answer to a check-in with a gateway error: the kiosk then showed "One moment…" on a disabled
+  button for good. The screens awaited each server call without handling a call that never came back, so a dropped connection or a
+  lost answer left the busy state on; the heartbeat could not mark the kiosk offline either. Only the idle timeout or Start over got out.
+- **Affected.** `apps/kiosk/src/components` (check-in, identification, registration submit, ticket status, start, heartbeat).
+- **Impact.** A patient is stuck at a frozen button, and the person behind them waits for the idle timeout.
+- **Fix.** `safely()` (`apps/kiosk/src/lib/safe-action.ts`) turns a call that never came back into a plain "We could not reach the system
+  just now. Please try again, or see the front desk."; the retry key is unchanged, so a retried check-in returns the same ticket.
 
 ## Controls checked and found working
 

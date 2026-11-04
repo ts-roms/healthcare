@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { checkIn } from "@/app/actions";
+import { safely } from "@/lib/safe-action";
 import type { IssuedTicket } from "@/lib/flow";
 import { newKey } from "./bits";
 
@@ -20,7 +21,7 @@ export function useCheckIn(onTicket: (ticket: IssuedTicket) => void, onSessionOv
     if (!key) keys.current.set(id, (key = newKey()));
     setBusyId(id);
     setError(null);
-    const result = await checkIn(target, key);
+    const result = await safely(() => checkIn(target, key));
     setBusyId(null);
     if (result.ok) return onTicket({ ...result.data, service });
     if (result.code === "kiosk_session_expired") return onSessionOver();

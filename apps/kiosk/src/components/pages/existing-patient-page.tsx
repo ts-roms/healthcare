@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { identifyPatient } from "@/app/actions";
+import { safely } from "@/lib/safe-action";
 import { birthDateProblem, EMPTY_BIRTH_DATE, toIsoDate } from "@/lib/birth-date";
 import type { KioskAppointment } from "@/lib/flow";
 import { BigButton, BigInput, DateField, Field } from "../bits";
@@ -48,7 +49,7 @@ export function ExistingPatientPage({
     if (next.key || next.givenName || next.birth || !birthDate) return;
 
     setBusy(true);
-    const result = await identifyPatient({ key: key.trim(), birthDate, givenName: givenName.trim() });
+    const result = await safely(() => identifyPatient({ key: key.trim(), birthDate, givenName: givenName.trim() }));
     setBusy(false);
     if (result.ok) return onIdentified(result.data);
     if (result.code === "kiosk_session_locked" || result.code === "kiosk_cooling_down" || result.code === "kiosk_session_expired") return onLocked();

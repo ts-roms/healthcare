@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { submitRegistration } from "@/app/actions";
+import { safely } from "@/lib/safe-action";
 import { MONTHS } from "@/lib/birth-date";
 import { RELATIONSHIPS, type RegistrationForm, SEXES, toRegistrationPayload } from "@/lib/registration";
 import { BigButton, newKey } from "../bits";
@@ -49,7 +50,7 @@ export function RegistrationReviewPage({
   async function send() {
     setBusy(true);
     setError(null);
-    const result = await submitRegistration(toRegistrationPayload(form, today), key.current);
+    const result = await safely(() => submitRegistration(toRegistrationPayload(form, today), key.current));
     setBusy(false);
     if (result.ok) return onSubmitted(result.data.reference);
     if (result.code === "kiosk_session_expired") return onSessionOver();

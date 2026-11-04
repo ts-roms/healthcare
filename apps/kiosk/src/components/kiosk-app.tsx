@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { beginSession, endSession, sendHeartbeat } from "@/app/actions";
+import { safely } from "@/lib/safe-action";
 import { type FlowState, flowReducer, INITIAL_FLOW, isIdleSensitive, type KioskService } from "@/lib/flow";
 import { idleState, type IdleState, LOCKED_CLEAR_MS } from "@/lib/idle";
 import { BigButton, useCountdown } from "./bits";
@@ -93,7 +94,7 @@ export function KioskApp(props: KioskAppProps) {
   useEffect(() => {
     let failures = 0;
     const beat = async () => {
-      const result = await sendHeartbeat({ appVersion: props.appVersion });
+      const result = await safely(() => sendHeartbeat({ appVersion: props.appVersion }));
       failures = result.ok ? 0 : failures + 1;
       setOnline(failures < 2);
       if (result.ok && result.data.status !== props.deviceStatus) router.refresh();
@@ -108,7 +109,7 @@ export function KioskApp(props: KioskAppProps) {
     setStartError(null);
     // A touch is the gesture browsers need before they allow full screen.
     void document.documentElement.requestFullscreen?.().catch(() => undefined);
-    const result = await beginSession();
+    const result = await safely(beginSession);
     setStarting(false);
     if (!result.ok) return setStartError(result.message);
     lastTouch.current = Date.now();

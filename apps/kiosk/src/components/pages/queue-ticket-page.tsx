@@ -3,6 +3,7 @@
 import { CheckCircle2Icon, PrinterIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { printStatus } from "@/app/actions";
+import { safely } from "@/lib/safe-action";
 import { formatDateTime } from "@/lib/format";
 import type { IssuedTicket } from "@/lib/flow";
 import { RECEIPT_CLEAR_MS } from "@/lib/idle";
@@ -23,7 +24,7 @@ function PrintMessage({ jobId }: { jobId: string }) {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
-      const result = await printStatus(jobId);
+      const result = await safely(() => printStatus(jobId));
       if (cancelled) return;
       const next = result.ok ? result.data.status : null;
       setState(next);

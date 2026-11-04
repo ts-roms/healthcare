@@ -142,6 +142,8 @@ Kiosk, print agent and waiting-room screen routes are rate-limited per signed-in
 (`DeviceRateLimitGuard`, applied on the kiosk controllers so it runs after the access guard): kiosks in one clinic share an
 address, so one busy kiosk no longer uses up the others' allowance.
 
+**A call that never comes back (audit KA-13).** Every call the kiosk screen makes to its server goes through `safely()` (`apps/kiosk/src/lib/safe-action.ts`): a dropped connection or a lost answer becomes the plain message "We could not reach the system just now. Please try again, or see the front desk." instead of leaving a disabled "One moment…" button; a retry carries the same idempotency key, so a ticket whose answer was lost is shown again, never issued twice (journey `apps/e2e/tests/29-kiosk-resilience.journey.ts`).
+
 **Devices.** `kiosk_device.kind` is `kiosk` or `display`: a waiting-room screen is registered like a kiosk, from an account
 holding only the `queue_display` role (and no `patient.read`), and reports in with `POST /kiosk/display/heartbeat`
 (any holder of `clinic.queue.display`; an account that is not a registered display is simply not monitored; a display in
