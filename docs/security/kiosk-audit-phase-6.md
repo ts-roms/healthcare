@@ -57,7 +57,7 @@ marked Verified Fixed.
 | KA-06        | Fixed - Pending Verification              | Decision: keep the 50-waiting cap and add 20 registrations an hour per kiosk (`kiosk_registration_busy`); reception already sees the count on the Registrations badge. Test: the twenty-first is refused and another kiosk is not affected.                                                                 |
 | KA-08        | Fixed - Pending Verification              | Decision: the display announces every call made since the one it showed, oldest first (`callsSince`), instead of only the newest; the one-at-a-time, no-repeat and 3-waiting rules still apply. Unit tests.                                                                                                 |
 | KA-09        | Fixed - Pending Verification              | Decision: a nonce-based policy for the kiosk app only (`script-src 'self' 'nonce-…' 'strict-dynamic'`, no inline or eval scripts, nothing from another origin), made per request in the proxy; the staff and portal apps keep their documented position. Header test and every kiosk journey pass under it. |
-| KA-10, KA-12 | Open                                      | KA-10 is guidance for the organization (do not name a kiosk service after a sensitive condition); KA-12 is the hardware and ZAP plan.                                                                                                                                                                       |
+| KA-10, KA-12 | Open                                      | KA-10 is guidance for the organization (do not name a kiosk service after a sensitive condition). KA-12: the plan is written (`kiosk-hardware-and-zap-plan.md`) but not run; it needs the target devices and a staging copy.                                                                                |
 
 ## Findings
 
@@ -176,6 +176,8 @@ Not covered: the voice announcement (unit-tested only), queue transfer between c
 with several browsers.
 
 ### KA-12 — Not testable here (Informational)
+
+The checks to run, in order, are written down in [the hardware and ZAP plan](kiosk-hardware-and-zap-plan.md) (device checks A1–A4, scan rules and set-up B1–B4, sign-off table). Nothing in it has been run yet.
 
 A real printer, kiosk, touch screen, TV, speakers and the Filipino/English voices; ZAP; load and soak tests; the print agent running as an
 operating-system service; the production network layout (firewalling the printer, TLS); backup and restore of the kiosk tables.
