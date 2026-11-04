@@ -4,6 +4,8 @@ Date: 2026-11-04 · Scope: `apps/api/src/app/kiosk`, `apps/kiosk`, `tools/kiosk-
 actions in `libs/clinic`, the realtime gateway's kiosk channels · Status of every finding: **Open** (nothing has been changed; this
 report awaits your approval of a remediation plan).
 
+> The closing summary of this audit, with the status of every finding, is in [the final report](kiosk-audit-final-report.md).
+
 ## How this was done, and what it does not cover
 
 - **Code review** of every kiosk controller and service, the DTOs, rules, schema, the kiosk web app's session and cookie handling,
