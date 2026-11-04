@@ -1013,6 +1013,23 @@ export class ClinicQueries {
    * What a patient kiosk offers for a walk-in: the organization's active, in-person visit types it switched on for
    * kiosks. Names only (migration 0137).
    */
+  async visitTypeName(organizationId: string, visitTypeId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ name: visitType.name })
+      .from(visitType)
+      .where(and(eq(visitType.organizationId, organizationId), eq(visitType.id, visitTypeId)));
+    return row?.name ?? null;
+  }
+
+  /** Whether the visit is still open (waiting, in triage, waiting for the doctor or with the provider). */
+  async visitIsOpen(organizationId: string, visitId: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ status: visit.status })
+      .from(visit)
+      .where(and(eq(visit.organizationId, organizationId), eq(visit.id, visitId)));
+    return !!row && ["waiting", "in_triage", "awaiting_consultation", "in_consultation"].includes(row.status);
+  }
+
   async kioskVisitTypes(organizationId: string): Promise<Array<{ id: string; name: string }>> {
     return this.db
       .select({ id: visitType.id, name: visitType.name })

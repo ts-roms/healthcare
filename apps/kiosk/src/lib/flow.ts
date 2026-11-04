@@ -19,6 +19,8 @@ export interface KioskTicket {
   facilityName: string;
   issuedAt: string;
   instructions: string;
+  /** The queued print job, when this kiosk prints tickets (the screen asks how it went); null when it has no printer. */
+  printJobId: string | null;
 }
 
 /** What the screen shows after a check-in: the ticket and the service it was issued for (the API never names the patient). */

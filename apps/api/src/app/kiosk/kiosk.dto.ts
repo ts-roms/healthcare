@@ -13,8 +13,9 @@ export const registerDeviceSchema = z.object({
     .toLowerCase()
     .regex(/^[a-z0-9][a-z0-9-]{2,39}$/, "3–40 lower-case letters, digits or hyphens"),
   name: z.string().trim().min(2).max(100),
-  /** The staff account the kiosk signs in with: it must hold the Patient kiosk role at this facility. */
+  /** The staff account the device signs in with: the Patient kiosk role for a kiosk, the Waiting-room display role for a display. */
   userId: z.string().uuid(),
+  kind: z.enum(["kiosk", "display"]).default("kiosk"),
 });
 export class RegisterDeviceDto extends createZodDto(registerDeviceSchema) {}
 
@@ -28,6 +29,39 @@ export const updateDeviceSchema = z
 export class UpdateDeviceDto extends createZodDto(updateDeviceSchema) {}
 
 // ---- The kiosk itself ----------------------------------------------------------------------------------------------
+
+// ---- Ticket printing (migration 0139) -------------------------------------------------------------------------------
+
+const deviceCode = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(/^[a-z0-9][a-z0-9-]{2,39}$/);
+
+/** The print agent asks for the next ticket of one kiosk's printer. */
+export const claimPrintSchema = z.object({ deviceCode });
+export class ClaimPrintDto extends createZodDto(claimPrintSchema) {}
+
+/** What happened to a claimed ticket. A failure names its cause as a short code, never a printer's raw answer. */
+export const printResultSchema = z
+  .object({
+    outcome: z.enum(["printed", "failed"]),
+    error: z.enum(["paper_out", "offline", "error"]).optional(),
+    /** The agent will try again (a jam, a cable): the job goes back in line while it has attempts left. */
+    retry: z.boolean().default(false),
+  })
+  .refine((v) => v.outcome === "printed" || v.error !== undefined, { message: "Say why it failed", path: ["error"] });
+export class PrintResultDto extends createZodDto(printResultSchema) {}
+
+/** The agent's report of the printer it drives. */
+export const printerHeartbeatSchema = z.object({ deviceCode, printerStatus: z.enum(["ok", "paper_out", "offline", "error"]) });
+export class PrinterHeartbeatDto extends createZodDto(printerHeartbeatSchema) {}
+
+export const reprintSchema = z.object({ reason });
+export class ReprintDto extends createZodDto(reprintSchema) {}
+
+export const printJobsQuerySchema = z.object({ status: z.enum(["queued", "printing", "printed", "failed", "cancelled"]).optional() });
+export class PrintJobsQueryDto extends createZodDto(printJobsQuerySchema) {}
 
 export const heartbeatSchema = z.object({
   appVersion: z.string().trim().min(1).max(40).optional(),

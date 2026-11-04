@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post } from "@nestjs/common";
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { Headers } from "@nestjs/common";
 import { KioskCheckInService } from "./kiosk-checkin.service";
 import { KioskDeviceService } from "./kiosk-device.service";
+import { KioskPrintService } from "./kiosk-print.service";
 import { KioskRegistrationService } from "./kiosk-registration.service";
 import { KioskSessionService } from "./kiosk-session.service";
 import { HeartbeatDto, IdentifyDto, KioskCheckInDto, KioskRegistrationDto } from "./kiosk.dto";
@@ -33,6 +34,7 @@ export class KioskController {
     private readonly sessions: KioskSessionService,
     private readonly checkIn: KioskCheckInService,
     private readonly registrations: KioskRegistrationService,
+    private readonly print: KioskPrintService,
   ) {}
 
   @Get("me")
@@ -46,6 +48,13 @@ export class KioskController {
   @ApiOperation({ summary: "Report that the kiosk is running, with its app version and printer status" })
   heartbeat(@CurrentActor() actor: Actor, @Body() body: HeartbeatDto) {
     return this.devices.heartbeat(actor, body);
+  }
+
+  @Get("print-jobs/:jobId")
+  @ApiOperation({ summary: "How printing is going for a ticket this kiosk queued (status only)" })
+  async printStatus(@CurrentActor() actor: Actor, @Param("jobId", ParseUUIDPipe) jobId: string) {
+    const device = await this.devices.requireDevice(actor, { serving: false });
+    return this.print.statusForKiosk(actor.organizationId, device.id, jobId);
   }
 
   @Get("services")

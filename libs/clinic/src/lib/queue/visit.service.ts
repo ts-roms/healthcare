@@ -44,6 +44,7 @@ import {
 import { assertVersion, found, publicView } from "../clinic-support";
 import { BookingRulesService } from "../config/booking-rules.service";
 import { ClinicConfigService } from "../config/clinic-config.service";
+import { QueueDisplaySettingService } from "../config/queue-display-setting.service";
 import { type ServicePointBrief, ServicePointService } from "../config/service-point.service";
 import { loadRouteSteps, type RouteStepView, toRouteStepViews } from "./visit-route.queries";
 import type { PatientBookingContext } from "../appointments/patient-booking.service";
@@ -61,6 +62,8 @@ import {
   SENIOR_AGE,
   type QueueDisplayCall,
   queueDisplay,
+  type QueueDisplayGroup,
+  queueDisplayGroups,
   queueTicket,
   requiresReason,
   skipRefusal,
@@ -100,6 +103,10 @@ export interface QueueDisplayView {
   timeZone: string;
   calls: QueueDisplayCall[];
   waiting: number;
+  /** The clinic's own words and colour for the screen (migration 0139); all null while it uses the defaults. */
+  branding: { headline: string | null; footerMessage: string | null; accentColor: string | null };
+  /** The same calls grouped by service point, when the facility turned that on; null otherwise. */
+  groups: Array<{ name: string; calls: QueueDisplayCall[]; waiting: number }> | null;
 }
 
 export function toVisitView(row: VisitRecord): VisitView {
@@ -138,6 +145,7 @@ export class VisitService {
     @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
     private readonly bookingRules: BookingRulesService,
     private readonly servicePoints: ServicePointService,
+    private readonly displaySettings: QueueDisplaySettingService,
   ) {}
 
   async walkIn(actor: Actor, input: z.infer<typeof walkInSchema>): Promise<VisitView> {
@@ -629,7 +637,14 @@ export class VisitService {
     const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
     const date = localDate(new Date(), facility.timezone);
     const rows = await this.db
-      .select({ queueNumber: visit.queueNumber, status: visit.status, calledAt: visit.calledAt, calledTo: visit.calledTo, modality: visitType.modality })
+      .select({
+        queueNumber: visit.queueNumber,
+        status: visit.status,
+        calledAt: visit.calledAt,
+        calledTo: visit.calledTo,
+        servicePointId: visit.servicePointId,
+        modality: visitType.modality,
+      })
       .from(visit)
       .innerJoin(visitType, and(eq(visitType.organizationId, visit.organizationId), eq(visitType.id, visit.visitTypeId)))
       .where(
@@ -640,8 +655,27 @@ export class VisitService {
           inArray(visit.status, [...ACTIVE_VISIT_STATUSES]),
         ),
       );
-    const { calls, waiting } = queueDisplay(rows.map((r) => ({ ...r, inPerson: r.modality === "in_person" })));
-    return { facilityName: facility.name, date, timeZone: facility.timezone, calls, waiting };
+    const displayRows = rows.map((r) => ({ ...r, inPerson: r.modality === "in_person" }));
+    const { calls, waiting } = queueDisplay(displayRows);
+    const settings = await this.displaySettings.forFacility(actor.organizationId, facilityId);
+    let groups: QueueDisplayView["groups"] = null;
+    if (settings.groupByServicePoint) {
+      const grouped: QueueDisplayGroup[] = queueDisplayGroups(displayRows);
+      const names = await this.servicePoints.briefs(
+        actor.organizationId,
+        grouped.flatMap((g) => (g.servicePointId ? [g.servicePointId] : [])),
+      );
+      groups = grouped.map((g) => ({ name: (g.servicePointId && names.get(g.servicePointId)?.name) || "General", calls: g.calls, waiting: g.waiting }));
+    }
+    return {
+      facilityName: facility.name,
+      date,
+      timeZone: facility.timezone,
+      calls,
+      waiting,
+      branding: { headline: settings.headline, footerMessage: settings.footerMessage, accentColor: settings.accentColor },
+      groups,
+    };
   }
 
   /** One visit, with the modality of its visit type and its consultation (as the queue board rows carry them). */

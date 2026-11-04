@@ -66,6 +66,8 @@ export const depConstraints = [
   // The patient mobile app is an API client: only platform-neutral types and wording (type:domain), never backend
   // libraries (NestJS) or web-only ones (ui, web-session).
   { sourceTag: "scope:mobile", onlyDependOnLibsWithTags: ["type:domain"] },
+  // The kiosk print agent is a standalone tool on a machine in the clinic: an API client that shares no code with the platform.
+  { sourceTag: "scope:agent", onlyDependOnLibsWithTags: ["scope:agent"] },
   // The API is the composition root: it wires domains together through adapters.
   { sourceTag: "scope:api", onlyDependOnLibsWithTags: ["scope:api", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
   // Workers use platform services; the integration worker also the interoperability layer (adapters). Never clinical domains.

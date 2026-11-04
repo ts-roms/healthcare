@@ -1,9 +1,18 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { KioskDeviceService } from "./kiosk-device.service";
+import { KioskPrintService } from "./kiosk-print.service";
 import { KioskRegistrationService } from "./kiosk-registration.service";
-import { ApproveRegistrationDto, LinkRegistrationDto, RegisterDeviceDto, RejectRegistrationDto, UpdateDeviceDto } from "./kiosk.dto";
+import {
+  ApproveRegistrationDto,
+  LinkRegistrationDto,
+  PrintJobsQueryDto,
+  RegisterDeviceDto,
+  RejectRegistrationDto,
+  ReprintDto,
+  UpdateDeviceDto,
+} from "./kiosk.dto";
 
 /** Staff side of the kiosk module: managing kiosks and reviewing what was typed at them. */
 @ApiTags("kiosk administration")
@@ -14,6 +23,7 @@ export class KioskAdminController {
   constructor(
     private readonly devices: KioskDeviceService,
     private readonly registrations: KioskRegistrationService,
+    private readonly print: KioskPrintService,
   ) {}
 
   @Get("devices")
@@ -35,6 +45,21 @@ export class KioskAdminController {
   @ApiOperation({ summary: "Rename a kiosk, or put it into maintenance or out of service" })
   update(@CurrentActor() actor: Actor, @Param("deviceId", ParseUUIDPipe) deviceId: string, @Body() body: UpdateDeviceDto) {
     return this.devices.update(actor, deviceId, body);
+  }
+
+  @Get("print-jobs")
+  @RequirePermissions("kiosk.device.read")
+  @ApiOperation({ summary: "The facility's kiosk tickets of the last 24 hours: how each print went (no patient details)" })
+  async printJobs(@CurrentActor() actor: Actor, @Query() query: PrintJobsQueryDto) {
+    return { items: await this.print.list(actor, query.status) };
+  }
+
+  @Post("print-jobs/:jobId/reprint")
+  @HttpCode(200)
+  @RequirePermissions("kiosk.print.reprint")
+  @ApiOperation({ summary: "Print a kiosk ticket again, with a reason (limited, audited)" })
+  reprint(@CurrentActor() actor: Actor, @Param("jobId", ParseUUIDPipe) jobId: string, @Body() body: ReprintDto) {
+    return this.print.reprint(actor, jobId, body);
   }
 
   @Get("registrations")

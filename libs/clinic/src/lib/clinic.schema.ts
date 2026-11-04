@@ -278,6 +278,21 @@ export const servicePointSetting = pgTable("service_point_setting", {
 });
 export type ServicePointSettingRecord = typeof servicePointSetting.$inferSelect;
 
+/** What a facility's waiting-room display says in its own words, and whether it groups calls by service point (migration 0139). */
+export const queueDisplaySetting = pgTable("queue_display_setting", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  headline: text("headline"),
+  footerMessage: text("footer_message"),
+  accentColor: text("accent_color"),
+  groupByServicePoint: boolean("group_by_service_point").notNull().default(false),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type QueueDisplaySettingRecord = typeof queueDisplaySetting.$inferSelect;
+
 export const ROUTE_STEP_STATUSES = ["planned", "current", "done", "skipped", "removed"] as const;
 export type RouteStepStatus = (typeof ROUTE_STEP_STATUSES)[number];
 

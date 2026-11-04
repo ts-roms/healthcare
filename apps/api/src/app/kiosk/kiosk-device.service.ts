@@ -17,7 +17,7 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { heartbeatSchema, registerDeviceSchema, updateDeviceSchema } from "./kiosk.dto";
-import { type DeviceHealth, deviceHealth } from "./kiosk.rules";
+import { type DeviceHealth, deviceHealth, type PrinterAvailability, printerAvailability } from "./kiosk.rules";
 import { kioskDevice, type KioskDeviceRecord } from "./kiosk.schema";
 import { assertVersion, found } from "./kiosk-support";
 
@@ -25,12 +25,16 @@ export interface KioskDeviceView {
   id: string;
   code: string;
   name: string;
+  kind: KioskDeviceRecord["kind"];
   facilityId: string;
   status: KioskDeviceRecord["status"];
   health: DeviceHealth;
   heartbeatAt: Date | null;
   appVersion: string | null;
   printerStatus: KioskDeviceRecord["printerStatus"];
+  /** Whether the printer is known to be working: from its last report and how recent that is (kiosks only). */
+  printer: PrinterAvailability;
+  printerHeartbeatAt: Date | null;
   version: number;
 }
 
@@ -38,12 +42,15 @@ const view = (row: KioskDeviceRecord, now = new Date()): KioskDeviceView => ({
   id: row.id,
   code: row.code,
   name: row.name,
+  kind: row.kind,
   facilityId: row.facilityId,
   status: row.status,
   health: deviceHealth(row, now),
   heartbeatAt: row.heartbeatAt,
   appVersion: row.appVersion,
   printerStatus: row.printerStatus,
+  printer: row.kind === "kiosk" ? printerAvailability(row, now) : "none",
+  printerHeartbeatAt: row.printerHeartbeatAt,
   version: row.version,
 });
 
@@ -75,27 +82,42 @@ export class KioskDeviceService {
 
   async register(actor: Actor, input: z.infer<typeof registerDeviceSchema>): Promise<KioskDeviceView> {
     const facilityId = requireFacilityId(actor);
-    // The account must be a kiosk account at this facility and nothing more: a kiosk is never given general patient access.
-    const kiosks = await this.users.holdersOfRole(actor.organizationId, "kiosk_device", facilityId);
-    if (!kiosks.some((u) => u.id === input.userId)) {
-      throw new BusinessRuleError("That account does not hold the Patient kiosk role at this facility", "not_a_kiosk_account");
+    // The account must be a device account at this facility and nothing more: a kiosk or a display is never given general
+    // patient access.
+    const display = input.kind === "display";
+    const holders = await this.users.holdersOfRole(actor.organizationId, display ? "queue_display" : "kiosk_device", facilityId);
+    if (!holders.some((u) => u.id === input.userId)) {
+      throw display
+        ? new BusinessRuleError("That account does not hold the Waiting-room display role at this facility", "not_a_display_account")
+        : new BusinessRuleError("That account does not hold the Patient kiosk role at this facility", "not_a_kiosk_account");
     }
     const readers = await this.users.holdersOf(actor.organizationId, "patient.read", facilityId);
     if (readers.some((u) => u.id === input.userId)) {
-      throw new BusinessRuleError("A kiosk account must not hold patient record access", "kiosk_account_too_powerful");
+      throw new BusinessRuleError(
+        display ? "A display account must not hold patient record access" : "A kiosk account must not hold patient record access",
+        display ? "display_account_too_powerful" : "kiosk_account_too_powerful",
+      );
     }
     try {
       return await this.db.transaction(async (tx) => {
         const [created] = await tx
           .insert(kioskDevice)
-          .values({ organizationId: actor.organizationId, facilityId, code: input.code, name: input.name, userId: input.userId, createdBy: actor.userId })
+          .values({
+            organizationId: actor.organizationId,
+            facilityId,
+            code: input.code,
+            name: input.name,
+            kind: input.kind,
+            userId: input.userId,
+            createdBy: actor.userId,
+          })
           .returning();
         const row = found(created, "Kiosk");
         await this.audit.record(tx, actor, {
           action: "kiosk.device.register",
           resourceType: "kiosk_device",
           resourceId: row.id,
-          metadata: { code: row.code, facilityId, kioskUserId: row.userId },
+          metadata: { code: row.code, kind: row.kind, facilityId, kioskUserId: row.userId },
         });
         await this.events.record(tx, {
           type: "KioskDeviceStatusChanged",
@@ -173,7 +195,7 @@ export class KioskDeviceService {
     const [row] = await this.db
       .select()
       .from(kioskDevice)
-      .where(and(eq(kioskDevice.organizationId, actor.organizationId), eq(kioskDevice.userId, actor.userId)));
+      .where(and(eq(kioskDevice.organizationId, actor.organizationId), eq(kioskDevice.userId, actor.userId), eq(kioskDevice.kind, "kiosk")));
     if (!row) throw new ForbiddenError("This account is not a registered kiosk", "not_a_kiosk");
     if (row.facilityId !== facilityId) throw new ForbiddenError("This kiosk belongs to another facility", "kiosk_wrong_facility");
     if (row.status === "disabled") throw new ForbiddenError("This kiosk has been disabled", "kiosk_disabled");
@@ -190,6 +212,28 @@ export class KioskDeviceService {
       device: { id: device.id, code: device.code, name: device.name, status: device.status },
       facility: { id: facility.id, name: facility.name, timeZone: facility.timezone },
     };
+  }
+
+  /**
+   * A waiting-room display reports that it is showing (docs/domains/kiosk.md, "Devices"). An account that was never
+   * registered as a display is not an error — an unregistered screen simply is not monitored. A display in maintenance or
+   * disabled still shows: those states are notes for staff, not a switch.
+   */
+  async displayHeartbeat(actor: Actor): Promise<{ registered: boolean }> {
+    const facilityId = requireFacilityId(actor);
+    const updated = await this.db
+      .update(kioskDevice)
+      .set({ heartbeatAt: new Date() })
+      .where(
+        and(
+          eq(kioskDevice.organizationId, actor.organizationId),
+          eq(kioskDevice.facilityId, facilityId),
+          eq(kioskDevice.userId, actor.userId),
+          eq(kioskDevice.kind, "display"),
+        ),
+      )
+      .returning({ id: kioskDevice.id });
+    return { registered: updated.length > 0 };
   }
 
   async heartbeat(actor: Actor, input: z.infer<typeof heartbeatSchema>): Promise<{ status: KioskDeviceRecord["status"] }> {

@@ -150,6 +150,33 @@ export const updateServicePointSettingsSchema = z.object({
 });
 export class UpdateServicePointSettingsDto extends createZodDto(updateServicePointSettingsSchema) {}
 
+export const queueDisplaySettingsQuerySchema = z.object({ facilityId: z.string().uuid() });
+export class QueueDisplaySettingsQueryDto extends createZodDto(queueDisplaySettingsQuerySchema) {}
+
+/** Words for the display; an empty text clears one. */
+const displayText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((v) => (v === "" ? null : v));
+
+/** A facility's waiting-room display wording and layout (migration 0139): no patient data, only the clinic's own words. */
+export const updateQueueDisplaySettingsSchema = z.object({
+  facilityId: z.string().uuid(),
+  headline: displayText(80).nullable().optional(),
+  footerMessage: displayText(160).nullable().optional(),
+  accentColor: z
+    .string()
+    .trim()
+    .regex(/^#[0-9A-Fa-f]{6}$/, "Use a colour like #1A7F8E")
+    .nullable()
+    .optional(),
+  groupByServicePoint: z.boolean(),
+  version: z.number().int().positive().optional(),
+});
+export class UpdateQueueDisplaySettingsDto extends createZodDto(updateQueueDisplaySettingsSchema) {}
+
 /** The stops still ahead of the visit, in order (replaces the planned ones; done, skipped and current steps stay). */
 export const planRouteSchema = z.object({ servicePointIds: z.array(z.string().uuid()).min(1).max(10), version: z.number().int().positive() });
 export class PlanRouteDto extends createZodDto(planRouteSchema) {}

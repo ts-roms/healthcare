@@ -43,6 +43,9 @@ export const PERMISSIONS = [
   "kiosk.device.read",
   "kiosk.device.manage",
   "kiosk.registration.review",
+  // Kiosk ticket printing (migration 0139)
+  "kiosk.print.agent",
+  "kiosk.print.reprint",
   "clinic.triage.write",
   "clinical.read",
   "allergy.manage",

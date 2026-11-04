@@ -432,6 +432,10 @@ export interface QueueDisplay {
   /** Called tickets, newest first: the first is the one being called now. */
   calls: Array<{ ticket: string; calledTo: string; calledAt: string }>;
   waiting: number;
+  /** The clinic's own words and colour for the screen (migration 0139); all null while it uses the defaults. */
+  branding: { headline: string | null; footerMessage: string | null; accentColor: string | null };
+  /** The same calls grouped by service point (department), when the facility turned that on; null otherwise. */
+  groups: Array<{ name: string; calls: Array<{ ticket: string; calledTo: string; calledAt: string }>; waiting: number }> | null;
 }
 
 /** GET /queue row. */
@@ -5677,4 +5681,50 @@ export interface KioskRegistrationDetail {
   expiresAt: string;
   registration: KioskRegistrationForm;
   possibleDuplicates: KioskDuplicateCandidate[];
+}
+
+// ---- kiosk devices, printing and the waiting-room display (docs/domains/kiosk.md) ------------------------------------------
+
+/** `GET /kiosk/admin/devices`: a kiosk or a waiting-room display of the facility. */
+export interface KioskDevice {
+  id: string;
+  code: string;
+  name: string;
+  kind: "kiosk" | "display";
+  facilityId: string;
+  status: "active" | "maintenance" | "disabled";
+  /** From its last report: online while it keeps reporting; an operator's status wins. */
+  health: "online" | "offline" | "maintenance" | "disabled";
+  heartbeatAt: string | null;
+  appVersion: string | null;
+  printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error";
+  /** Whether the printer is known to be working: its last report and how recent it is (kiosks only). */
+  printer: "available" | "attention" | "unavailable" | "unknown" | "none";
+  printerHeartbeatAt: string | null;
+  version: number;
+}
+
+/** `GET /kiosk/admin/print-jobs`: a kiosk ticket's print, with nothing about the patient. */
+export interface KioskPrintJob {
+  id: string;
+  device: string;
+  ticket: string;
+  serviceName: string;
+  status: "queued" | "printing" | "printed" | "failed" | "cancelled";
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  printedAt: string | null;
+  reprint: boolean;
+  canReprint: boolean;
+}
+
+/** `GET /clinic/queue-display-settings`; `version` is null while the facility uses the defaults. */
+export interface QueueDisplaySettings {
+  facilityId: string;
+  headline: string | null;
+  footerMessage: string | null;
+  accentColor: string | null;
+  groupByServicePoint: boolean;
+  version: number | null;
 }

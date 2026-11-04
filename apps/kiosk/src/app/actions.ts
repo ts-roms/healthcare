@@ -6,6 +6,7 @@ import { ApiError } from "@healthcare/web-session";
 import { COOKIES, SECURE_COOKIES } from "@/lib/config";
 import { kioskApi } from "@/lib/api";
 import type { KioskAppointment, KioskTicket } from "@/lib/flow";
+import type { PrintState } from "@/lib/print-status";
 import type { RegistrationPayload } from "@/lib/registration";
 
 /** What every action returns: the screen shows `message` as it is, so it must be fit for a patient to read. */
@@ -76,9 +77,15 @@ export async function endSession(): Promise<void> {
   }
 }
 
-export async function sendHeartbeat(input: {
-  appVersion: string;
-  printerStatus: "none" | "ok" | "paper_out" | "offline" | "error";
-}): Promise<Result<{ status: "active" | "maintenance" | "disabled" }>> {
+/** How printing is going for a ticket this kiosk queued: status only. */
+export async function printStatus(jobId: string): Promise<Result<{ status: PrintState; attempts: number; error: string | null }>> {
+  return run(() => kioskApi<{ status: PrintState; attempts: number; error: string | null }>(`/kiosk/print-jobs/${encodeURIComponent(jobId)}`));
+}
+
+/**
+ * The kiosk reports itself and its version. The printer's state is the print agent's to report (it sees the printer; the
+ * screen does not), so the screen never claims one.
+ */
+export async function sendHeartbeat(input: { appVersion: string }): Promise<Result<{ status: "active" | "maintenance" | "disabled" }>> {
   return run(() => kioskApi<{ status: "active" | "maintenance" | "disabled" }>("/kiosk/heartbeat", { method: "POST", body: input }));
 }

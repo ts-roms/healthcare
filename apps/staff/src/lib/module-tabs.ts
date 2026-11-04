@@ -31,6 +31,7 @@ const MODULES: ModuleDefinition[] = [
     tabs: [
       { label: "Board", href: "/queue", permissions: ["clinic.queue.read"] },
       { label: "Registrations", href: "/queue/registrations", permissions: ["kiosk.registration.review"], count: (b) => b.kioskRegistrations, alert: true },
+      { label: "Devices", href: "/queue/devices", permissions: ["kiosk.device.read"] },
     ],
   },
   {

@@ -133,6 +133,8 @@ export interface QueueDisplayRow {
   calledTo: string | null;
   /** Online visits never appear on a waiting-room screen. */
   inPerson: boolean;
+  /** Where the visit is (migration 0113); null = the facility's consultation line. */
+  servicePointId?: string | null;
 }
 
 export interface QueueDisplayCall {
@@ -155,6 +157,34 @@ export function queueDisplay(rows: readonly QueueDisplayRow[], limit = QUEUE_DIS
     .map((r) => ({ ticket: queueTicket(r.queueNumber), calledTo: r.calledTo, calledAt: r.calledAt }));
   const waiting = open.filter((r) => r.status === "waiting" || r.status === "awaiting_consultation").length;
   return { calls, waiting };
+}
+
+/** How many calls one service point's block lists when the display groups by service point. */
+export const QUEUE_DISPLAY_GROUP_CALLS = 4;
+
+export interface QueueDisplayGroup {
+  /** null = the facility's consultation line. */
+  servicePointId: string | null;
+  calls: QueueDisplayCall[];
+  waiting: number;
+}
+
+/**
+ * The same display grouped by service point (migration 0139): each service point with a call or someone waiting, the
+ * ones being called first (newest call first), then those only waiting (most waiting first). Same rules, same fields:
+ * ticket labels and places only, never a patient detail.
+ */
+export function queueDisplayGroups(rows: readonly QueueDisplayRow[], limit = QUEUE_DISPLAY_GROUP_CALLS): QueueDisplayGroup[] {
+  const ids = [...new Set(rows.map((r) => r.servicePointId ?? null))];
+  const groups = ids.map((servicePointId) => ({
+    servicePointId,
+    ...queueDisplay(
+      rows.filter((r) => (r.servicePointId ?? null) === servicePointId),
+      limit,
+    ),
+  }));
+  const latest = (g: QueueDisplayGroup) => g.calls[0]?.calledAt.getTime() ?? 0;
+  return groups.filter((g) => g.calls.length > 0 || g.waiting > 0).sort((a, b) => latest(b) - latest(a) || b.waiting - a.waiting);
 }
 
 // ---- Visit routes (migration 0115) ----------------------------------------------------------------------------

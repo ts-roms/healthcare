@@ -4,6 +4,7 @@ import { type Actor, BusinessRuleError } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import type { z } from "zod";
 import { KioskDeviceService } from "./kiosk-device.service";
+import { KioskPrintService } from "./kiosk-print.service";
 import { KioskSessionService } from "./kiosk-session.service";
 import type { kioskCheckInSchema } from "./kiosk.dto";
 
@@ -15,7 +16,11 @@ export interface KioskTicket {
   issuedAt: Date;
   /** Always a plain instruction; nothing about the patient. */
   instructions: string;
+  /** The queued print job, when this kiosk prints tickets; the screen asks how it went. */
+  printJobId: string | null;
 }
+
+const TICKET_INSTRUCTIONS = "Please take a seat. Your number will be shown on the screen when it is your turn.";
 
 /**
  * Check-in at a kiosk (docs/domains/kiosk.md). Both ways go through the clinic's own visit code — the same ticket
@@ -30,6 +35,7 @@ export class KioskCheckInService {
     private readonly visits: VisitService,
     private readonly clinic: ClinicQueries,
     private readonly organizations: OrganizationService,
+    private readonly print: KioskPrintService,
   ) {}
 
   /** The services a walk-in can choose at this kiosk (the organization switches visit types on for kiosks). */
@@ -53,12 +59,24 @@ export class KioskCheckInService {
     else if (input.visitTypeId) visit = await this.visits.kioskWalkIn(actor, { patientId, visitTypeId: input.visitTypeId });
     else throw new BusinessRuleError("Choose an appointment or a service", "kiosk_choice_required");
     const facility = await this.organizations.getFacility(actor.organizationId, visit.facilityId);
+    const device = await this.devices.requireDevice(actor, { serving: false });
+    const serviceName = (await this.clinic.visitTypeName(actor.organizationId, visit.visitTypeId)) ?? "Visit";
+    // Queued once per visit: asking again for the same ticket returns the job already queued, never a second print.
+    const printJobId = await this.print.enqueueTicket(device, {
+      visitId: visit.id,
+      ticket: visit.ticket,
+      serviceName,
+      facilityName: facility.name,
+      issuedAt: visit.checkedInAt,
+      instructions: TICKET_INSTRUCTIONS,
+    });
     return {
       ticket: visit.ticket,
       queueNumber: visit.queueNumber,
       facilityName: facility.name,
       issuedAt: visit.checkedInAt,
-      instructions: "Please take a seat. Your number will be shown on the screen when it is your turn.",
+      instructions: TICKET_INSTRUCTIONS,
+      printJobId,
     };
   }
 }

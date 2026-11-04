@@ -29,7 +29,10 @@ const scan = async (page: Page, value: string) => {
   await page.goto("/patients/scan");
   // Typing before the page has hydrated is lost, so submit again until the screen answers (a patient or an alert).
   const field = page.locator("#qr-scan-field");
-  const answer = page.getByRole("alert").or(page.getByRole("link", { name: "Open record" })).first();
+  const answer = page
+    .getByRole("alert")
+    .or(page.getByRole("link", { name: "Open record" }))
+    .first();
   await expect(async () => {
     await field.fill(value);
     await field.press("Enter");

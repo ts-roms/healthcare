@@ -177,7 +177,7 @@ describe("patient self-service kiosk", () => {
 
       const ticket = (await k(kiosk.two, session).post("/check-in", { visitTypeId }).expect(201)).body;
       expect(ticket).toMatchObject({ ticket: expect.stringMatching(/^A-\d{3}$/), facilityName: "Main Clinic", instructions: expect.any(String) });
-      expect(Object.keys(ticket).sort()).toEqual(["facilityName", "instructions", "issuedAt", "queueNumber", "ticket"]);
+      expect(Object.keys(ticket).sort()).toEqual(["facilityName", "instructions", "issuedAt", "printJobId", "queueNumber", "ticket"]);
       expect(JSON.stringify(ticket)).not.toMatch(/Maria|Santos/);
 
       const row = await queueRow(ticket.ticket);

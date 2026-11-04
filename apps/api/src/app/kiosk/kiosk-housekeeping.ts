@@ -1,4 +1,5 @@
 import { Injectable, Logger, type OnApplicationShutdown } from "@nestjs/common";
+import { KioskPrintService } from "./kiosk-print.service";
 import { KioskRegistrationService } from "./kiosk-registration.service";
 import { KioskSessionService } from "./kiosk-session.service";
 
@@ -17,6 +18,7 @@ export class KioskHousekeeping implements OnApplicationShutdown {
   constructor(
     private readonly sessions: KioskSessionService,
     private readonly registrations: KioskRegistrationService,
+    private readonly print: KioskPrintService,
   ) {}
 
   start(intervalMs = MINUTE_MS): void {
@@ -32,6 +34,8 @@ export class KioskHousekeeping implements OnApplicationShutdown {
     try {
       const sessions = await this.sessions.expireDue();
       const registrations = await this.registrations.expireDue();
+      const tickets = await this.print.expireDue();
+      if (tickets > 0) this.logger.log({ event: "kiosk.print_jobs_expired", tickets });
       if (registrations > 0) this.logger.log({ event: "kiosk.registrations_expired", registrations });
       if (sessions > 0) this.logger.debug({ event: "kiosk.sessions_expired", sessions });
     } catch (error) {

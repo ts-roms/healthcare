@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "libs/*"
+  - "tools/kiosk-print-agent"
 
 onlyBuiltDependencies:
   - "@parcel/watcher"

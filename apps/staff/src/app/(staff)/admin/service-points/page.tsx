@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { RouteTemplate, ServicePoint, ServicePointSettings, VisitType } from "@/lib/api/types";
+import type { QueueDisplaySettings, RouteTemplate, ServicePoint, ServicePointSettings, VisitType } from "@/lib/api/types";
+import { DisplaySettings } from "./display-settings";
 import { RouteTemplates } from "./route-templates";
 import { RoutingSettings } from "./routing-settings";
 import { ServicePointList } from "./service-point-list";
@@ -24,9 +25,10 @@ export default async function ServicePointsPage() {
       </StaffSettingsPage>
     );
   }
-  const [servicePoints, settings, templates, visitTypes] = await Promise.all([
+  const [servicePoints, settings, displaySettings, templates, visitTypes] = await Promise.all([
     api<ServicePoint[]>("/clinic/service-points", { query: { facilityId: facility.id, includeInactive: "true" } }),
     api<ServicePointSettings>("/clinic/service-point-settings", { query: { facilityId: facility.id } }),
+    api<QueueDisplaySettings>("/clinic/queue-display-settings", { query: { facilityId: facility.id } }),
     api<RouteTemplate[]>("/clinic/route-templates", { query: { facilityId: facility.id, includeInactive: "true" } }),
     api<VisitType[]>("/clinic/visit-types").then((all) => all.filter((v) => v.status === "active" && v.modality === "in_person")),
   ]);
@@ -43,6 +45,7 @@ export default async function ServicePointsPage() {
       <SettingsStack>
         <ServicePointList facilityId={facility.id} servicePoints={servicePoints} />
         <RoutingSettings key={settings.version ?? 0} settings={settings} />
+        <DisplaySettings key={`display-${displaySettings.version ?? 0}`} settings={displaySettings} />
         <RouteTemplates facilityId={facility.id} templates={templates} servicePoints={servicePoints} visitTypes={visitTypes} />
       </SettingsStack>
     </StaffSettingsPage>

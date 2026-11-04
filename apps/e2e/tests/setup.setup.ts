@@ -81,6 +81,9 @@ setup("configure the clinic", async () => {
   });
   const kioskUser = (await admin.get<Array<{ id: string; email: string }>>("/users")).find((u) => u.email === STAFF.kiosk)!;
   await admin.post("/kiosk/admin/devices", { code: "e2e-front", name: "E2E front kiosk", userId: kioskUser.id });
+  // The waiting-room screen is a registered device too, so staff can see that it is alive (journey 28).
+  const displayUser = (await admin.get<Array<{ id: string; email: string }>>("/users")).find((u) => u.email === STAFF.display)!;
+  await admin.post("/kiosk/admin/devices", { kind: "display", code: "e2e-lobby-tv", name: "E2E lobby screen", userId: displayUser.id });
 
   // A patient who already uses MyHealth and books online (journey 2).
   const email = "ana.reyes@e2e.ph";

@@ -208,6 +208,17 @@ These appear in the ticket panel next to **Call patient to**.
 
 If you would rather keep the visit open, use **Skip** (the patient goes back behind later arrivals).
 
+### How to see your kiosks and screens, and print a ticket again
+
+Open **Queue → Devices**. Each kiosk and waiting-room screen is listed with whether it is **Online** (it keeps reporting), when it last did, its
+version and, for a kiosk, whether its **printer is working** (it also says when the printer is out of paper or not reachable). A device you put into
+**Maintenance** serves nobody; **Disabled** is refused. An administrator can **Register a device** (create its account first in Administration → Users
+with the **Patient kiosk** or **Waiting-room display** role) and **Edit** a name or status.
+
+Below are the kiosk tickets of the last 24 hours and how each print went. If a patient lost a ticket or it did not print, choose **Print again…** on its
+row, say why and confirm. A ticket can be printed again twice, only after the earlier print has finished, and only while the patient is still in the queue.
+The kiosk always shows the number on its screen, so a printer problem never stops a check-in.
+
 ### How to review a registration typed at a kiosk
 
 New patients can register on a kiosk in the waiting area. They are not patients yet: open **Queue → Registrations** (the
@@ -289,6 +300,12 @@ those waiting (urgent patients are seen first, so the order would seem to jump).
    allows it.
 4. Call patients from the queue board as usual (**Call patient to** → **Call**). The call appears on the display within a second while it shows
    **Live**; otherwise within 15 seconds.
+
+The clinic can give the screen its own look in **Settings → Service points → Waiting-room display**: a headline and a footer line in your own
+words, a colour (a colour that would make the white numbers hard to read is refused), and **Show calls by department**, which adds a block listing
+each service point's latest calls and how many wait there. If several tickets are called close together, the screen reads them out one after the
+other, never over each other, and never twice; if the sound or the voice stops working, the screen says so at the bottom. To see whether a screen
+is alive, open **Queue → Devices**.
 
 Receptionists and administrators can also open the display from **Queue** → **Open waiting-room display** (it opens in a new tab). A ticket
 leaves the display when the visit is closed (done, cancelled or left without being seen); the display starts empty each day.

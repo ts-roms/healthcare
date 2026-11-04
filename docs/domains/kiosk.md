@@ -102,13 +102,71 @@ payload is erased on any decision. The queue board's actions (recall, no-show, p
 (ticket, name, patient number, complaint or place; all, being called, self check-in). Counters are not a separate entity: a counter is a service point
 (its `location` is where the call sends the patient).
 
+## Printing and devices (phase 5, migration `0139`)
+
+**Ticket printing.** A kiosk check-in queues one `kiosk_print_job` per visit (a unique index; asking for the same ticket
+again returns the job already queued; a kiosk whose printer status is `none` queues nothing). A job holds only what is on
+the ticket — number, service, facility, time, a plain instruction — never a patient; its content is fixed by a trigger
+and it moves forward only (`queued → printing → printed | failed`, back to `queued` for a retry, `cancelled` while it
+waits). A **local print agent** (`tools/kiosk-print-agent`, below) pulls the jobs: `POST /kiosk/print/claim` (permission
+`kiosk.print.agent`, role `kiosk_print_agent`) hands out the oldest waiting job of one kiosk under a 30-second lease
+(`FOR UPDATE SKIP LOCKED`: two agents never get one ticket; a job whose lease ran out is offered again; after 3 attempts
+it fails), `POST /kiosk/print/jobs/:id/result` records printed or failed with a short cause (`paper_out`, `offline`,
+`error`) and whether to retry, `POST /kiosk/print/heartbeat` reports the printer's state. A ticket not printed within 10
+minutes is dropped (`KioskHousekeeping`). The kiosk screen asks `GET /kiosk/print-jobs/:id` (its own jobs only, status
+only) every 2 seconds and says "Printing your ticket…", "Your ticket is printed", or — if it failed, was dropped or
+nothing happened within 40 seconds — to remember the number and ask the desk; the number is on screen either way. **Reprint**
+(`POST /kiosk/admin/print-jobs/:id/reprint`, `kiosk.print.reprint`: receptionist, org_admin): only after the earlier print
+finished, with a reason, at most twice per ticket, only while the visit is open and the kiosk in service, audited
+`kiosk.print.reprint`; the list of the last 24 hours (`GET /kiosk/admin/print-jobs`, `kiosk.device.read`) shows how each
+print went and which can be printed again. A final failure is audited `kiosk.print.failed`.
+
+**Devices.** `kiosk_device.kind` is `kiosk` or `display`: a waiting-room screen is registered like a kiosk, from an account
+holding only the `queue_display` role (and no `patient.read`), and reports in with `POST /kiosk/display/heartbeat`
+(any holder of `clinic.queue.display`; an account that is not a registered display is simply not monitored; a display in
+maintenance or disabled still shows). A kiosk's printer availability is derived (`printerAvailability`): `available`
+(last report fine and within 2 minutes), `attention` (paper out, offline, error), `unavailable` (the agent went quiet),
+`unknown` (never reported), `none`. Staff **Queue → Devices** (`/queue/devices`, `kiosk.device.read`; registering,
+renaming and putting into maintenance need `kiosk.device.manage`) lists each device's status, last activity, version and
+printer, registers a device from the accounts that hold its role, and lists the day's kiosk tickets with **Print again…**.
+The kiosk web app no longer claims a printer state of its own: the agent, which sees the printer, reports it.
+
+**The waiting-room display's extras** (`queue_display_setting`, `GET|PUT /clinic/queue-display-settings`,
+`clinic.configure`, audited `queue-display-setting.update`; staff **Settings → Service points → Waiting-room display**): a
+headline and a footer line in the clinic's own words, an accent colour (used only when white text on it keeps a contrast of
+at least 4.5, checked when it is saved in the staff app and again when the screen draws it, so branding cannot make the
+number hard to read), and **calls by department**: the display then adds, per service point, its latest calls and how many
+wait there (`groups`; still ticket labels and places only). The voice announcement is now a **playback queue**
+(`apps/staff/src/lib/announcement-queue.ts`): calls are read one at a time, never over one another; the same call (same
+ticket, place and call time) is announced once however many events carry it — a recall has a new call time and is
+announced again; at most 3 wait and one that waited 45 seconds is dropped; and when the chime, the audio device or the
+voice fails the screen says "Announcements are not working on this screen. Your number still appears above."
+
+**The print agent** (`tools/kiosk-print-agent`; runbook `docs/runbooks/kiosk-print-agent.md`): a small Node service on a
+machine in the clinic. It signs in to the API as its own restricted account and only **pulls**: it listens on nothing but a
+read-only health check on `127.0.0.1` (`GET /health`), accepts no jobs, requires https for the API (http only for
+localhost) and refuses a printer outside the clinic's own network. It validates every job against a strict shape, reduces
+every text to printable ASCII before it enters the ESC/POS byte stream (so no field can become a printer command), renders
+80 mm (48 columns) or 58 mm (32 columns) tickets, prints to a network printer (raw port 9100, with a paper-sensor query), to
+an operating-system printer path, or in **dry-run** mode to a folder, and does not print a second copy of a ticket it
+already printed when the API offers it again because its report was lost.
+
+**What is and is not verified.** The ticket path, the agent, the screens and the queue are tested end to end — unit tests
+(ESC/POS rendering and injection safety, configuration, the pull loop, the API client, the printer drivers against a local
+fake, the health server, the announcement queue), API integration tests (the job lifecycle, leases and concurrency,
+permissions and facility scope, reprint limits, devices, settings) and a browser journey that runs the real agent as its
+own process in dry-run mode and with a printer that cannot print. **No real thermal printer, kiosk, touchscreen or TV has
+been tested.** Whether a given model understands the commands and the paper-sensor query, how the operating system's
+printer queue behaves, full-screen and wake-lock behaviour, the browser's speech voices and the room's acoustics must be
+checked on the target devices before the module is relied on.
+
 ## Not built yet
 
-Thermal ticket printing and the print agent (the kiosk reports its printer as `none`; there is no print button until an
-approved mechanism exists), a QR code on the ticket, an on-screen keyboard (the device's own is expected), Filipino
-wording, department grouping and voice settings on the public display, queue counters, staff screens for devices and
-device administration (registering a kiosk is an API call), realtime push of kiosk status. Hardware behaviour (full screen, touch, printer) is verified only
-on the target devices.
+A QR code on the ticket, direct USB printer drivers (a USB printer is reached through the operating system's printer
+path), print-agent self-update and remote configuration, an on-screen keyboard (the device's own is expected), Filipino
+wording on the kiosk, queue counters as their own entity (a counter is a service point), realtime push of kiosk status
+(the devices page reads on load). Hardware behaviour (full screen, touch, printer, voices) is verified only on the target
+devices.
 
 ## Open questions / assumptions
 

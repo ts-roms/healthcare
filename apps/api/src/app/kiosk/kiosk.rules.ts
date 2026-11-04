@@ -16,6 +16,34 @@ export const DEVICE_FAILURE_WINDOW_MS = 10 * 60_000;
 /** True while the kiosk has used up its guesses; it must not open a session or accept an identification. */
 export const deviceCoolingDown = (failuresInWindow: number) => failuresInWindow >= DEVICE_FAILURE_BUDGET;
 
+/** An agent holds a claimed print job this long; after it the job can be claimed again (the agent crashed or lost the printer). */
+export const PRINT_LEASE_MS = 30_000;
+/** A job is tried this many times, then fails. */
+export const PRINT_MAX_ATTEMPTS = 3;
+/** A ticket not printed within this long is no use any more: the person has moved on and the job is dropped. */
+export const PRINT_JOB_MAX_AGE_MS = 10 * 60_000;
+/** A ticket can be printed again this many times by staff. */
+export const MAX_REPRINTS = 2;
+/** A printer that has not reported in this long is not known to be working. */
+export const PRINTER_FRESH_MS = 2 * 60_000;
+
+export type PrinterAvailability = "available" | "attention" | "unavailable" | "unknown" | "none";
+
+/**
+ * What staff see for a kiosk's printer: `none` when the kiosk has no printer, `unknown` until a print agent has reported,
+ * `unavailable` when its last report is stale, `attention` when it reported a problem (paper out, offline, an error) and
+ * `available` when its last, recent report was fine.
+ */
+export function printerAvailability(
+  device: { printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error"; printerHeartbeatAt: Date | null },
+  now = new Date(),
+): PrinterAvailability {
+  if (device.printerStatus === "none") return "none";
+  if (!device.printerHeartbeatAt) return "unknown";
+  if (now.getTime() - device.printerHeartbeatAt.getTime() > PRINTER_FRESH_MS) return "unavailable";
+  return device.printerStatus === "ok" ? "available" : "attention";
+}
+
 /** A kiosk that has not reported in this long counts as offline. */
 export const DEVICE_ONLINE_MS = 2 * 60_000;
 /** A registration nobody reviews is erased after this long; the person is told to see the desk. */

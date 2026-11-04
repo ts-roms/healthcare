@@ -10,6 +10,7 @@ const ticket: IssuedTicket = {
   issuedAt: "2026-11-03T01:00:00Z",
   instructions: "Sit",
   service: "Consultation",
+  printJobId: null,
 };
 const identified: FlowState = flowReducer(flowReducer(INITIAL_FLOW, { type: "start" }), {
   type: "identified",

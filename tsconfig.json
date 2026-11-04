@@ -71,6 +71,9 @@
     },
     {
       "path": "./libs/crm"
+    },
+    {
+      "path": "./tools/kiosk-print-agent"
     }
   ],
   "compilerOptions": {}

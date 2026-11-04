@@ -1,11 +1,13 @@
 import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0137_kiosk.sql (the migration is the source of truth). These tables belong to the API's
+// Mirrors database/migrations/0137_kiosk.sql and 0139_kiosk_printing_and_displays.sql (the migrations are the source of truth). These tables belong to the API's
 // kiosk composition, which spans the patient and clinic domains (ADR-0015), not to a domain library.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
 export type KioskDeviceStatus = "active" | "maintenance" | "disabled";
+export type KioskDeviceKind = "kiosk" | "display";
+export type KioskPrintStatus = "queued" | "printing" | "printed" | "failed" | "cancelled";
 export type KioskPrinterStatus = "unknown" | "none" | "ok" | "paper_out" | "offline" | "error";
 export type KioskSessionStatus = "active" | "ended" | "expired" | "locked";
 export type KioskRegistrationStatus = "pending" | "approved" | "linked" | "rejected" | "expired";
@@ -17,8 +19,10 @@ export const kioskDevice = pgTable("kiosk_device", {
   code: text("code").notNull(),
   name: text("name").notNull(),
   userId: uuid("user_id").notNull(),
+  kind: text("kind").$type<KioskDeviceKind>().notNull().default("kiosk"),
   status: text("status").$type<KioskDeviceStatus>().notNull().default("active"),
   heartbeatAt: ts("heartbeat_at"),
+  printerHeartbeatAt: ts("printer_heartbeat_at"),
   appVersion: text("app_version"),
   printerStatus: text("printer_status").$type<KioskPrinterStatus>().notNull().default("unknown"),
   createdBy: uuid("created_by").notNull(),
@@ -65,3 +69,29 @@ export const kioskRegistration = pgTable("kiosk_registration", {
   visitId: uuid("visit_id"),
 });
 export type KioskRegistrationRecord = typeof kioskRegistration.$inferSelect;
+
+/** A ticket for a kiosk's printer to print (migration 0139): what is on the ticket and nothing about the patient. */
+export const kioskPrintJob = pgTable("kiosk_print_job", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  deviceId: uuid("device_id").notNull(),
+  visitId: uuid("visit_id").notNull(),
+  kind: text("kind").notNull().default("ticket"),
+  ticket: text("ticket").notNull(),
+  serviceName: text("service_name").notNull(),
+  facilityName: text("facility_name").notNull(),
+  issuedAt: ts("issued_at").notNull(),
+  instructions: text("instructions").notNull(),
+  status: text("status").$type<KioskPrintStatus>().notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  leaseExpiresAt: ts("lease_expires_at"),
+  lastError: text("last_error"),
+  printedAt: ts("printed_at"),
+  reprintOf: uuid("reprint_of"),
+  reprintReason: text("reprint_reason"),
+  requestedBy: uuid("requested_by"),
+  createdAt: ts("created_at").notNull().defaultNow(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+});
+export type KioskPrintJobRecord = typeof kioskPrintJob.$inferSelect;

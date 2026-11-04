@@ -330,7 +330,10 @@ before it and how many wait (migration `0112`).
   typed; the device's installed voices, nothing sent anywhere — with the level and voice choice kept in the screen's
   browser storage (`apps/staff/src/lib/queue-display.ts`, `queue-display-sound.ts`), a screen wake lock and full screen.
   English labels; the room text is whatever staff typed.
-- Not built: ticket printing or a kiosk, announcements over a public-address system, and priority lanes (which the organization would first
+- Since migration `0139` the clinic can add a headline, a footer line and an accent colour, and turn on calls grouped by service point
+  (the service point's name only); the announcement is a playback queue and the screen reports that it is alive
+  (`docs/domains/kiosk.md`, "Printing and devices").
+- Not built: announcements over a public-address system, and priority lanes (which the organization would first
   confirm against current rules). Service points (below) do not change the display: a call still shows the ticket and the
   place typed, never the service point.
 

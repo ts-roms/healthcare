@@ -93,7 +93,7 @@ export function KioskApp(props: KioskAppProps) {
   useEffect(() => {
     let failures = 0;
     const beat = async () => {
-      const result = await sendHeartbeat({ appVersion: props.appVersion, printerStatus: "none" });
+      const result = await sendHeartbeat({ appVersion: props.appVersion });
       failures = result.ok ? 0 : failures + 1;
       setOnline(failures < 2);
       if (result.ok && result.data.status !== props.deviceStatus) router.refresh();

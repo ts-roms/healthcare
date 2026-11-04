@@ -60,6 +60,8 @@ import { KioskCheckInService } from "./kiosk/kiosk-checkin.service";
 import { KioskController } from "./kiosk/kiosk.controller";
 import { KioskDeviceService } from "./kiosk/kiosk-device.service";
 import { KioskHousekeeping } from "./kiosk/kiosk-housekeeping";
+import { KioskDisplayController, KioskPrintController } from "./kiosk/kiosk-print.controller";
+import { KioskPrintService } from "./kiosk/kiosk-print.service";
 import { KioskRegistrationService } from "./kiosk/kiosk-registration.service";
 import { KioskSessionService } from "./kiosk/kiosk-session.service";
 import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
@@ -289,6 +291,8 @@ export class AppModule implements NestModule {
         ControlledRegisterController,
         KioskController,
         KioskAdminController,
+        KioskPrintController,
+        KioskDisplayController,
       ],
       providers: [
         FhirRecordComposer,
@@ -307,6 +311,7 @@ export class AppModule implements NestModule {
         KioskDeviceService,
         KioskSessionService,
         KioskCheckInService,
+        KioskPrintService,
         KioskRegistrationService,
         KioskHousekeeping,
         LaboratoryQualityReminders,

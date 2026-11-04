@@ -54,6 +54,8 @@ export const STAFF = {
   records: "records@e2e.ph",
   /** The patient self-service kiosk's account (role kiosk_device only; journey 27). */
   kiosk: "kiosk@e2e.ph",
+  /** The kiosk print agent's account (role kiosk_print_agent only; journey 28). */
+  agent: "agent@e2e.ph",
 } as const;
 
 export const DOCTOR_NAME = "Dr. Maria Santos";

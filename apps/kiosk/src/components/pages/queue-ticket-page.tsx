@@ -1,10 +1,52 @@
 "use client";
 
-import { CheckCircle2Icon } from "lucide-react";
+import { CheckCircle2Icon, PrinterIcon, TriangleAlertIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { printStatus } from "@/app/actions";
 import { formatDateTime } from "@/lib/format";
 import type { IssuedTicket } from "@/lib/flow";
 import { RECEIPT_CLEAR_MS } from "@/lib/idle";
+import { PRINT_POLL_MS, type PrintState, printIsFinal, printView } from "@/lib/print-status";
 import { BigButton, useCountdown } from "../bits";
+
+/**
+ * Asks how the ticket's print job is going until it is printed or can no longer print, and says so in words. The ticket's
+ * number is on screen either way: a printer problem only ever sends the person to the desk.
+ */
+function PrintMessage({ jobId }: { jobId: string }) {
+  const [state, setState] = useState<PrintState | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const startedAt = useRef(0);
+
+  useEffect(() => {
+    startedAt.current = Date.now();
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const poll = async () => {
+      const result = await printStatus(jobId);
+      if (cancelled) return;
+      const next = result.ok ? result.data.status : null;
+      setState(next);
+      setElapsed(Date.now() - startedAt.current);
+      if (!printIsFinal(next) && Date.now() - startedAt.current < 60_000) timer = setTimeout(() => void poll(), PRINT_POLL_MS);
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [jobId]);
+
+  const view = printView(true, state, elapsed);
+  if (!view) return null;
+  const Icon = view.kind === "problem" ? TriangleAlertIcon : PrinterIcon;
+  return (
+    <p role="status" className={`flex max-w-2xl items-center justify-center gap-3 text-2xl ${view.kind === "problem" ? "font-medium text-danger" : ""}`}>
+      <Icon aria-hidden className="size-8 shrink-0" />
+      {view.text}
+    </p>
+  );
+}
 
 /**
  * QueueTicketPage: the end of a visit to the kiosk. Either the queue ticket (queue number, service, time, status and the
@@ -40,6 +82,7 @@ export function QueueTicketPage({
             </p>
             <p className="text-xl font-medium text-success">Status: checked in, waiting for your turn</p>
           </section>
+          {ticket.printJobId ? <PrintMessage jobId={ticket.printJobId} /> : null}
           <p className="max-w-2xl text-2xl">{ticket.instructions}</p>
           <p className="text-xl text-muted-foreground">Please remember your number. Watch the screen in the waiting area.</p>
         </>

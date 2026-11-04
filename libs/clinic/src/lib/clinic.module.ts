@@ -50,6 +50,7 @@ import { PractitionerSignatureService } from "./signatures/practitioner-signatur
 import { ConsentSignatureService } from "./procedures/consent-signature.service";
 import { ClinicProcedureService } from "./procedures/procedure.service";
 import { RouteTemplateService } from "./config/route-template.service";
+import { QueueDisplaySettingService } from "./config/queue-display-setting.service";
 import { ServicePointService } from "./config/service-point.service";
 import { VisitRouteService } from "./queue/visit-route.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
@@ -117,6 +118,7 @@ export class ClinicModule {
         WaitlistOffersService,
         WaitlistNotices,
         ServicePointService,
+        QueueDisplaySettingService,
         RouteTemplateService,
         VisitRouteService,
         TriageService,
