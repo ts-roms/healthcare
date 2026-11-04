@@ -144,6 +144,8 @@ address, so one busy kiosk no longer uses up the others' allowance.
 
 **A call that never comes back (audit KA-13).** Every call the kiosk screen makes to its server goes through `safely()` (`apps/kiosk/src/lib/safe-action.ts`): a dropped connection or a lost answer becomes the plain message "We could not reach the system just now. Please try again, or see the front desk." instead of leaving a disabled "One moment…" button; a retry carries the same idempotency key, so a ticket whose answer was lost is shown again, never issued twice (journey `apps/e2e/tests/29-kiosk-resilience.journey.ts`).
 
+**Flooding, missed calls and scripts (audit KA-06, KA-08, KA-09).** A kiosk accepts at most 50 waiting registrations and 20 in any hour (`kiosk_registration_busy`: "please see the front desk"); the waiting-room display reads out every call made since the one it last showed, oldest first (not only the newest), still one at a time, never repeated and with at most three waiting; the kiosk app sends a per-request nonce policy (`apps/kiosk/src/lib/csp.ts`, set in `proxy.ts`): scripts run only with the request's nonce, no inline or eval scripts, nothing loads from another origin.
+
 **Devices.** `kiosk_device.kind` is `kiosk` or `display`: a waiting-room screen is registered like a kiosk, from an account
 holding only the `queue_display` role (and no `patient.read`), and reports in with `POST /kiosk/display/heartbeat`
 (any holder of `clinic.queue.display`; an account that is not a registered display is simply not monitored; a display in

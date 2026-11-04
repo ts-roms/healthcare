@@ -8,10 +8,30 @@ export function isDisplayOnly(permissions: readonly string[]): boolean {
   return permissions.length > 0 && permissions.every((p) => p === QUEUE_DISPLAY_PERMISSION);
 }
 
+type DisplayCall = QueueDisplay["calls"][number];
+
+/** Identifies one call: the same ticket, place and call time is always the same key (a recall has a new call time). */
+export function callKeyOf(call: DisplayCall): string {
+  return `${call.ticket}|${call.calledTo}|${call.calledAt}`;
+}
+
 /** Identifies the call being shown now: a new value means someone was just called (or called again). */
 export function currentCallKey(display: Pick<QueueDisplay, "calls"> | null): string | null {
   const call = display?.calls[0];
-  return call ? `${call.ticket}|${call.calledTo}|${call.calledAt}` : null;
+  return call ? callKeyOf(call) : null;
+}
+
+/**
+ * Every call made since the call shown before, oldest first. The screen learns of calls from a live feed and a 15-second
+ * re-read; when two calls happen between two looks (the feed was down, or reception was quick) the older one used to be
+ * skipped. The display lists its recent calls newest first, so those above the previously shown call are the ones missed.
+ * When the previous call is no longer in the list (a long gap), only the newest call is announced: older ones are stale.
+ */
+export function callsSince(previousKey: string | null | undefined, calls: readonly DisplayCall[]): DisplayCall[] {
+  const newest = calls[0];
+  if (!newest) return [];
+  const seen = previousKey ? calls.findIndex((c) => callKeyOf(c) === previousKey) : -1;
+  return seen > 0 ? calls.slice(0, seen).reverse() : [newest];
 }
 
 /** Whether to chime: the call shown now changed since the last render, and it is not the first render of the page. */

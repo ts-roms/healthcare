@@ -90,6 +90,12 @@ test("the kiosk answers with browser hardening headers and is never cached", asy
   const headers = response.headers();
   expect(headers["x-frame-options"]).toBe("DENY");
   expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+  // Scripts run only with this request's nonce, and the nonce is different on the next request.
+  const policy = headers["content-security-policy"] ?? "";
+  expect(policy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+  expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+  const again = (await request.get(`${KIOSK_URL}/setup`, { maxRedirects: 0 })).headers()["content-security-policy"] ?? "";
+  expect(again.match(/nonce-([^']+)/)?.[1]).not.toBe(policy.match(/nonce-([^']+)/)?.[1]);
   expect(headers["permissions-policy"]).toContain("camera=()");
   expect(headers["cache-control"]).toBe("no-store");
 });

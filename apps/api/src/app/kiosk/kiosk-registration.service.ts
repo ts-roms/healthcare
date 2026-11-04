@@ -20,7 +20,7 @@ import {
   sealWithKeyring,
 } from "@healthcare/core";
 import { PatientRecordService, PatientRegistrationService, type RegisterPatientInput } from "@healthcare/patient";
-import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { KioskDeviceService } from "./kiosk-device.service";
 import { KioskSessionService } from "./kiosk-session.service";
@@ -31,6 +31,8 @@ import { found } from "./kiosk-support";
 
 /** At most this many registrations may wait from one kiosk, so a flood of submissions cannot bury the desk. */
 export const MAX_PENDING_PER_DEVICE = 50;
+/** And at most this many in any hour, whether or not reception has answered: a kiosk used by hand cannot reach it, a script soon does. */
+export const MAX_PER_DEVICE_PER_HOUR = 20;
 /** A reviewer's claim on a registration they are deciding lapses after this long (the browser closed, the request died). */
 export const CLAIM_MS = 2 * 60_000;
 
@@ -87,6 +89,13 @@ export class KioskRegistrationService {
       .where(and(eq(kioskRegistration.deviceId, device.id), eq(kioskRegistration.status, "pending")));
     if ((pending?.n ?? 0) >= MAX_PENDING_PER_DEVICE) {
       throw new BusinessRuleError("Registration is not available at this kiosk right now — please see the front desk.", "kiosk_registration_backlog");
+    }
+    const [lastHour] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(kioskRegistration)
+      .where(and(eq(kioskRegistration.deviceId, device.id), gt(kioskRegistration.submittedAt, new Date(Date.now() - 3_600_000))));
+    if ((lastHour?.n ?? 0) >= MAX_PER_DEVICE_PER_HOUR) {
+      throw new BusinessRuleError("Registration is not available at this kiosk right now — please see the front desk.", "kiosk_registration_busy");
     }
 
     const candidates = await this.registration.findDuplicates(this.db, actor.organizationId, {

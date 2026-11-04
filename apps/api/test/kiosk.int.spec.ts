@@ -670,5 +670,34 @@ describe("patient self-service kiosk", () => {
       expect(row.rows[0]).toEqual({ printer_status: "paper_out", app_version: "1.0.1" });
       await ctx.pool.query(`UPDATE kiosk_device SET printer_status = 'unknown' WHERE code = 'front-1'`);
     });
+
+    it("KA-06: one kiosk accepts at most twenty registrations an hour, and another kiosk is not affected", async () => {
+      const recent = async () =>
+        (
+          await ctx.pool.query(
+            `SELECT count(*)::int AS n FROM kiosk_registration WHERE device_id = (SELECT id FROM kiosk_device WHERE code = 'front-3') AND submitted_at > now() - interval '1 hour'`,
+          )
+        ).rows[0].n as number;
+      // The kiosk's wrong-guess budget is not what is tested here.
+      await ctx.pool.query(`UPDATE kiosk_session SET failed_attempts = 0 WHERE device_id = (SELECT id FROM kiosk_device WHERE code = 'front-3')`);
+      let accepted = 0;
+      let refusal: string | undefined;
+      for (let i = 0; i < 25 && !refusal; i += 1) {
+        const session = await openSession(kiosk.three);
+        const res = await k(kiosk.three, session).post("/registrations", typedBody({ givenName: `Many${i}` }));
+        if (res.status === 201) accepted += 1;
+        else refusal = res.body.error.code;
+        await k(kiosk.three, session).delete("/sessions");
+      }
+      expect(refusal).toBe("kiosk_registration_busy");
+      expect(await recent()).toBe(20);
+      expect(accepted).toBeGreaterThan(0);
+      // Another kiosk still takes registrations.
+      const other = await openSession(kiosk.one);
+      await k(kiosk.one, other)
+        .post("/registrations", typedBody({ givenName: "Elsewhere" }))
+        .expect(201);
+      await k(kiosk.one, other).delete("/sessions");
+    });
   });
 });

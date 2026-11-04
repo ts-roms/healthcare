@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   announcements,
   callAnnouncement,
+  callKeyOf,
+  callsSince,
   currentCallKey,
   displayStatusLabel,
   isDisplayOnly,
@@ -28,6 +30,25 @@ describe("waiting-room display", () => {
     expect(shouldChime(first, currentCallKey(call("A-001", "Room 1", "2026-10-09T01:09:00Z")))).toBe(true);
     expect(shouldChime(first, currentCallKey({ calls: [] }))).toBe(false);
     expect(shouldChime(null, first)).toBe(true);
+  });
+});
+
+describe("calls made while the screen was not looking", () => {
+  const at = (ticket: string, minute: number) => ({ ticket, calledTo: "Room 1", calledAt: `2026-10-09T01:0${minute}:00Z` });
+
+  it("announces each call since the one shown, oldest first, so a quick second call is not skipped", () => {
+    const first = at("A-001", 1);
+    const calls = [at("A-003", 3), at("A-002", 2), first];
+    expect(callsSince(callKeyOf(first), calls).map((c) => c.ticket)).toEqual(["A-002", "A-003"]);
+    expect(callsSince(callKeyOf(calls[1]!), calls).map((c) => c.ticket)).toEqual(["A-003"]);
+  });
+
+  it("announces only the newest call when the one shown before is no longer listed, or nothing was shown", () => {
+    const calls = [at("A-009", 9), at("A-008", 8)];
+    expect(callsSince(callKeyOf(at("A-001", 1)), calls).map((c) => c.ticket)).toEqual(["A-009"]);
+    expect(callsSince(null, calls).map((c) => c.ticket)).toEqual(["A-009"]);
+    expect(callsSince(callKeyOf(calls[0]!), calls).map((c) => c.ticket)).toEqual(["A-009"]);
+    expect(callsSince("x", [])).toEqual([]);
   });
 });
 

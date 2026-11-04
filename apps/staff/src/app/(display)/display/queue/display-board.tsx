@@ -28,6 +28,8 @@ import {
   announcements,
   CALL_HIGHLIGHT_MS,
   callAnnouncement,
+  callKeyOf,
+  callsSince,
   currentCallKey,
   displayStatusLabel,
   type DisplaySoundSettings,
@@ -69,7 +71,7 @@ export function DisplayBoard({
   const status = useQueueUpdates(() => setNow(new Date()));
   const [current, ...earlier] = display?.calls ?? [];
   const callKey = currentCallKey(display);
-  const sound = useDisplaySound(callKey, current ?? null);
+  const sound = useDisplaySound(callKey, display?.calls ?? []);
   const highlighted = useCallHighlight(callKey);
   useWakeLock();
   useDisplayHeartbeat();
@@ -386,7 +388,7 @@ const subscribeNever = () => () => undefined;
  * screen (browsers only play sound after a click there); never on the first render. Volume and voice are kept in this
  * browser's storage, so the screen keeps them across reloads; whether sound is on is not — it needs the click.
  */
-function useDisplaySound(callKey: string | null, current: { ticket: string; calledTo: string } | null): DisplaySound {
+function useDisplaySound(callKey: string | null, calls: QueueDisplay["calls"]): DisplaySound {
   const [on, setOn] = React.useState(false);
   const [problem, setProblem] = React.useState(false);
   // Read from this browser's storage without a render-then-effect round trip: the server render (and hydration) use the defaults.
@@ -397,10 +399,10 @@ function useDisplaySound(callKey: string | null, current: { ticket: string; call
   const previous = React.useRef<string | null | undefined>(undefined);
   const queue = React.useRef(new AnnouncementQueue());
   const draining = React.useRef(false);
-  const latest = React.useRef({ settings, current });
+  const latest = React.useRef({ settings, calls });
   // Refs are written after the render commits, never during it.
   React.useEffect(() => {
-    latest.current = { settings, current };
+    latest.current = { settings, calls };
   });
 
   React.useEffect(() => {
@@ -447,8 +449,10 @@ function useDisplaySound(callKey: string | null, current: { ticket: string; call
   );
 
   React.useEffect(() => {
-    // The call read out is the one the key names: it changes together with the key.
-    if (on && callKey && shouldChime(previous.current, callKey) && latest.current.current) announce(callKey, latest.current.current);
+    // Every call since the one shown before is read out, oldest first: two calls between two looks are both announced.
+    if (on && callKey && shouldChime(previous.current, callKey)) {
+      for (const call of callsSince(previous.current, latest.current.calls)) announce(callKeyOf(call), call);
+    }
     previous.current = callKey;
   }, [callKey, on, announce]);
 
@@ -486,7 +490,7 @@ function useDisplaySound(callKey: string | null, current: { ticket: string; call
     },
     setLevel: (level) => save({ ...latest.current.settings, level }),
     setVoice: (voice) => save({ ...latest.current.settings, voice }),
-    test: () => announce(`test-${Date.now()}`, latest.current.current ?? { ticket: "A-001", calledTo: "Room 1" }),
+    test: () => announce(`test-${Date.now()}`, latest.current.calls[0] ?? { ticket: "A-001", calledTo: "Room 1" }),
   };
 }
 

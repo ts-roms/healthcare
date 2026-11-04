@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { forwardedHeaders } from "@healthcare/web-session";
 import { COOKIES } from "@/lib/config";
+import { buildCsp, newNonce } from "@/lib/csp";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/tokens";
 
 /**
@@ -9,6 +10,18 @@ import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/tok
  * back to set-up on a 401. Every response is marked `no-store`, so nothing a patient saw is cached by the browser.
  */
 export async function proxy(request: NextRequest) {
+  // A fresh nonce for this request: the policy goes to the page as a request header (so Next.js puts the nonce on its own scripts)
+  // and to the browser as the response header.
+  const nonce = newNonce();
+  const policy = buildCsp(nonce, process.env.NODE_ENV === "development");
+  const pageHeaders = new Headers(request.headers);
+  pageHeaders.set("x-nonce", nonce);
+  pageHeaders.set("content-security-policy", policy);
+  const secure = <T extends NextResponse>(response: T): T => {
+    response.headers.set("cache-control", "no-store");
+    response.headers.set("content-security-policy", policy);
+    return response;
+  };
   const { pathname } = request.nextUrl;
   const refreshToken = request.cookies.get(COOKIES.refresh)?.value;
   const accessToken = request.cookies.get(COOKIES.access)?.value;
@@ -16,22 +29,22 @@ export async function proxy(request: NextRequest) {
   if (pathname === "/setup" || pathname.startsWith("/setup/")) {
     // The API ended the session: drop the stale cookies and show the form, instead of looping.
     if (request.nextUrl.searchParams.get("reason") === "session") {
-      const response = noStore(NextResponse.next());
+      const response = secure(NextResponse.next({ request: { headers: pageHeaders } }));
       clearSessionCookies(response.cookies);
       return response;
     }
-    if (refreshToken && accessToken) return noStore(NextResponse.redirect(new URL("/", request.url)));
-    return noStore(NextResponse.next());
+    if (refreshToken && accessToken) return secure(NextResponse.redirect(new URL("/", request.url)));
+    return secure(NextResponse.next({ request: { headers: pageHeaders } }));
   }
 
   const toSetup = () => {
     const response = NextResponse.redirect(new URL("/setup", request.url));
     clearSessionCookies(response.cookies);
-    return noStore(response);
+    return secure(response);
   };
 
   if (!refreshToken) return toSetup();
-  if (accessToken) return noStore(NextResponse.next());
+  if (accessToken) return secure(NextResponse.next({ request: { headers: pageHeaders } }));
 
   const refreshed = await refreshTokens(refreshToken, fetch, Date.now(), forwardedHeaders(request.headers));
   if (refreshed.status === "rejected") return toSetup();
@@ -41,14 +54,13 @@ export async function proxy(request: NextRequest) {
   // Pass the new tokens to this render and persist them in the browser.
   request.cookies.set(COOKIES.access, tokens.accessToken);
   request.cookies.set(COOKIES.refresh, tokens.refreshToken);
-  const response = NextResponse.next({ request: { headers: request.headers } });
+  // The headers are copied again so that they carry the renewed cookies (setting them above changed the request's own headers).
+  const renewedHeaders = new Headers(request.headers);
+  renewedHeaders.set("x-nonce", nonce);
+  renewedHeaders.set("content-security-policy", policy);
+  const response = NextResponse.next({ request: { headers: renewedHeaders } });
   writeTokenCookies(response.cookies, tokens);
-  return noStore(response);
-}
-
-function noStore<T extends NextResponse>(response: T): T {
-  response.headers.set("cache-control", "no-store");
-  return response;
+  return secure(response);
 }
 
 /** The API is busy or down: keep the device signed in and retry shortly, rather than asking for set-up again. */
