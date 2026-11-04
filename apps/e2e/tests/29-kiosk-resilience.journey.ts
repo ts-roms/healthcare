@@ -27,19 +27,15 @@ interface Person {
 async function newPerson(): Promise<Person & { id: string }> {
   n += 1;
   const birthDate = `19${70 + (n % 20)}-0${1 + (n % 9)}-${10 + (n % 18)}`;
-  const admin = await staffApi(STAFF.admin, state.facilityId);
-  try {
-    const created = await admin.post<{ id: string; patientNumber: string }>("/patients", {
-      familyName: `Resilient${n}x`,
-      givenName: `Given${n}`,
-      sex: "female",
-      birthDate,
-      contacts: [{ system: "mobile", value: `0917 555 ${String(3000 + n)}` }],
-    });
-    return { id: created.id, number: created.patientNumber, given: `Given${n}`, birthDate };
-  } finally {
-    await admin.dispose();
-  }
+  // Registered by the front desk's session opened once for the file (a sign-in per person would use the API's sign-in allowance).
+  const created = await desk.post<{ id: string; patientNumber: string }>("/patients", {
+    familyName: `Resilient${n}x`,
+    givenName: `Given${n}`,
+    sex: "female",
+    birthDate,
+    contacts: [{ system: "mobile", value: `0917 555 ${String(3000 + n)}` }],
+  });
+  return { id: created.id, number: created.patientNumber, given: `Given${n}`, birthDate };
 }
 
 async function identify(who: Person) {
@@ -100,15 +96,27 @@ test.afterAll(async () => {
 
 test("a booked patient checks in for the appointment at the kiosk and the front desk sees the visit", async () => {
   const who = await newPerson();
-  const [booked] = await desk.post<Array<{ id: string }>>("/appointments", {
-    patientId: who.id,
-    practitionerId: state.practitionerId,
-    facilityId: state.facilityId,
-    visitTypeId: state.consultVisitTypeId,
-    startsAt: new Date(Date.now() + 5 * 60_000).toISOString(),
-    outsideSchedule: true,
-    reason: "Kiosk appointment check-in",
-  });
+  // Booked inside the check-in window (an hour before to fifteen minutes after the start); another journey may already hold
+  // the doctor at one of these times, so the next is tried.
+  let booked: { id: string } | undefined;
+  for (const minutes of [5, 25, 45, -10]) {
+    try {
+      [booked] = await desk.post<Array<{ id: string }>>("/appointments", {
+        patientId: who.id,
+        practitionerId: state.practitionerId,
+        facilityId: state.facilityId,
+        visitTypeId: state.consultVisitTypeId,
+        startsAt: new Date(Date.now() + minutes * 60_000).toISOString(),
+        outsideSchedule: true,
+        reason: "Kiosk appointment check-in",
+      });
+      break;
+    } catch (error) {
+      if (!String((error as Error).message).includes("slot_unavailable")) throw error;
+    }
+  }
+  expect(booked, "a free time for the doctor inside the check-in window").toBeTruthy();
+
   await identify(who);
   await kiosk.getByRole("button", { name: "Continue" }).click();
   await expect(kiosk.getByRole("heading", { name: "Your appointments today" })).toBeVisible();

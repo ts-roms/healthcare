@@ -60,6 +60,8 @@ Health: `GET http://127.0.0.1:8788/health` answers `200` with `{ status, printer
 and `503` while the printer is out of paper or unreachable or the agent cannot reach the API. Point the machine's own
 monitoring at it. It cannot be reached from another machine.
 
+If the API turns the agent's sign-in away (rate limited or busy) the agent does not try again on every poll: it waits for the `Retry-After` the API gave, or 30 seconds (never more than two minutes), so it does not keep itself — and the clinic's other devices on the same address — at the limit.
+
 ## Keeping it safe
 
 - **Network exposure.** The agent listens on `127.0.0.1` only and has no endpoint that accepts a job; do not forward its

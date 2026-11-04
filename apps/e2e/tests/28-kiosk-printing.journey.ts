@@ -25,8 +25,26 @@ let kiosk: Page;
 let n = 0;
 const agents: ChildProcess[] = [];
 
+const healthUrl = () => `http://127.0.0.1:${HEALTH_PORT}/health`;
+const answersHealth = () =>
+  fetch(healthUrl()).then(
+    () => true,
+    () => false,
+  );
+
+/** Waits until nothing answers on the agent's health port, so a health answer can only come from the agent started next. */
+async function waitForPortFree() {
+  for (let i = 0; i < 40; i++) {
+    if (!(await answersHealth())) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error("An earlier print agent is still answering on the health port");
+}
+
 /** Starts the print agent; resolves when its health check answers. `printer` is where it prints. */
 async function startAgent(printer: { dryRunDir: string } | { path: string }): Promise<ChildProcess> {
+  // The agent before this one must be gone: it uses the same health port, and its answer must not pass for this agent's.
+  await waitForPortFree();
   const env = {
     ...process.env,
     API_BASE_URL: API_URL,
@@ -34,7 +52,7 @@ async function startAgent(printer: { dryRunDir: string } | { path: string }): Pr
     AGENT_PASSWORD: STAFF_PASSWORD,
     FACILITY_ID: state.facilityId,
     DEVICE_CODES: state.kioskDeviceCode,
-    POLL_MS: "500",
+    POLL_MS: "1000",
     HEARTBEAT_MS: "5000",
     HEALTH_PORT: String(HEALTH_PORT),
     ...("dryRunDir" in printer ? { PRINTER_TYPE: "dryrun", DRYRUN_DIR: printer.dryRunDir } : { PRINTER_TYPE: "file", PRINTER_PATH: printer.path }),
@@ -42,35 +60,36 @@ async function startAgent(printer: { dryRunDir: string } | { path: string }): Pr
   const child = spawn(process.execPath, ["-r", "@swc-node/register", "tools/kiosk-print-agent/src/main.ts"], { cwd: REPO_ROOT, env, stdio: "ignore" });
   agents.push(child);
   for (let i = 0; i < 60; i++) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${HEALTH_PORT}/health`);
-      if (response.status === 200 || response.status === 503) return child;
-    } catch {
-      // not up yet
-    }
+    if (child.exitCode !== null) throw new Error(`The print agent exited at start-up (code ${child.exitCode})`);
+    if (await answersHealth()) return child;
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error("The print agent did not start");
 }
 
+/** Stops the agent and waits until it has really exited, so its port and its sign-in are gone before the next one starts. */
 async function stopAgent(child: ChildProcess) {
-  child.kill();
-  await new Promise((r) => setTimeout(r, 800));
+  if (child.exitCode === null) {
+    const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
+    child.kill();
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 10_000))]);
+  }
+  await waitForPortFree();
 }
 
 /** An existing patient checks in at the kiosk as a walk-in; returns the ticket shown. */
 async function checkInAtKiosk(): Promise<string> {
   n += 1;
   const birthDate = `19${60 + (n % 30)}-0${1 + (n % 9)}-${10 + (n % 18)}`;
-  const admin = await staffApi(STAFF.admin, state.facilityId);
-  const patient = await admin.post<{ patientNumber: string }>("/patients", {
+  // Registered by the front desk's session opened once for the file: a sign-in per check-in would use the API's sign-in allowance
+  // (ten a minute for all journeys) and make this journey wait out the window.
+  const patient = await desk.post<{ patientNumber: string }>("/patients", {
     familyName: `Printing${n}x`,
     givenName: `Given${n}`,
     sex: "female",
     birthDate,
     contacts: [{ system: "mobile", value: `0917 555 ${String(2000 + n)}` }],
   });
-  await admin.dispose();
   const [year, month, day] = birthDate.split("-") as [string, string, string];
   await kiosk.goto("/");
   await kiosk.getByRole("button", { name: "Touch here to check in" }).click();
@@ -127,7 +146,26 @@ test.afterAll(async () => {
   expect(errors, "console or page errors").toEqual([]);
 });
 
+/**
+ * Waits until the ticket has been printed into the folder. An agent that starts while the API is turning sign-ins away waits
+ * out the API's Retry-After before it signs in (up to a minute), so this allows for that; if it still does not print, the
+ * agent's own health report is added to the failure so the cause is visible.
+ */
+async function expectPrinted(dir: string, ticket: string) {
+  try {
+    await expect.poll(async () => (await printedTexts(dir)).some((t) => t.includes(ticket)), { timeout: 75_000 }).toBe(true);
+  } catch (error) {
+    const health = await fetch(healthUrl()).then(
+      (r) => r.text(),
+      () => "no answer from the agent's health port",
+    );
+    throw new Error(`${(error as Error).message}
+Agent health: ${health}`);
+  }
+}
+
 test("a check-in prints the ticket through the print agent, and the kiosk tells the person so", async () => {
+  test.setTimeout(180_000);
   const dir = await mkdtemp(join(tmpdir(), "e2e-printed-"));
   const agent = await startAgent({ dryRunDir: dir });
   try {
@@ -135,7 +173,7 @@ test("a check-in prints the ticket through the print agent, and the kiosk tells 
     await expect(kiosk.getByRole("status").filter({ hasText: "Your ticket is printed" })).toBeVisible({ timeout: 20_000 });
 
     // The printed ticket carries the number and the service — and nothing about the patient.
-    await expect.poll(async () => (await printedTexts(dir)).some((t) => t.includes(ticket)), { timeout: 20_000 }).toBe(true);
+    await expectPrinted(dir, ticket);
     const printed = (await printedTexts(dir)).find((t) => t.includes(ticket))!;
     expect(printed).toContain(state.kioskVisitType.name);
     expect(printed).not.toMatch(/Printing\d+x|Given\d+/);
@@ -150,6 +188,7 @@ test("a check-in prints the ticket through the print agent, and the kiosk tells 
 });
 
 test("a printer that cannot print: the kiosk sends the person to the desk, staff see it, and printing again works once it is fixed", async ({ browser }) => {
+  test.setTimeout(240_000);
   // A printer path that does not exist: every attempt fails.
   const broken = await startAgent({ path: join(tmpdir(), "e2e-no-such-folder", "lp0") });
   let ticket: string;
@@ -178,7 +217,7 @@ test("a printer that cannot print: the kiosk sends the person to the desk, staff
     await reception.getByLabel(new RegExp(`Print ${ticket} again`)).fill("Printer was out of paper");
     await reception.getByRole("button", { name: "Print again", exact: true }).click();
     await toast(reception, new RegExp(`${ticket} will print again`));
-    await expect.poll(async () => (await printedTexts(dir)).some((t) => t.includes(ticket)), { timeout: 20_000 }).toBe(true);
+    await expectPrinted(dir, ticket);
 
     // The reprint is listed, and the printer is working again.
     await reception.goto("/queue/devices");

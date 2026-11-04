@@ -95,6 +95,40 @@ describe("AgentApi", () => {
     await expect(offline.claim("front-1")).rejects.toBeInstanceOf(TransientApiError);
   });
 
+  it("does not hammer a sign-in the API turned away: it waits for the Retry-After, or a short while, before trying again", async () => {
+    let clock = 1_000_000;
+    const answers: Array<{ status: number; headers?: Record<string, string>; body?: unknown }> = [
+      { status: 429, headers: { "retry-after": "20" } },
+      { status: 200, body: { accessToken: "t" } },
+      { status: 200, body: { job: null } },
+    ];
+    let signIns = 0;
+    const api = new AgentApi({
+      baseUrl: "https://x.example",
+      email: "a@x.ph",
+      password: "p",
+      facilityId: FACILITY,
+      now: () => clock,
+      fetchImpl: (async (url: string) => {
+        if (String(url).endsWith("/auth/login")) signIns += 1;
+        const answer = answers.shift() ?? { status: 500 };
+        return new Response(JSON.stringify(answer.body ?? {}), { status: answer.status, headers: { "content-type": "application/json", ...answer.headers } });
+      }) as unknown as typeof fetch,
+    });
+    await expect(api.claim("front-1")).rejects.toBeInstanceOf(TransientApiError);
+    expect(signIns).toBe(1);
+    // The next polls, inside the 20 seconds the API asked for, do not touch the API at all.
+    clock += 5_000;
+    await expect(api.claim("front-1")).rejects.toThrow(/Waiting before signing in again/);
+    clock += 10_000;
+    await expect(api.claim("front-1")).rejects.toThrow(/Waiting before signing in again/);
+    expect(signIns).toBe(1);
+    // After it, the agent signs in and carries on.
+    clock += 6_000;
+    expect(await api.claim("front-1")).toEqual({ job: null });
+    expect(signIns).toBe(2);
+  });
+
   it("does not trust a claim answer that is not a ticket", async () => {
     const { api } = make([
       { status: 200, body: { accessToken: "t" } },

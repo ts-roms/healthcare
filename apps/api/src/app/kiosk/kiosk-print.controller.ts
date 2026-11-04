@@ -7,8 +7,10 @@ import { KioskDeviceService } from "./kiosk-device.service";
 import { KioskPrintService } from "./kiosk-print.service";
 import { ClaimPrintDto, PrinterHeartbeatDto, PrintResultDto } from "./kiosk.dto";
 
-// The agent polls every few seconds and reports regularly: generous per address, since one agent serves a facility.
-const AGENT_THROTTLE = { default: { limit: 120, ttl: 60_000 } };
+// The agent asks for each of its kiosks' tickets every couple of seconds, and a busy round claims several in a row: with five
+// kiosks that is already more than 120 requests a minute, and going over blocks the account for the whole minute, so tickets
+// would wait. The account holds one permission and opens no patient data, so a high ceiling costs nothing.
+const AGENT_THROTTLE = { default: { limit: 600, ttl: 60_000 } };
 
 /**
  * The local print agent's API (docs/domains/kiosk.md, "Printing and devices"). The agent signs in as its own account

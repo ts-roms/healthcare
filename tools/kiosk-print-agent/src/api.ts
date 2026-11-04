@@ -7,6 +7,8 @@ export class TransientApiError extends Error {
   constructor(
     message: string,
     readonly status?: number,
+    /** The `Retry-After` the API sent, in seconds, when it sent one. */
+    readonly retryAfterSeconds?: string,
   ) {
     super(message);
     this.name = "TransientApiError";
@@ -31,7 +33,14 @@ export interface ApiOptions {
   facilityId: string;
   organizationId?: string;
   fetchImpl?: typeof fetch;
+  /** The clock, in milliseconds (tests). */
+  now?: () => number;
 }
+
+/** How long the agent waits before signing in again after the API turned its sign-in away, when the API does not say. */
+export const SIGN_IN_BACKOFF_MS = 30_000;
+/** The longest it waits, whatever the API asks for. */
+export const SIGN_IN_BACKOFF_MAX_MS = 120_000;
 
 export type PrintOutcome = { outcome: "printed" } | { outcome: "failed"; error: "paper_out" | "offline" | "error"; retry: boolean };
 
@@ -42,6 +51,8 @@ export type PrintOutcome = { outcome: "printed" } | { outcome: "failed"; error: 
  */
 export class AgentApi {
   private token: string | null = null;
+  /** After a sign-in the API turned away (busy, rate limited), no new attempt is made before this time. */
+  private signInBlockedUntil = 0;
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: ApiOptions) {
@@ -64,7 +75,30 @@ export class AgentApi {
     await this.request("/kiosk/print/heartbeat", { deviceCode, printerStatus });
   }
 
+  private now(): number {
+    return this.options.now?.() ?? Date.now();
+  }
+
+  /**
+   * Signs in. A sign-in the API turns away (rate limited, busy) is not tried again on the next poll — that would keep the
+   * agent, and the clinic's other devices sharing the address, at the limit — but after the `Retry-After` the API gave,
+   * or a short wait.
+   */
   private async signIn(): Promise<string> {
+    if (this.now() < this.signInBlockedUntil) throw new TransientApiError("Waiting before signing in again");
+    try {
+      return await this.signInOnce();
+    } catch (error) {
+      if (error instanceof TransientApiError && error.status !== undefined) {
+        const asked = Number(error.retryAfterSeconds);
+        const wait = Number.isFinite(asked) && asked > 0 ? asked * 1000 : SIGN_IN_BACKOFF_MS;
+        this.signInBlockedUntil = this.now() + Math.min(wait, SIGN_IN_BACKOFF_MAX_MS);
+      }
+      throw error;
+    }
+  }
+
+  private async signInOnce(): Promise<string> {
     const response = await this.send(
       "/auth/login",
       { email: this.options.email, password: this.options.password, organizationId: this.options.organizationId },
@@ -72,7 +106,8 @@ export class AgentApi {
     );
     const body = (await response.json().catch(() => ({}))) as { accessToken?: string; status?: string };
     if (!response.ok) {
-      if (response.status === 429 || response.status >= 500) throw new TransientApiError("Sign-in is not available right now", response.status);
+      if (response.status === 429 || response.status >= 500)
+        throw new TransientApiError("Sign-in is not available right now", response.status, response.headers.get("retry-after") ?? undefined);
       throw new ConfigError("The API refused the agent's sign-in: check AGENT_EMAIL, AGENT_PASSWORD and ORGANIZATION_ID");
     }
     if (body.status === "mfa_required")
