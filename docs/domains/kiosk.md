@@ -16,7 +16,7 @@ identification. Decision: ADR-0015. Brief: `docs/kiosk/`.
 - `kiosk_registration` — a staged new-patient registration: reference `KR-XXXXXX`, status
   `pending | approved | linked | rejected | expired`, the sealed payload (erased on any decision or expiry), duplicate
   candidate ids, reviewer, reason, resulting patient and visit. A decided row never changes (trigger).
-- `visit_type.kiosk_enabled` (which services a kiosk offers), `visit.checked_in_via = 'kiosk'`, `visit.queued_at` and
+- `visit_type.kiosk_enabled` (which services a kiosk offers; staff set it under **Appointments → Online booking → Patient kiosk**, KA-15), `visit.checked_in_via = 'kiosk'`, `visit.queued_at` and
   `visit.skipped_count` (skip).
 
 ## Commands

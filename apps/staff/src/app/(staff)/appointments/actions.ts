@@ -121,6 +121,17 @@ export async function setOnlineBooking(input: z.input<typeof onlineBookingSchema
   return result;
 }
 
+const kioskEnabledSchema = z.object({ visitTypeId: z.uuid(), kioskEnabled: z.boolean(), version: z.number().int().positive() });
+/** Offers or withdraws a visit type at the patient kiosk (needs clinic.configure; audited). */
+export async function setKioskEnabled(input: z.input<typeof kioskEnabledSchema>): Promise<ActionResult<VisitType>> {
+  const parsed = kioskEnabledSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { visitTypeId, ...body } = parsed.data;
+  const result = await actionResult(() => api<VisitType>(`/clinic/visit-types/${visitTypeId}`, { method: "PATCH", body }));
+  if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
+}
+
 /** Adds a visit type for the organization (needs clinic.configure; audited). The API refuses a code already in use (409). */
 export async function createVisitType(input: VisitTypeFormInput): Promise<ActionResult<VisitType>> {
   const parsed = visitTypeFormSchema.safeParse(input);

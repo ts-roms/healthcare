@@ -605,6 +605,8 @@ export interface VisitType {
   requiresTriage: boolean;
   /** Patients may book this visit type themselves in MyHealth. */
   onlineBooking: boolean;
+  /** A patient kiosk offers this visit type for a walk-in check-in (in-person types only). */
+  kioskEnabled: boolean;
   version: number;
 }
 

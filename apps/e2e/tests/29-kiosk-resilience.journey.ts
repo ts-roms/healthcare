@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 import { loadState, type StaffApi, staffApi } from "../support/api";
 import { KIOSK_URL, STAFF, STAFF_PASSWORD } from "../support/env";
-import { watchErrors } from "../support/pages";
+import { staffPage, toast, watchErrors } from "../support/pages";
 
 /**
  * The kiosk when things go wrong or take a different path (docs/security/kiosk-audit-phase-6.md, KA-11): a booked patient
@@ -189,4 +189,28 @@ test("a connection that drops while someone is typing ends in plain words, and t
   await kiosk.getByRole("button", { name: state.kioskVisitType.name }).click();
   await expect(kiosk.getByRole("heading", { name: "You are checked in" })).toBeVisible();
   expect(await queueEntries(await ticketOf())).toBe(1);
+});
+
+test("an administrator offers a service at the kiosk from the visit types screen, and withdraws it again", async ({ browser }) => {
+  const admin = await staffPage(browser, STAFF.admin, errors);
+  try {
+    await admin.goto("/appointments/visit-types");
+    await admin.getByRole("button", { name: "Add a visit type…" }).click();
+    await admin.locator("#visit-type-name").fill("Kiosk screen check");
+    await admin.locator("#visit-type-code").fill("kiosk-screen-check");
+    await admin.getByRole("checkbox", { name: "Offer this visit type at the patient kiosk" }).check();
+    await admin.getByRole("button", { name: "Add visit type" }).click();
+    await toast(admin, "Visit type added");
+
+    const row = admin.getByRole("row", { name: /Kiosk screen check/ });
+    await expect(row.getByText("Offered at the kiosk")).toBeVisible();
+    // Online visits are never offered at a kiosk.
+    await expect(admin.getByRole("row", { name: /Online consultation/ }).getByText("Not for online visits")).toBeVisible();
+
+    await row.getByRole("checkbox", { name: "Offer Kiosk screen check at the patient kiosk" }).click();
+    await toast(admin, /Kiosk screen check is no longer offered at the patient kiosk/);
+    await expect(row.getByText("Not at the kiosk")).toBeVisible();
+  } finally {
+    await admin.context().close();
+  }
 });

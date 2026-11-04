@@ -425,12 +425,15 @@ Visit types (Consultation, Follow-up, Online consultation…) are what every app
 organization has none: until a clinic administrator adds one, **Book appointment** and **Check in walk-in** say that no visit types are set up.
 
 1. Open **Appointments** and select **Online booking** (`/appointments/visit-types`).
-2. The table lists each visit type with its code, **Where** (**In person** or **Online (video)**), **Duration**, **Status** and **Online booking**.
+2. The table lists each visit type with its code, **Where** (**In person** or **Online (video)**), **Duration**, **Status**, **Online booking** and **Patient kiosk**.
 3. To add one, select **Add a visit type…** and fill in the **Name** staff and patients see, a **Code** (2–49 letters, digits or hyphens, unique in
    your organization; it can never be changed), **Where** the visit happens, its **Usual length** in minutes (5–480; the length of the slot offered
    when booking), whether patients go through **Triage before the consultation**, and whether **Patients may book it themselves in MyHealth**. Select
    **Add visit type**.
 4. Tick the box to open a visit type for booking in MyHealth (**Patients can book**); untick it to make it **Staff only**.
+   Tick **Patient kiosk** to offer an in-person visit type on the patient kiosk for walk-in check-in (**Offered at the kiosk**); a kiosk lists only the
+   visit types ticked here, so with none ticked it has no service to offer. Online (video) visit types are never offered at a kiosk. When adding a visit
+   type, the same choice is **Offer it at the patient kiosk (walk-in check-in)**.
 5. To retire a visit type, select **Deactivate…** on its row and confirm. It is no longer offered for bookings, walk-ins or online booking;
    appointments and visits already recorded keep it, and it stays in the list as **Inactive**. Visit types are never deleted.
 

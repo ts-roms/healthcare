@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { GlobeIcon, LockIcon } from "lucide-react";
+import { GlobeIcon, LockIcon, MonitorSmartphoneIcon } from "lucide-react";
 import { Button, Checkbox, Input, Label, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import type { VisitType } from "@/lib/api/types";
 import { type RunServerAction, useServerAction } from "@/lib/use-server-action";
 import { BLANK_VISIT_TYPE, VISIT_TYPE_MODALITIES } from "@/lib/visit-type-form";
-import { createVisitType, deactivateVisitType, setOnlineBooking } from "../actions";
+import { createVisitType, deactivateVisitType, setKioskEnabled, setOnlineBooking } from "../actions";
 
 export function VisitTypeList({ visitTypes, canConfigure }: { visitTypes: VisitType[]; canConfigure: boolean }) {
   const { pending, run } = useServerAction({ refreshOnFailure: true });
@@ -15,6 +15,12 @@ export function VisitTypeList({ visitTypes, canConfigure }: { visitTypes: VisitT
     run(
       () => setOnlineBooking({ visitTypeId: type.id, onlineBooking, version: type.version }),
       `${type.name} is ${onlineBooking ? "open" : "closed"} for online booking`,
+    );
+
+  const toggleKiosk = (type: VisitType, kioskEnabled: boolean) =>
+    run(
+      () => setKioskEnabled({ visitTypeId: type.id, kioskEnabled, version: type.version }),
+      `${type.name} is ${kioskEnabled ? "offered" : "no longer offered"} at the patient kiosk`,
     );
 
   const deactivate = (type: VisitType) => {
@@ -32,13 +38,14 @@ export function VisitTypeList({ visitTypes, canConfigure }: { visitTypes: VisitT
             <TableHead>Duration</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Online booking</TableHead>
+            <TableHead>Patient kiosk</TableHead>
             {canConfigure ? <TableHead className="sr-only">Actions</TableHead> : null}
           </TableRow>
         </TableHeader>
         <TableBody>
           {visitTypes.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canConfigure ? 6 : 5} className="text-muted-foreground">
+              <TableCell colSpan={canConfigure ? 7 : 6} className="text-muted-foreground">
                 No visit types yet. {canConfigure ? "Add one below." : "Ask a clinic administrator to add one."}
               </TableCell>
             </TableRow>
@@ -69,6 +76,27 @@ export function VisitTypeList({ visitTypes, canConfigure }: { visitTypes: VisitT
                     </span>
                   )}
                 </label>
+              </TableCell>
+              <TableCell>
+                {type.modality === "telemedicine" ? (
+                  <span className="text-muted-foreground">Not for online visits</span>
+                ) : (
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={type.kioskEnabled}
+                      disabled={!canConfigure || pending || type.status !== "active"}
+                      onCheckedChange={(checked) => toggleKiosk(type, checked === true)}
+                      aria-label={`Offer ${type.name} at the patient kiosk`}
+                    />
+                    {type.kioskEnabled ? (
+                      <span className="flex items-center gap-1">
+                        <MonitorSmartphoneIcon className="size-3.5" aria-hidden /> Offered at the kiosk
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Not at the kiosk</span>
+                    )}
+                  </label>
+                )}
               </TableCell>
               {canConfigure ? (
                 <TableCell className="text-right">
@@ -143,7 +171,13 @@ function AddVisitType({ pending, run }: { pending: boolean; run: RunServerAction
         </div>
         <div className="grid gap-1">
           <Label htmlFor="visit-type-where">Where</Label>
-          <NativeSelect id="visit-type-where" value={form.modality} onChange={(e) => setForm((f) => ({ ...f, modality: e.target.value as typeof f.modality }))}>
+          <NativeSelect
+            id="visit-type-where"
+            value={form.modality}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, modality: e.target.value as typeof f.modality, kioskEnabled: e.target.value === "in_person" ? f.kioskEnabled : false }))
+            }
+          >
             {VISIT_TYPE_MODALITIES.map((m) => (
               <option key={m.value} value={m.value}>
                 {m.label}
@@ -181,6 +215,16 @@ function AddVisitType({ pending, run }: { pending: boolean; run: RunServerAction
         />
         Patients may book it themselves in MyHealth
       </label>
+      {form.modality === "in_person" ? (
+        <label className="flex items-center gap-2 text-body">
+          <Checkbox
+            checked={form.kioskEnabled}
+            onCheckedChange={(checked) => setForm((f) => ({ ...f, kioskEnabled: checked === true }))}
+            aria-label="Offer this visit type at the patient kiosk"
+          />
+          Offer it at the patient kiosk (walk-in check-in)
+        </label>
+      ) : null}
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={pending}>
           {pending ? "Adding…" : "Add visit type"}

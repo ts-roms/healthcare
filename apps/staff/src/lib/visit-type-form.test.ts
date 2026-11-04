@@ -8,6 +8,7 @@ const valid = {
   modality: "in_person" as const,
   requiresTriage: true,
   onlineBooking: false,
+  kioskEnabled: false,
 };
 const firstMessage = (input: unknown) => {
   const parsed = visitTypeFormSchema.safeParse(input);
@@ -66,6 +67,7 @@ describe("visit type form", () => {
     expect(BLANK_VISIT_TYPE.modality).toBe("in_person");
     expect(BLANK_VISIT_TYPE.requiresTriage).toBe(true);
     expect(BLANK_VISIT_TYPE.onlineBooking).toBe(false);
+    expect(BLANK_VISIT_TYPE.kioskEnabled).toBe(false);
     expect(firstMessage(BLANK_VISIT_TYPE)).not.toBeNull();
   });
 });
