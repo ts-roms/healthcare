@@ -68,7 +68,7 @@ export class PrintJobsQueryDto extends createZodDto(printJobsQuerySchema) {}
 
 export const heartbeatSchema = z.object({
   appVersion: z.string().trim().min(1).max(40).optional(),
-  printerStatus: z.enum(["none", "ok", "paper_out", "offline", "error"]).optional(),
+  // The printer's state is reported by the print agent only (POST /kiosk/print/heartbeat); a kiosk cannot overwrite it.
 });
 export class HeartbeatDto extends createZodDto(heartbeatSchema) {}
 

@@ -2,7 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { type Actor, asPlatform, BusinessRuleError, DATABASE, type Database } from "@healthcare/core";
 import { PatientIdentityService } from "@healthcare/patient";
-import { and, eq, gt, lt, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { KioskDeviceService } from "./kiosk-device.service";
 import type { identifySchema } from "./kiosk.dto";
@@ -26,7 +26,8 @@ const sessionEnded = () => new BusinessRuleError("Your session has ended. Please
 
 /**
  * A person's time at a kiosk (docs/domains/kiosk.md). The screen holds only a random token; the server holds its hash,
- * the device it belongs to and, once the person has been recognised, the patient id. A session ends when the person
+ * the device it belongs to and, once the person has been recognised, the patient id (kept after the session ends as the
+ * record of who was served; the audit trail holds the same fact). A session ends when the person
  * finishes, after two idle minutes, at fifteen minutes in all, or when identification fails three times.
  */
 @Injectable()
@@ -103,21 +104,48 @@ export class KioskSessionService {
 
   /**
    * Recognises the person in the Patient Master. Three things must agree (patient or mobile number, date of birth,
-   * given name). A miss is counted before it is answered, so parallel guesses cannot beat the limit; the third miss
-   * locks the session. Success shows initials only — never the name.
+   * given name). Each attempt is reserved on the session *before* the lookup, in one atomic statement that refuses a
+   * further attempt once the limit is reached, so guesses sent in parallel cannot beat it; the reservation is given back
+   * when the person is recognised. The third miss locks the session. Success shows initials only — never the name.
    */
   async identify(actor: Actor, token: string | undefined, input: z.infer<typeof identifySchema>) {
     const session = await this.resolve(actor, token);
     if (session.patientId) throw new BusinessRuleError("You are already identified.", "kiosk_already_identified");
-    if (deviceCoolingDown(await this.recentFailures(session.deviceId, new Date()))) throw coolingDown();
+
+    const [reserved] = await this.db
+      .update(kioskSession)
+      .set({ failedAttempts: sql`${kioskSession.failedAttempts} + 1` })
+      .where(
+        and(
+          eq(kioskSession.id, session.id),
+          eq(kioskSession.status, "active"),
+          isNull(kioskSession.patientId),
+          lt(kioskSession.failedAttempts, MAX_IDENTIFY_ATTEMPTS),
+        ),
+      )
+      .returning({ failedAttempts: kioskSession.failedAttempts });
+    if (!reserved) {
+      // The attempts are used up (others are still being answered) or the session ended meanwhile.
+      const [current] = await this.db.select({ status: kioskSession.status }).from(kioskSession).where(eq(kioskSession.id, session.id));
+      throw current?.status === "active" || current?.status === "locked"
+        ? new BusinessRuleError("Please see the front desk for help.", "kiosk_session_locked")
+        : sessionEnded();
+    }
+    const attempts = reserved.failedAttempts;
+    const giveBack = () =>
+      this.db
+        .update(kioskSession)
+        .set({ failedAttempts: sql`greatest(${kioskSession.failedAttempts} - 1, 0)` })
+        .where(eq(kioskSession.id, session.id));
+
+    // The kiosk's own budget counts the reservation made above, so a burst cannot slip past it either.
+    if (deviceCoolingDown((await this.recentFailures(session.deviceId, new Date())) - 1)) {
+      await giveBack();
+      throw coolingDown();
+    }
+
     const match = await this.identity.verify(actor.organizationId, input);
     if (!match) {
-      const [counted] = await this.db
-        .update(kioskSession)
-        .set({ failedAttempts: sql`${kioskSession.failedAttempts} + 1` })
-        .where(and(eq(kioskSession.id, session.id), eq(kioskSession.status, "active")))
-        .returning({ failedAttempts: kioskSession.failedAttempts });
-      const attempts = counted?.failedAttempts ?? MAX_IDENTIFY_ATTEMPTS;
       const locked = attempts >= MAX_IDENTIFY_ATTEMPTS;
       if (locked) {
         await this.db
@@ -134,11 +162,12 @@ export class KioskSessionService {
       });
       throw new BusinessRuleError(locked ? "Please see the front desk for help." : NOT_FOUND, locked ? "kiosk_session_locked" : "identification_failed");
     }
+    await giveBack();
     await this.db.transaction(async (tx) => {
       const [updated] = await tx
         .update(kioskSession)
         .set({ patientId: match.patientId, identifiedAt: new Date() })
-        .where(and(eq(kioskSession.id, session.id), eq(kioskSession.status, "active")))
+        .where(and(eq(kioskSession.id, session.id), eq(kioskSession.status, "active"), isNull(kioskSession.patientId)))
         .returning({ id: kioskSession.id });
       if (!updated) throw sessionEnded();
       await this.audit.record(tx, actor, {
@@ -146,7 +175,7 @@ export class KioskSessionService {
         resourceType: "kiosk_session",
         resourceId: session.id,
         patientId: match.patientId,
-        metadata: { attempts: session.failedAttempts + 1 },
+        metadata: { attempts },
       });
     });
     return { maskedName: match.maskedName, birthYear: match.birthYear };

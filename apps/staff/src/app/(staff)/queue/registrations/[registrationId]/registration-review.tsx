@@ -240,8 +240,10 @@ export function RegistrationReview({
                           ? { reviewedCandidateIds: candidates.map((c) => c.patient.id), reason: overrideReason.trim() }
                           : undefined,
                       }),
-                    (data: { patientId: string; patientNumber: string }) => {
+                    (data: { patientId: string; patientNumber: string; queued: boolean }) => {
                       toast.success(`Registered ${data.patientNumber}`);
+                      if (visitTypeId && !data.queued)
+                        toast.warning("The patient is registered but could not be put in the queue. Add them from the queue screen.");
                       setDone({ patientId: data.patientId, patientNumber: data.patientNumber, linked: false });
                     },
                   )

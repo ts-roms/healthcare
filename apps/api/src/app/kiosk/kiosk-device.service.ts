@@ -250,7 +250,6 @@ export class KioskDeviceService {
       .set({
         heartbeatAt: new Date(),
         ...(input.appVersion !== undefined ? { appVersion: input.appVersion } : {}),
-        ...(input.printerStatus !== undefined ? { printerStatus: input.printerStatus } : {}),
       })
       .where(eq(kioskDevice.id, device.id));
     return { status: device.status };

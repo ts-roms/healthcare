@@ -21,7 +21,7 @@ identification. Decision: ADR-0015. Brief: `docs/kiosk/`.
 
 ## Commands
 
-Kiosk (`kiosk.session.use`, header `X-Kiosk-Session` after the first call): `GET /kiosk/me`, `POST /kiosk/heartbeat`,
+Kiosk (`kiosk.session.use`, header `X-Kiosk-Session` after the first call): `GET /kiosk/me`, `POST /kiosk/heartbeat` (app version only: the printer's state is reported by the print agent and a kiosk cannot overwrite it),
 `GET /kiosk/services`, `POST /kiosk/sessions`, `DELETE /kiosk/sessions`, `POST /kiosk/identify`,
 `GET /kiosk/appointments`, `POST /kiosk/check-in` (`appointmentId` or `visitTypeId`), `POST /kiosk/registrations`.
 
@@ -31,7 +31,10 @@ Staff: `GET|POST /kiosk/admin/devices`, `PATCH …/devices/:id` (`kiosk.device.r
 the patient); `POST /queue/visits/:id/skip` (`clinic.queue.manage`).
 
 Rules: identification needs number + exact birth date + given name to match one active patient; every miss gets the same
-answer; three misses lock the session. Appointment check-in only for the identified patient's own in-person appointment
+answer; three misses lock the session. Each attempt is reserved on the session before the lookup in one atomic statement, so
+guesses sent in parallel cannot beat the limit (and the kiosk's own budget counts the same way); the reservation is given back
+when the person is recognised. The session row keeps the identified patient's id after it ends, as the record of who was served
+(the audit trail holds the same fact); whether to clear it is a retention decision for the organization. Appointment check-in only for the identified patient's own in-person appointment
 at this facility inside the facility's check-in window (outside it: "see the desk"); repeating returns the same ticket.
 A walk-in is refused while the patient is already in the queue (`already_in_queue`). A kiosk in maintenance serves
 nobody; a disabled one is refused. At most 50 registrations wait per kiosk.
@@ -94,7 +97,9 @@ possible existing records with their match reasons, and the decision: **Patient 
 checked the person's identification against the details, and may say how: the API refuses to approve or link without
 `identityChecked: true`, and the confirmation and note are kept in the audit trail of the decision), **Approve and register**
 (the ordinary registration with its duplicate rules: with possible matches the reviewer must confirm the candidates are
-a different person and say why; optionally queues the new patient for a walk-in service), **Same person — link**
+a different person and say why; optionally queues the new patient for a walk-in service: one reviewer decides a registration at a time — a short claim, migration
+`0141`, `registration_in_review` for the second — and if the patient cannot be queued they are still registered and linked to the
+submission, with `queued: false` and the reason, never left as an unlinked patient), **Same person — link**
 (closes the submission against an existing record), or **Decline** with a reason. A detail the person mistyped is
 corrected after approval on the patient record (**Edit details**); the submission itself is never edited. The typed
 payload is erased on any decision. The queue board's actions (recall, no-show, put back in line) are in

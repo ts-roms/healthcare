@@ -128,14 +128,14 @@ describe("patient self-service kiosk", () => {
     });
 
     it("shows staff whether each kiosk is online once it reports in", async () => {
-      await k(kiosk.one).post("/heartbeat", { appVersion: "1.0.0", printerStatus: "paper_out" }).expect(200);
+      await k(kiosk.one).post("/heartbeat", { appVersion: "1.0.0", printerStatus: "ok" }).expect(200);
       const list = (await staff(desk).get("/kiosk/admin/devices").expect(200)).body.items as Array<{
         code: string;
         health: string;
         printerStatus: string;
         appVersion: string;
       }>;
-      expect(list.find((d) => d.code === "front-1")).toMatchObject({ health: "online", printerStatus: "paper_out", appVersion: "1.0.0" });
+      expect(list.find((d) => d.code === "front-1")).toMatchObject({ health: "online", printerStatus: "unknown", appVersion: "1.0.0" });
       expect(list.find((d) => d.code === "front-2")).toMatchObject({ health: "offline" });
       expect(list.map((d) => d.code)).not.toContain("annex-1");
       await staff(desk).post("/kiosk/admin/devices", { code: "x-1", name: "No", userId: deviceOne.id }).expect(403);
@@ -567,6 +567,108 @@ describe("patient self-service kiosk", () => {
       const last = await call(first);
       expect((await staff(desk).post(`/queue/visits/${row.id}/skip`, { version: last.version }).expect(422)).body.error.code).toBe("skip_limit_reached");
       await staff(kiosk.one).post(`/queue/visits/${row.id}/skip`, { version: last.version }).expect(403);
+    });
+  });
+
+  // Phase 6 audit regression tests (docs/security/kiosk-audit-phase-6.md).
+  describe("audit findings", () => {
+    const typedBody = (over: Record<string, unknown> = {}) => ({
+      familyName: "Auditor",
+      givenName: "Anya",
+      sex: "female",
+      birthDate: "1991-03-03",
+      contacts: [{ system: "mobile", value: "0917 888 0101" }],
+      addresses: [{ cityMunicipality: "Quezon City" }],
+      emergencyContact: { name: "Pedro Auditor", contactNumber: "0917 888 0102", relationship: "spouse" },
+      privacyAcknowledged: true,
+      ...over,
+    });
+    async function submit(token: string, over: Record<string, unknown> = {}) {
+      const session = await openSession(token);
+      const reference = (await k(token, session).post("/registrations", typedBody(over)).expect(201)).body.reference as string;
+      await k(token, session).delete("/sessions");
+      const pending = (await staff(desk).get("/kiosk/admin/registrations").expect(200)).body.items as Array<{ id: string; reference: string }>;
+      return pending.find((p) => p.reference === reference)!.id;
+    }
+
+    it("KA-01: guesses sent in parallel cannot beat the three-attempt limit", async () => {
+      await ctx.pool.query(`UPDATE kiosk_session SET failed_attempts = 0 WHERE device_id = (SELECT id FROM kiosk_device WHERE code = 'front-2')`);
+      const who = await newPatient("Guessed");
+      const session = await openSession(kiosk.two);
+      const guesses = await Promise.all(
+        Array.from({ length: 30 }, (_, i) =>
+          k(kiosk.two, session).post("/identify", { key: who.number, birthDate: `19${60 + (i % 30)}-01-01`, givenName: "Nobody" }),
+        ),
+      );
+      expect(guesses.every((g) => g.status === 422)).toBe(true);
+      const stored = await ctx.pool.query(
+        `SELECT status, failed_attempts FROM kiosk_session WHERE device_id = (SELECT id FROM kiosk_device WHERE code = 'front-2') ORDER BY created_at DESC LIMIT 1`,
+      );
+      expect(stored.rows[0]).toEqual({ status: "locked", failed_attempts: 3 });
+      // Even the right answers are refused once the session is locked.
+      await k(kiosk.two, session).post("/identify", { key: who.number, birthDate: who.birthDate, givenName: who.givenName }).expect(422);
+      await ctx.pool.query(`UPDATE kiosk_session SET failed_attempts = 0 WHERE device_id = (SELECT id FROM kiosk_device WHERE code = 'front-2')`);
+    });
+
+    it("KA-01: two misses and then the right answer still identifies, and the misses do not pile up", async () => {
+      const who = await newPatient("Careful");
+      const session = await openSession(kiosk.two);
+      for (let i = 0; i < 2; i++) {
+        await k(kiosk.two, session).post("/identify", { key: who.number, birthDate: "1950-01-01", givenName: who.givenName }).expect(422);
+      }
+      await k(kiosk.two, session).post("/identify", { key: who.number, birthDate: who.birthDate, givenName: who.givenName }).expect(200);
+      const stored = await ctx.pool.query(
+        `SELECT status, failed_attempts FROM kiosk_session WHERE device_id = (SELECT id FROM kiosk_device WHERE code = 'front-2') ORDER BY created_at DESC LIMIT 1`,
+      );
+      expect(stored.rows[0]).toEqual({ status: "active", failed_attempts: 2 });
+      await k(kiosk.two, session).delete("/sessions");
+      await ctx.pool.query(`UPDATE kiosk_session SET failed_attempts = 0 WHERE device_id = (SELECT id FROM kiosk_device WHERE code = 'front-2')`);
+    });
+
+    it("KA-02: a patient who cannot be queued is still linked to the submission, not left as an orphan", async () => {
+      const id = await submit(kiosk.one, { familyName: "Orphaned", givenName: "Opal", birthDate: "1993-04-04" });
+      const approved = await staff(desk)
+        .post(`/kiosk/admin/registrations/${id}/approve`, { identityChecked: true, visitTypeId: "00000000-0000-4000-8000-000000000000" })
+        .expect(200);
+      expect(approved.body).toMatchObject({ queued: false, visitId: null, queueError: expect.any(String), patientId: expect.any(String) });
+      const row = (await ctx.pool.query(`SELECT status, patient_id, payload_sealed FROM kiosk_registration WHERE id = $1`, [id])).rows[0];
+      expect(row).toMatchObject({ status: "approved", patient_id: approved.body.patientId, payload_sealed: null });
+    });
+
+    it("KA-02: two reviewers approving at once create one patient", async () => {
+      const id = await submit(kiosk.one, { familyName: "Twice", givenName: "Tess", birthDate: "1994-05-05" });
+      const results = await Promise.all([
+        staff(desk).post(`/kiosk/admin/registrations/${id}/approve`, { identityChecked: true }),
+        staff(admin).post(`/kiosk/admin/registrations/${id}/approve`, { identityChecked: true }),
+      ]);
+      expect(results.map((r) => r.status).sort()).toEqual([200, 422]);
+      expect(["registration_in_review", "registration_decided"]).toContain(results.find((r) => r.status === 422)!.body.error.code);
+      const made = await ctx.pool.query(`SELECT count(*)::int AS n FROM patient WHERE family_name = 'Twice'`);
+      expect(made.rows[0].n).toBe(1);
+    });
+
+    it("KA-02: a refused approval releases the registration for the next try", async () => {
+      const existing = await newPatient("Dup");
+      const id = await submit(kiosk.one, {
+        familyName: `Santos${n}`,
+        givenName: "Dup",
+        birthDate: existing.birthDate,
+        contacts: [{ system: "mobile", value: existing.mobile }],
+      });
+      const refused = await staff(desk).post(`/kiosk/admin/registrations/${id}/approve`, { identityChecked: true });
+      expect(refused.status).toBe(409);
+      expect(refused.body.error.code).toBe("possible_duplicates");
+      const claim = await ctx.pool.query(`SELECT claimed_at FROM kiosk_registration WHERE id = $1`, [id]);
+      expect(claim.rows[0].claimed_at).toBeNull();
+      await staff(desk).post(`/kiosk/admin/registrations/${id}/link`, { identityChecked: true, patientId: existing.id }).expect(200);
+    });
+
+    it("KA-03: a kiosk cannot overwrite the printer status", async () => {
+      await ctx.pool.query(`UPDATE kiosk_device SET printer_status = 'paper_out' WHERE code = 'front-1'`);
+      await k(kiosk.one).post("/heartbeat", { appVersion: "1.0.1", printerStatus: "ok" }).expect(200);
+      const row = await ctx.pool.query(`SELECT printer_status, app_version FROM kiosk_device WHERE code = 'front-1'`);
+      expect(row.rows[0]).toEqual({ printer_status: "paper_out", app_version: "1.0.1" });
+      await ctx.pool.query(`UPDATE kiosk_device SET printer_status = 'unknown' WHERE code = 'front-1'`);
     });
   });
 });

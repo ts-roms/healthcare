@@ -20,7 +20,7 @@ import {
   sealWithKeyring,
 } from "@healthcare/core";
 import { PatientRecordService, PatientRegistrationService, type RegisterPatientInput } from "@healthcare/patient";
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { KioskDeviceService } from "./kiosk-device.service";
 import { KioskSessionService } from "./kiosk-session.service";
@@ -31,6 +31,8 @@ import { found } from "./kiosk-support";
 
 /** At most this many registrations may wait from one kiosk, so a flood of submissions cannot bury the desk. */
 export const MAX_PENDING_PER_DEVICE = 50;
+/** A reviewer's claim on a registration they are deciding lapses after this long (the browser closed, the request died). */
+export const CLAIM_MS = 2 * 60_000;
 
 export interface PendingRegistrationView {
   id: string;
@@ -225,24 +227,46 @@ export class KioskRegistrationService {
     const row = await this.requirePending(this.db, actor, registrationId);
     if (input.visitTypeId) this.requireQueueRight(actor);
     const typed = this.open(row);
-    const { emergencyContact, privacyAcknowledged: _acknowledged, ...person } = typed;
-    const created = await this.registration.register(actor, {
-      ...person,
-      relationships: [
-        {
-          relationship: emergencyContact.relationship,
-          name: emergencyContact.name,
-          contactNumber: emergencyContact.contactNumber,
-          isEmergencyContact: true,
-        },
-      ],
-      ...(input.duplicateOverride ? { duplicateOverride: input.duplicateOverride } : {}),
-    } satisfies RegisterPatientInput);
-    const visitId = input.visitTypeId
-      ? (await this.visits.walkIn(actor, { patientId: created.id, visitTypeId: input.visitTypeId, priority: "routine" })).id
-      : null;
+    // Only one reviewer decides a registration at a time; a failure before the patient exists releases it again.
+    await this.claim(actor, row.id);
+    let created: { id: string; patientNumber: string };
+    try {
+      const { emergencyContact, privacyAcknowledged: _acknowledged, ...person } = typed;
+      created = await this.registration.register(actor, {
+        ...person,
+        relationships: [
+          {
+            relationship: emergencyContact.relationship,
+            name: emergencyContact.name,
+            contactNumber: emergencyContact.contactNumber,
+            isEmergencyContact: true,
+          },
+        ],
+        ...(input.duplicateOverride ? { duplicateOverride: input.duplicateOverride } : {}),
+      } satisfies RegisterPatientInput);
+    } catch (error) {
+      await this.release(row.id);
+      throw error;
+    }
+    // The patient exists now, so the submission is closed against them whatever happens next: a failure to queue them
+    // is reported to the reviewer, never left as an unlinked patient with a still-pending submission.
+    let visitId: string | null = null;
+    let queueError: string | null = null;
+    if (input.visitTypeId) {
+      try {
+        visitId = (await this.visits.walkIn(actor, { patientId: created.id, visitTypeId: input.visitTypeId, priority: "routine" })).id;
+      } catch (error) {
+        queueError = error instanceof Error && "code" in error ? String((error as { code: unknown }).code) : "queue_failed";
+      }
+    }
     await this.decide(actor, row, "approved", { patientId: created.id, visitId, identityNote: input.identityNote });
-    return { patientId: created.id, patientNumber: created.patientNumber, visitId };
+    return {
+      patientId: created.id,
+      patientNumber: created.patientNumber,
+      visitId,
+      queued: visitId !== null,
+      ...(queueError ? { queueError } : {}),
+    };
   }
 
   /** The person is already a patient: the reviewer says which record, and the submission is closed without creating one. */
@@ -251,9 +275,14 @@ export class KioskRegistrationService {
     if (input.visitTypeId) this.requireQueueRight(actor);
     // Reading the record proves it exists in this organization and is audited as the reviewer's own access.
     const record = await this.records.getDetail(actor, input.patientId);
-    const visitId = input.visitTypeId
-      ? (await this.visits.walkIn(actor, { patientId: record.id, visitTypeId: input.visitTypeId, priority: "routine" })).id
-      : null;
+    await this.claim(actor, row.id);
+    let visitId: string | null = null;
+    try {
+      if (input.visitTypeId) visitId = (await this.visits.walkIn(actor, { patientId: record.id, visitTypeId: input.visitTypeId, priority: "routine" })).id;
+    } catch (error) {
+      await this.release(row.id);
+      throw error;
+    }
     await this.decide(actor, row, "linked", { patientId: record.id, visitId, identityNote: input.identityNote });
     return { patientId: record.id, visitId };
   }
@@ -277,6 +306,30 @@ export class KioskRegistrationService {
   }
 
   // ---- internals ----------------------------------------------------------------------------------------------
+
+  /** Takes the registration for this reviewer; another reviewer's recent claim means it is being decided already. */
+  private async claim(actor: Actor, id: string): Promise<void> {
+    const now = new Date();
+    const [claimed] = await this.db
+      .update(kioskRegistration)
+      .set({ claimedBy: actor.userId, claimedAt: now })
+      .where(
+        and(
+          eq(kioskRegistration.id, id),
+          eq(kioskRegistration.status, "pending"),
+          or(isNull(kioskRegistration.claimedAt), lt(kioskRegistration.claimedAt, new Date(now.getTime() - CLAIM_MS))),
+        ),
+      )
+      .returning({ id: kioskRegistration.id });
+    if (!claimed) throw new BusinessRuleError("Someone else is deciding this registration", "registration_in_review");
+  }
+
+  private async release(id: string): Promise<void> {
+    await this.db
+      .update(kioskRegistration)
+      .set({ claimedBy: null, claimedAt: null })
+      .where(and(eq(kioskRegistration.id, id), eq(kioskRegistration.status, "pending")));
+  }
 
   private requireQueueRight(actor: Actor) {
     if (!actor.permissions.has("clinic.queue.manage")) throw new ForbiddenError("Putting a patient in the queue needs queue management access");

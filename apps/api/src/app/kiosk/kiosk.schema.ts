@@ -1,6 +1,6 @@
 import { boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0137_kiosk.sql, 0139_kiosk_printing_and_displays.sql and 0140_kiosk_prints_tickets.sql (the migrations are the source of truth). These tables belong to the API's
+// Mirrors database/migrations/0137_kiosk.sql, 0139_kiosk_printing_and_displays.sql, 0140_kiosk_prints_tickets.sql and 0141_kiosk_registration_claim.sql (the migrations are the source of truth). These tables belong to the API's
 // kiosk composition, which spans the patient and clinic domains (ADR-0015), not to a domain library.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -69,6 +69,9 @@ export const kioskRegistration = pgTable("kiosk_registration", {
   decisionReason: text("decision_reason"),
   patientId: uuid("patient_id"),
   visitId: uuid("visit_id"),
+  /** The reviewer deciding it right now (migration 0141); a claim older than two minutes is ignored. */
+  claimedBy: uuid("claimed_by"),
+  claimedAt: ts("claimed_at"),
 });
 export type KioskRegistrationRecord = typeof kioskRegistration.$inferSelect;
 

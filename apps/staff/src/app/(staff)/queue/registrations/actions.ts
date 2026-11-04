@@ -12,6 +12,9 @@ export interface ApprovedRegistration {
   patientId: string;
   patientNumber: string;
   visitId: string | null;
+  /** False when a service was chosen but the patient could not be put in the queue (they are registered either way). */
+  queued: boolean;
+  queueError?: string;
 }
 
 /** The reviewer confirmed they checked the person's identification (the API refuses to decide without it) and may say how. */

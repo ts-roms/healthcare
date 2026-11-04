@@ -37,6 +37,20 @@ report awaits your approval of a remediation plan).
 No Critical or High findings. The Medium findings are real but need a valid kiosk device token (KA-01) or a concurrent second
 reviewer / invalid input (KA-02), so they are not reachable by an anonymous visitor.
 
+## Remediation status (2026-11-04)
+
+Approved order, first stage. "Fixed - Pending Verification" means the fix is in, its regression tests pass in the full integration run (all
+suites) and the full E2E run (140 of 140), and it has **not** been retested on the target devices or in a staging environment, so none is
+marked Verified Fixed.
+
+| #                                                      | Status                                    | What changed                                                                                                                                                                                                 |
+| ------------------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| KA-01                                                  | Fixed - Pending Verification              | Each attempt is reserved atomically before the lookup and given back on success; the kiosk budget counts the same way. Test: 30 parallel guesses record exactly 3 failures.                                  |
+| KA-02                                                  | Fixed - Pending Verification              | Migration `0141` (reviewer claim, `registration_in_review`); a patient who cannot be queued is still linked to the submission (`queued: false`); a refused approval releases the claim. Tests for all three. |
+| KA-03                                                  | Fixed - Pending Verification              | The kiosk heartbeat carries the app version only; the printer state comes from the print agent. Test: a kiosk heartbeat cannot change it.                                                                    |
+| KA-05                                                  | Accepted Risk (pending your confirmation) | Kept the patient id on the session as the record of who was served; comment corrected, retention question added to the compliance register. Clearing it is the alternative.                                  |
+| KA-04, KA-06, KA-07, KA-08, KA-09, KA-10, KA-11, KA-12 | Open                                      | Not yet addressed (hardening, design decisions, journeys and the hardware/ZAP plan).                                                                                                                         |
+
 ## Findings
 
 ### KA-01 — Parallel guesses beat the identification limit (Medium)
