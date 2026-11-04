@@ -34,7 +34,7 @@ test("reception calls a ticket and the waiting-room display shows it, without th
   // The ticket card (the figure tiles above the board can name the longest wait too).
   await desk.getByRole("button", { name: /A-\d+.*DISPLAY, Teodoro/i }).click();
   await desk.locator("#called-to").fill("Room 5");
-  await desk.getByRole("button", { name: "Call" }).click();
+  await desk.getByRole("button", { name: "Call", exact: true }).click();
   await toast(desk, `${ticket} called to Room 5`);
 
   // Live: the call reaches the screen without reloading it.

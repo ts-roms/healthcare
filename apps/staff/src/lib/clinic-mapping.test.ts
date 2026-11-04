@@ -20,6 +20,8 @@ import {
   upcomingAppointments,
   zonedLocalToIso,
   toQueueEntry,
+  filterQueue,
+  nowServing,
   queueFigures,
 } from "./clinic-mapping";
 
@@ -439,5 +441,60 @@ describe("zonedLocalToIso", () => {
     ]);
     expect(columns[1]!.items.map((i) => i.startsAt)).toEqual([at(1), at(3)]);
     expect(groupByRoom([], rooms).map((c) => c.name)).toEqual(["Room 1", "Room 2"]);
+  });
+});
+
+describe("searching and filtering the queue", () => {
+  const calledAt = "2026-09-27T01:50:00Z";
+  const ana = {
+    ...visit,
+    id: "1",
+    ticket: "A-001",
+    patient: { patientNumber: "P00000011", displayName: "REYES, Ana", sex: "female" as const, age: 30 },
+    status: "waiting" as const,
+  };
+  const ben = {
+    ...ana,
+    id: "2",
+    ticket: "A-002",
+    patient: { patientNumber: "P00000022", displayName: "SANTOS, Ben", sex: "male" as const, age: 40 },
+    calledAt,
+    calledTo: "Room 4",
+    checkedInVia: "kiosk" as const,
+  };
+  const cara = {
+    ...ana,
+    id: "3",
+    ticket: "A-003",
+    patient: { patientNumber: "P00000033", displayName: "CRUZ, Cara", sex: "female" as const, age: 50 },
+    chiefComplaint: "Cough",
+    status: "in_consultation" as const,
+    calledAt,
+  };
+  const all = [ana, ben, cara];
+
+  it("finds a ticket by number, name, patient number, complaint or place", () => {
+    const ids = (query: string) => filterQueue(all, { query, view: "all" }).map((v) => v.id);
+    expect(ids("a-002")).toEqual(["2"]);
+    expect(ids("reyes")).toEqual(["1"]);
+    expect(ids("P00000033")).toEqual(["3"]);
+    expect(ids("cough")).toEqual(["3"]);
+    expect(ids("room 4")).toEqual(["2"]);
+    expect(ids("   ")).toEqual(["1", "2", "3"]);
+    expect(ids("nobody")).toEqual([]);
+  });
+
+  it("narrows to the tickets being called, or to those who checked in themselves", () => {
+    // A patient with the provider is no longer being called.
+    expect(filterQueue(all, { query: "", view: "called" }).map((v) => v.id)).toEqual(["2"]);
+    expect(filterQueue(all, { query: "", view: "self" }).map((v) => v.id)).toEqual(["2"]);
+    expect(filterQueue(all, { query: "santos", view: "called" }).map((v) => v.id)).toEqual(["2"]);
+    expect(filterQueue(all, { query: "reyes", view: "called" })).toEqual([]);
+  });
+
+  it("lists who is being called now, newest call first", () => {
+    const later = { ...ben, id: "4", ticket: "A-004", calledAt: "2026-09-27T01:55:00Z" };
+    expect(nowServing([ana, ben, later, cara]).map((v) => v.id)).toEqual(["4", "2"]);
+    expect(nowServing([ana])).toEqual([]);
   });
 });

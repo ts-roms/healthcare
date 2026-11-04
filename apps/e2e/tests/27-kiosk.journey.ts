@@ -27,6 +27,32 @@ async function shot(name: string) {
   if (process.env.E2E_KIOSK_SHOTS) await page.screenshot({ path: `${process.env.E2E_KIOSK_SHOTS}/${name}.png` });
 }
 
+/** A new patient registers at the kiosk with these details (the same person typed twice makes a possible duplicate). */
+async function registerAtKiosk(who: { family: string; given: string; day: string; month: string; year: string; mobile: string }): Promise<string> {
+  await startAtWelcome();
+  await page.getByRole("button", { name: "Touch here to check in" }).click();
+  await page.getByRole("button", { name: "No, this is my first visit" }).click();
+  await page.locator("#familyName").fill(who.family);
+  await page.locator("#givenName").fill(who.given);
+  await page.locator("#birth-day").fill(who.day);
+  await page.locator("#birth-month").selectOption({ label: who.month });
+  await page.locator("#birth-year").fill(who.year);
+  await page.locator("#sex").selectOption({ label: "Female" });
+  await page.locator("#mobile").fill(who.mobile);
+  await page.locator("#cityMunicipality").fill("Pasig");
+  await page.locator("#emergencyName").fill("Contact Person");
+  await page.locator("#emergencyNumber").fill("09175550199");
+  await page.locator("#emergencyRelationship").selectOption({ label: "Brother or sister" });
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Check my answers" }).click();
+  await page.getByRole("button", { name: "Yes, send to reception" }).click();
+  const reference = /KR-[A-HJ-NP-Z2-9]{6}/.exec(await page.getByLabel("Your registration reference").innerText())?.[0] ?? "";
+  expect(reference).toBeTruthy();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+  return reference;
+}
+
 async function startAtWelcome() {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
@@ -210,6 +236,7 @@ test("reception reviews the registration in the staff app and approves it into a
     const approve = reception.getByRole("button", { name: "Approve and register" });
     await expect(approve).toBeDisabled();
     await reception.getByRole("checkbox", { name: /I checked the person/ }).check();
+    await reception.locator("#identity-note").fill("PhilHealth ID shown");
     await reception.locator("#visit-type").selectOption({ label: state.kioskVisitType.name });
     await expect(approve).toBeEnabled();
     await approve.click();
@@ -222,6 +249,64 @@ test("reception reviews the registration in the staff app and approves it into a
     expect(pending.some((r) => r.reference === reference)).toBe(false);
     await reception.goto("/queue");
     await expect(reception.getByRole("button", { name: /A-\d+.*Newcomer/i })).toBeVisible();
+  } finally {
+    await reception.context().close();
+  }
+});
+
+test("a possible duplicate: reception links the registration to the existing record, or approves it as a different person with a reason", async ({
+  browser,
+}) => {
+  const existing = await desk.post<{ id: string; patientNumber: string }>("/patients", {
+    familyName: "Dupaname",
+    givenName: "Dina",
+    sex: "female",
+    birthDate: "1982-04-04",
+    contacts: [{ system: "mobile", value: "0920 555 0160" }],
+  });
+  const same = { family: "Dupaname", given: "Dina", day: "4", month: "April", year: "1982", mobile: "0920 555 0160" };
+  const linkRef = await registerAtKiosk(same);
+  const differentRef = await registerAtKiosk(same);
+
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    // 1. It is the same person: link it to the record that exists, without creating a second one.
+    await reception.goto("/queue/registrations");
+    await reception
+      .getByRole("row", { name: new RegExp(linkRef) })
+      .getByRole("link", { name: "Review" })
+      .click();
+    await expect(reception.getByRole("heading", { name: /Possible existing records \(1\)/ })).toBeVisible();
+    await expect(reception.getByText(existing.patientNumber)).toBeVisible();
+
+    // Linking, like approving, needs the identification check first.
+    const link = reception.getByRole("button", { name: /Same person — link/ });
+    await expect(link).toBeDisabled();
+    await reception.getByRole("checkbox", { name: /I checked the person/ }).check();
+    await reception.locator("#identity-note").fill("Senior citizen ID shown");
+    await link.click();
+    await expect(reception.getByRole("main").getByText("Linked to the existing record")).toBeVisible();
+
+    // 2. A different person with the same details: approving needs the reviewer's reason.
+    await reception.goto("/queue/registrations");
+    await reception
+      .getByRole("row", { name: new RegExp(differentRef) })
+      .getByRole("link", { name: "Review" })
+      .click();
+    const approve = reception.getByRole("button", { name: "Approve and register" });
+    await reception.getByRole("checkbox", { name: /I checked the person/ }).check();
+    await expect(approve).toBeDisabled();
+    await reception.getByRole("checkbox", { name: /this is a different person/ }).check();
+    await expect(approve).toBeDisabled();
+    await reception.locator("#override-reason").fill("Mother and daughter, same name and birth date");
+    await expect(approve).toBeEnabled();
+    await approve.click();
+    await expect(reception.getByText("Patient registered")).toBeVisible();
+
+    // Neither is waiting any more, and the linking left a single record for that person.
+    const pending = (await desk.get<{ items: Array<{ reference: string }> }>("/kiosk/admin/registrations")).items.map((r) => r.reference);
+    expect(pending).not.toContain(linkRef);
+    expect(pending).not.toContain(differentRef);
   } finally {
     await reception.context().close();
   }
@@ -282,12 +367,25 @@ test("reception recalls a called patient, marks a no-show and puts the patient b
     await panel.getByRole("button", { name: "Call", exact: true }).click();
     await toast(reception, /called to Room 9/);
 
+    // The desk sees who is being called now, and can search and narrow the board.
+    await expect(reception.getByRole("region", { name: "Now serving" }).getByText("Room 9")).toBeVisible();
+    const search = reception.getByLabel("Search the queue");
+    await search.fill("no-ticket-matches-this");
+    await expect(reception.getByRole("status").filter({ hasText: /Showing 0 of/ })).toBeVisible();
+    await search.fill(patient.family);
+    await expect(reception.getByRole("button", { name: new RegExp(`A-\\d+\\s+\\d+ min.*${patient.family}`, "i") })).toBeVisible();
+    await search.fill("");
+    await reception.getByRole("button", { name: "Being called", exact: true }).click();
+    await expect(reception.getByRole("button", { name: new RegExp(`A-\\d+\\s+\\d+ min.*${patient.family}`, "i") })).toBeVisible();
+    await reception.getByRole("button", { name: "All", exact: true }).click();
+
     await panel.getByRole("button", { name: "Recall" }).click();
     await toast(reception, /called again/);
 
     await panel.getByRole("button", { name: "No-show…" }).click();
     await panel.getByRole("button", { name: "Mark no-show" }).click();
     await toast(reception, /marked a no-show/);
+    await expect(reception.getByRole("region", { name: "Now serving" }).getByText("Room 9")).toHaveCount(0);
     await expect(panel.getByText("Marked a no-show").first()).toBeVisible();
 
     // A reason is needed to put the visit back in line.

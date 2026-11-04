@@ -378,7 +378,11 @@ describe("patient self-service kiosk", () => {
       expect(detail.registration).toMatchObject({ familyName: "Reyes", givenName: "Lorna" });
       expect((await auditRows(ctx.pool, `action = 'kiosk.registration.view' AND resource_id = $1`, [item.id as string])).length).toBe(1);
 
-      const approved = (await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, { visitTypeId }).expect(200)).body;
+      const approved = (
+        await staff(desk)
+          .post(`/kiosk/admin/registrations/${item.id}/approve`, { visitTypeId, identityChecked: true, identityNote: "PhilHealth ID shown" })
+          .expect(200)
+      ).body;
       expect(approved).toMatchObject({ patientId: expect.any(String), patientNumber: expect.stringMatching(/^P\d{8}$/), visitId: expect.any(String) });
       const patient = (await staff(desk).get(`/patients/${approved.patientId}`).expect(200)).body;
       expect(patient).toMatchObject({ familyName: "Reyes", givenName: "Lorna" });
@@ -386,7 +390,7 @@ describe("patient self-service kiosk", () => {
       const decided = await ctx.pool.query(`SELECT status, payload_sealed, patient_id, reviewed_by FROM kiosk_registration WHERE id = $1`, [item.id]);
       expect(decided.rows[0]).toMatchObject({ status: "approved", payload_sealed: null, patient_id: approved.patientId });
       expect(decided.rows[0].reviewed_by).not.toBeNull();
-      await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, {}).expect(422);
+      await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, { identityChecked: true }).expect(422);
       await staff(desk).get(`/kiosk/admin/registrations/${item.id}`).expect(422);
       await k(kiosk.one, session).delete("/sessions");
     });
@@ -405,11 +409,13 @@ describe("patient self-service kiosk", () => {
         (await staff(desk).get("/kiosk/admin/registrations").expect(200)).body.items as Array<{ id: string; reference: string; possibleDuplicates: number }>
       ).find((p) => p.reference === ref)!;
       expect(item.possibleDuplicates).toBeGreaterThan(0);
-      const refused = await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, {}).expect(409);
+      const refused = await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, { identityChecked: true }).expect(409);
       expect(["possible_duplicates", "identifier_in_use"]).toContain(refused.body.error.code);
       expect((await ctx.pool.query(`SELECT status FROM kiosk_registration WHERE id = $1`, [item.id])).rows[0].status).toBe("pending");
 
-      const linked = (await staff(desk).post(`/kiosk/admin/registrations/${item.id}/link`, { patientId: existing.id, visitTypeId }).expect(200)).body;
+      const linked = (
+        await staff(desk).post(`/kiosk/admin/registrations/${item.id}/link`, { patientId: existing.id, visitTypeId, identityChecked: true }).expect(200)
+      ).body;
       expect(linked.patientId).toBe(existing.id);
       expect((await ctx.pool.query(`SELECT status, payload_sealed FROM kiosk_registration WHERE id = $1`, [item.id])).rows[0]).toEqual({
         status: "linked",
@@ -470,6 +476,30 @@ describe("patient self-service kiosk", () => {
       expect((await k(kiosk.one, known).post("/registrations", typed()).expect(422)).body.error.code).toBe("kiosk_already_identified");
       await k(kiosk.one, known).delete("/sessions");
       await staff(kiosk.one).get("/kiosk/admin/registrations").expect(403);
+    });
+
+    it("will not register or link anyone before the reviewer confirms they checked identification, and keeps that in the audit trail", async () => {
+      const session = await openSession(kiosk.two);
+      const reference = (
+        await k(kiosk.two, session)
+          .post("/registrations", typed({ givenName: "Check", familyName: "Identity", birthDate: "1969-09-09" }))
+          .expect(201)
+      ).body.reference as string;
+      const item = ((await staff(desk).get("/kiosk/admin/registrations").expect(200)).body.items as Array<{ id: string; reference: string }>).find(
+        (r) => r.reference === reference,
+      )!;
+
+      // Nothing happens without the confirmation: no patient is created and the registration still waits.
+      const refused = await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, {}).expect(400);
+      expect(JSON.stringify(refused.body)).toMatch(/checked the person/);
+      await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, { identityChecked: false }).expect(400);
+      await staff(desk).post(`/kiosk/admin/registrations/${item.id}/link`, { patientId: item.id }).expect(400);
+      expect((await ctx.pool.query(`SELECT status FROM kiosk_registration WHERE id = $1`, [item.id])).rows[0].status).toBe("pending");
+
+      await staff(desk).post(`/kiosk/admin/registrations/${item.id}/approve`, { identityChecked: true, identityNote: "Driver's licence shown" }).expect(200);
+      const audit = await auditRows(ctx.pool, `action = 'kiosk.registration.approve' AND resource_id = $1`, [item.id]);
+      expect(audit).toHaveLength(1);
+      expect(audit[0]?.metadata).toMatchObject({ reference, identityChecked: true, identityNote: "Driver's licence shown" });
     });
 
     it("counts the registrations waiting in the navigation badge, for reviewers only", async () => {

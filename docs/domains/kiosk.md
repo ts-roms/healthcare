@@ -90,14 +90,16 @@ duplicates, when it will be erased; no personal data), live through the realtime
 (`kiosk.registration.review`; the socket joins it at connect; a registration arriving or decided tells reviewers' open
 pages to refetch, nothing about it travels) and the badge `kioskRegistrations` in `/me/badges`. Opening one
 (`/queue/registrations/[id]`, audited as a view of personal data) shows what the person typed, the Patient Master's
-possible existing records with their match reasons, and the decision: **Patient verification** (a checklist step for
-the desk — the identification was checked against the details; a screen step, not stored), **Approve and register**
+possible existing records with their match reasons, and the decision: **Patient verification** (the reviewer confirms they
+checked the person's identification against the details, and may say how: the API refuses to approve or link without
+`identityChecked: true`, and the confirmation and note are kept in the audit trail of the decision), **Approve and register**
 (the ordinary registration with its duplicate rules: with possible matches the reviewer must confirm the candidates are
 a different person and say why; optionally queues the new patient for a walk-in service), **Same person — link**
 (closes the submission against an existing record), or **Decline** with a reason. A detail the person mistyped is
 corrected after approval on the patient record (**Edit details**); the submission itself is never edited. The typed
 payload is erased on any decision. The queue board's actions (recall, no-show, put back in line) are in
-[clinic](clinic.md#queue-actions-at-the-desk). Counters are not a separate entity: a counter is a service point
+[clinic](clinic.md#queue-actions-at-the-desk). The board also has a **Now serving** card (tickets being called, with their place) and a search box and view filter
+(ticket, name, patient number, complaint or place; all, being called, self check-in). Counters are not a separate entity: a counter is a service point
 (its `location` is where the call sends the patient).
 
 ## Not built yet

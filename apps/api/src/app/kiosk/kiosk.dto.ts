@@ -72,7 +72,17 @@ export type KioskRegistrationInput = z.infer<typeof kioskRegistrationSchema>;
 
 // ---- Staff: registration review ------------------------------------------------------------------------------------
 
+/**
+ * Registering or linking a person is a decision about who they are, so the reviewer must confirm that they checked the
+ * person's identification (the confirmation and the optional note on how are kept in the audit trail).
+ */
+const identityCheck = {
+  identityChecked: z.literal(true, { error: "Confirm that you checked the person's identification" }),
+  identityNote: z.string().trim().min(2).max(200).optional(),
+};
+
 export const approveRegistrationSchema = z.object({
+  ...identityCheck,
   /** Put the new patient in the queue for this service as part of approving. */
   visitTypeId: z.string().uuid().optional(),
   /** Possible duplicates were reviewed and this is a different person (same rule as the front desk's registration). */
@@ -80,7 +90,7 @@ export const approveRegistrationSchema = z.object({
 });
 export class ApproveRegistrationDto extends createZodDto(approveRegistrationSchema) {}
 
-export const linkRegistrationSchema = z.object({ patientId: z.string().uuid(), visitTypeId: z.string().uuid().optional() });
+export const linkRegistrationSchema = z.object({ ...identityCheck, patientId: z.string().uuid(), visitTypeId: z.string().uuid().optional() });
 export class LinkRegistrationDto extends createZodDto(linkRegistrationSchema) {}
 
 export const rejectRegistrationSchema = z.object({ reason });

@@ -41,6 +41,7 @@ export function RegistrationReview({
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const [verified, setVerified] = React.useState(false);
+  const [identityNote, setIdentityNote] = React.useState("");
   const [visitTypeId, setVisitTypeId] = React.useState("");
   const [differentPerson, setDifferentPerson] = React.useState(false);
   const [overrideReason, setOverrideReason] = React.useState("");
@@ -108,7 +109,14 @@ export function RegistrationReview({
           title={verified ? undefined : "Check the person's identification first"}
           onClick={() =>
             run(
-              () => linkRegistration({ registrationId: detail.id, patientId: c.patient.id, visitTypeId: visitTypeId || undefined }),
+              () =>
+                linkRegistration({
+                  registrationId: detail.id,
+                  patientId: c.patient.id,
+                  visitTypeId: visitTypeId || undefined,
+                  identityChecked: true,
+                  identityNote: identityNote.trim() || undefined,
+                }),
               (data: { patientId: string }) => {
                 toast.success("Linked to the existing record");
                 setDone({ patientId: data.patientId, linked: true });
@@ -177,6 +185,16 @@ export function RegistrationReview({
             <Checkbox checked={verified} onCheckedChange={(v) => setVerified(v === true)} className="mt-0.5" />
             <span>I checked the person&apos;s identification against these details.</span>
           </label>
+          <div className="grid gap-1">
+            <Label htmlFor="identity-note">How was it checked? (optional)</Label>
+            <Input
+              id="identity-note"
+              value={identityNote}
+              maxLength={200}
+              onChange={(e) => setIdentityNote(e.target.value)}
+              placeholder="e.g. PhilHealth ID shown. Kept in the audit trail"
+            />
+          </div>
 
           {canApprove ? (
             <>
@@ -215,6 +233,8 @@ export function RegistrationReview({
                     () =>
                       approveRegistration({
                         registrationId: detail.id,
+                        identityChecked: true,
+                        identityNote: identityNote.trim() || undefined,
                         visitTypeId: visitTypeId || undefined,
                         duplicateOverride: hasCandidates
                           ? { reviewedCandidateIds: candidates.map((c) => c.patient.id), reason: overrideReason.trim() }

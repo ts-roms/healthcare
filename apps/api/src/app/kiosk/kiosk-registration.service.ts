@@ -241,7 +241,7 @@ export class KioskRegistrationService {
     const visitId = input.visitTypeId
       ? (await this.visits.walkIn(actor, { patientId: created.id, visitTypeId: input.visitTypeId, priority: "routine" })).id
       : null;
-    await this.decide(actor, row, "approved", { patientId: created.id, visitId });
+    await this.decide(actor, row, "approved", { patientId: created.id, visitId, identityNote: input.identityNote });
     return { patientId: created.id, patientNumber: created.patientNumber, visitId };
   }
 
@@ -254,7 +254,7 @@ export class KioskRegistrationService {
     const visitId = input.visitTypeId
       ? (await this.visits.walkIn(actor, { patientId: record.id, visitTypeId: input.visitTypeId, priority: "routine" })).id
       : null;
-    await this.decide(actor, row, "linked", { patientId: record.id, visitId });
+    await this.decide(actor, row, "linked", { patientId: record.id, visitId, identityNote: input.identityNote });
     return { patientId: record.id, visitId };
   }
 
@@ -307,7 +307,7 @@ export class KioskRegistrationService {
     actor: Actor,
     row: KioskRegistrationRecord,
     status: "approved" | "linked" | "rejected",
-    detail: { patientId?: string; visitId?: string | null; reason?: string },
+    detail: { patientId?: string; visitId?: string | null; reason?: string; identityNote?: string },
   ) {
     await this.db.transaction(async (tx) => {
       const [updated] = await tx
@@ -332,7 +332,11 @@ export class KioskRegistrationService {
         resourceId: row.id,
         patientId: detail.patientId,
         reason: detail.reason,
-        metadata: { reference: row.reference },
+        // Approving or linking says who the person is: that the reviewer checked their identification is part of the record.
+        metadata: {
+          reference: row.reference,
+          ...(status === "rejected" ? {} : { identityChecked: true, ...(detail.identityNote ? { identityNote: detail.identityNote } : {}) }),
+        },
       });
       await this.events.record(tx, {
         type: "KioskRegistrationDecided",

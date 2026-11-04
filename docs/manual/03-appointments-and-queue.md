@@ -214,7 +214,8 @@ New patients can register on a kiosk in the waiting area. They are not patients 
 number shows how many are waiting, and the list updates by itself).
 
 1. Choose **Review** on a row. You see what the person typed and any existing records that look like them.
-2. Check the person's identification against the details, then tick **I checked the person's identification**.
+2. Check the person's identification against the details, tick **I checked the person's identification** and, if you
+   like, say how in the box below it (for example, "PhilHealth ID shown"). The system records that you checked, and how.
 3. Decide: **Approve and register** creates the record (choose a service under **Put in the queue for** to give them a
    ticket at the same time); **Same person — link** closes the registration against the existing record; **Decline…**
    needs a reason.

@@ -14,7 +14,14 @@ export interface ApprovedRegistration {
   visitId: string | null;
 }
 
+/** The reviewer confirmed they checked the person's identification (the API refuses to decide without it) and may say how. */
+const identity = {
+  identityChecked: z.literal(true, { error: "Confirm that you checked the person's identification" }),
+  identityNote: z.string().trim().min(2).max(200).optional(),
+};
+
 const approveSchema = z.object({
+  ...identity,
   registrationId: id,
   visitTypeId: id.optional(),
   /** Possible duplicates were looked at and this is a different person (the front desk's own rule). */
@@ -29,7 +36,7 @@ export async function approveRegistration(input: z.input<typeof approveSchema>):
   return actionResult(() => api<ApprovedRegistration>(`/kiosk/admin/registrations/${registrationId}/approve`, { method: "POST", body }));
 }
 
-const linkSchema = z.object({ registrationId: id, patientId: id, visitTypeId: id.optional() });
+const linkSchema = z.object({ ...identity, registrationId: id, patientId: id, visitTypeId: id.optional() });
 
 /** The person is already a patient: close the submission against that record, without creating one. */
 export async function linkRegistration(input: z.input<typeof linkSchema>): Promise<ActionResult<{ patientId: string; visitId: string | null }>> {

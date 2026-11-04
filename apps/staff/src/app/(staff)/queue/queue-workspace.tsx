@@ -13,12 +13,15 @@ import {
   canStartConsultation,
   checkedInOnline,
   canTriage,
+  filterQueue,
   MAX_REQUEUES,
   moveNeedsReason,
+  nowServing,
   QUEUE_BOARD_STATUSES,
   QUEUE_MOVE_LABEL,
   type QueueMove,
   queueFigures,
+  type QueueView,
   queueMoves,
   SERVICE_POINT_KIND_LABEL,
   toQueueEntry,
@@ -30,7 +33,9 @@ import { useQueueUpdates } from "@/components/live-queue";
 import { StartConsultationButton } from "../clinic/encounters/start-consultation-button";
 import { advanceRoute, callVisit, moveVisit, noShowVisit, planRoute, recallVisit, requeueVisit, routeVisit, skipRouteStep } from "./actions";
 import { EmptyQueue, type TodayAppointments } from "./queue-empty";
+import { NowServing } from "./now-serving";
 import { QueueHeader, type QueueChrome } from "./queue-header";
+import { QueueTools } from "./queue-tools";
 import { QueueStats } from "./queue-stats";
 import { RoutePanel } from "./route-panel";
 
@@ -104,7 +109,11 @@ export function QueueWorkspace({
   // Live updates over the realtime socket, polling as a fallback; the tick keeps waiting times current.
   const live = useQueueUpdates(() => setNow(new Date()));
 
-  const entries = React.useMemo(() => visits.map(toQueueEntry), [visits]);
+  const [query, setQuery] = React.useState("");
+  const [view, setView] = React.useState<QueueView>("all");
+  const shownVisits = React.useMemo(() => filterQueue(visits, { query, view }), [visits, query, view]);
+  const calling = React.useMemo(() => nowServing(visits), [visits]);
+  const entries = React.useMemo(() => shownVisits.map(toQueueEntry), [shownVisits]);
   const figures = React.useMemo(() => queueFigures(visits, now), [visits, now]);
   const selected = visits.find((v) => v.id === selectedId) ?? null;
 
@@ -139,6 +148,8 @@ export function QueueWorkspace({
         ) : (
           <>
             <QueueStats figures={figures} />
+            <NowServing visits={calling} selectedId={selectedId} onSelect={setSelectedId} />
+            <QueueTools query={query} view={view} shown={shownVisits.length} total={visits.length} onQuery={setQuery} onView={setView} />
             <div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row">
               <div className="min-h-[22rem] min-w-0 flex-1 overflow-x-auto xl:min-h-0">
                 <QueueBoard
