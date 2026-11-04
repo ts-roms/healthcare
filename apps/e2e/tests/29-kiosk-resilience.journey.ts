@@ -214,3 +214,46 @@ test("an administrator offers a service at the kiosk from the visit types screen
     await admin.context().close();
   }
 });
+
+test("the device edit row's fields do not overlap, at any window width, with a long account name", async ({ browser }) => {
+  const admin = await staffPage(browser, STAFF.admin, errors);
+  try {
+    await admin.goto("/queue/devices");
+    await admin.getByRole("button", { name: /^Edit E2E front kiosk/ }).click();
+    const agent = admin.getByLabel("Print agent");
+    await expect(agent).toBeVisible();
+    // Several accounts of the facility are offered; the longest label is chosen to make the field as wide as it can be.
+    const options = await agent.locator("option").allTextContents();
+    expect(options.length).toBeGreaterThan(1);
+    await agent.selectOption({ label: options.reduce((a, b) => (b.length > a.length ? b : a)) });
+
+    const overlaps: string[] = [];
+    // Every 24 px; a pixel-by-pixel sweep (900 to 1700 px) found no overlap either, before or after the change.
+    for (let width = 760; width <= 1920; width += 24) {
+      await admin.setViewportSize({ width, height: 800 });
+      await admin.waitForTimeout(40);
+      // No two controls in the edit row may overlap (Radix's hidden checkbox input is not a control a person sees).
+      const boxes = await admin
+        .locator("form")
+        .filter({ has: agent })
+        .locator("input:not([aria-hidden=true]):visible, select:visible, button:visible")
+        .evaluateAll((els) =>
+          els.map((el) => {
+            const r = el.getBoundingClientRect();
+            return { label: (el.getAttribute("aria-label") ?? el.id ?? el.textContent ?? "").slice(0, 30), x: r.x, y: r.y, w: r.width, h: r.height };
+          }),
+        );
+      for (let i = 0; i < boxes.length; i += 1) {
+        for (let j = i + 1; j < boxes.length; j += 1) {
+          const a = boxes[i]!;
+          const b = boxes[j]!;
+          if (a.x < b.x + b.w - 1 && b.x < a.x + a.w - 1 && a.y < b.y + b.h - 1 && b.y < a.y + a.h - 1)
+            overlaps.push(`${width}px: "${a.label}" overlaps "${b.label}"`);
+        }
+      }
+    }
+    expect(overlaps).toEqual([]);
+  } finally {
+    await admin.context().close();
+  }
+});

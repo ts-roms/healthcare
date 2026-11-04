@@ -53,7 +53,7 @@ export function RegisterDevice({ accounts }: { accounts: DeviceAccount[] }) {
           );
         }}
       >
-        <div className="grid gap-1">
+        <div className="grid shrink-0 gap-1">
           <Label htmlFor="device-kind">Kind</Label>
           <NativeSelect
             id="device-kind"
@@ -67,15 +67,15 @@ export function RegisterDevice({ accounts }: { accounts: DeviceAccount[] }) {
             <option value="display">Waiting-room screen</option>
           </NativeSelect>
         </div>
-        <div className="grid gap-1">
+        <div className="grid shrink-0 gap-1">
           <Label htmlFor="device-code">Code</Label>
           <Input id="device-code" value={code} maxLength={40} placeholder="front-1" onChange={(e) => setCode(e.target.value)} className="w-40 font-mono" />
         </div>
-        <div className="grid gap-1">
+        <div className="grid shrink-0 gap-1">
           <Label htmlFor="device-name">Name</Label>
           <Input id="device-name" value={name} maxLength={100} placeholder="Front kiosk" onChange={(e) => setName(e.target.value)} className="w-56" />
         </div>
-        <div className="grid gap-1">
+        <div className="grid shrink-0 gap-1">
           <Label htmlFor="device-account">Account it signs in with</Label>
           <NativeSelect
             id="device-account"
@@ -83,6 +83,7 @@ export function RegisterDevice({ accounts }: { accounts: DeviceAccount[] }) {
             placeholder="Choose…"
             emptyText="No accounts with that role"
             onChange={(e) => setUserId(e.target.value)}
+            className="w-80 max-w-full"
           >
             {offered.map((a) => (
               <option key={a.id} value={a.id}>

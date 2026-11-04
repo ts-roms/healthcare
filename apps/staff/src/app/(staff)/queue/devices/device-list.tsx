@@ -118,13 +118,13 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
             );
           }}
         >
-          <div className="grid gap-1">
+          <div className="grid shrink-0 gap-1">
             <label htmlFor={`name-${device.id}`} className="text-meta text-muted-foreground">
               Name
             </label>
             <Input id={`name-${device.id}`} value={name} maxLength={100} onChange={(e) => setName(e.target.value)} className="w-64" />
           </div>
-          <div className="grid gap-1">
+          <div className="grid shrink-0 gap-1">
             <label htmlFor={`status-${device.id}`} className="text-meta text-muted-foreground">
               Status
             </label>
@@ -145,7 +145,7 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
             </div>
           ) : null}
           {device.kind === "kiosk" ? (
-            <div className="grid gap-1">
+            <div className="grid shrink-0 gap-1">
               <label htmlFor={`agent-${device.id}`} className="text-meta text-muted-foreground">
                 Print agent
               </label>

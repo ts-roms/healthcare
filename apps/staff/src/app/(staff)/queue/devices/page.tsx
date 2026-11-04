@@ -35,14 +35,19 @@ export default async function KioskDevicesPage() {
   let accounts: DeviceAccount[] = [];
   if (canManage && can(session, "user.read")) {
     const users = await api<StaffUser[]>("/users").catch(() => []);
-    accounts = users.flatMap((u) => {
-      const role = u.roleAssignments.find(
-        (r) =>
-          (r.roleKey === "kiosk_device" || r.roleKey === "queue_display" || r.roleKey === "kiosk_print_agent") &&
-          (r.facilityId === null || r.facilityId === facility.id),
-      );
-      return role && u.membershipStatus === "active" ? [{ id: u.id, label: `${u.displayName} (${u.email})`, role: role.roleKey as DeviceAccount["role"] }] : [];
-    });
+    // An account holding several device roles is offered under each of them.
+    const DEVICE_ROLES = ["kiosk_device", "queue_display", "kiosk_print_agent"] as const;
+    accounts = users.flatMap((u) =>
+      u.membershipStatus !== "active"
+        ? []
+        : DEVICE_ROLES.filter((role) => u.roleAssignments.some((r) => r.roleKey === role && (r.facilityId === null || r.facilityId === facility.id))).map(
+            (role) => ({
+              id: u.id,
+              label: `${u.displayName} (${u.email})`,
+              role,
+            }),
+          ),
+    );
   }
 
   const attention = devicesNeedingAttention(devices);
