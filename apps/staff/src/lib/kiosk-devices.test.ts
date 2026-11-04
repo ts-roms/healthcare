@@ -12,6 +12,7 @@ const device = (over: Partial<KioskDevice>): KioskDevice => ({
   health: "online",
   heartbeatAt: "2026-11-04T01:00:00Z",
   appVersion: "0.1.0",
+  printsTickets: true,
   printerStatus: "ok",
   printer: "available",
   printerHeartbeatAt: "2026-11-04T01:00:00Z",

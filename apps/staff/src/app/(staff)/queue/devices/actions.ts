@@ -18,6 +18,7 @@ const registerSchema = z.object({
     .regex(/^[a-z0-9][a-z0-9-]{2,39}$/, "A code is 3-40 lower-case letters, digits or hyphens."),
   name: z.string().trim().min(2, "Give the device a name.").max(100),
   userId: id,
+  printsTickets: z.boolean().optional(),
 });
 
 /** Registers a kiosk or a waiting-room display: the staff account it signs in with must hold that device's role at this facility. */
@@ -33,6 +34,7 @@ const updateSchema = z.object({
   deviceId: id,
   name: z.string().trim().min(2, "Give the device a name.").max(100).optional(),
   status: z.enum(["active", "maintenance", "disabled"]).optional(),
+  printsTickets: z.boolean().optional(),
   version: z.number().int().positive(),
 });
 

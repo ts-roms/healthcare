@@ -26,6 +26,7 @@ describe("kiosk printing, devices and the display's settings", () => {
     get: (url: string) => ctx.http().get(`/api/v1${url}`).set(as(token, facilityId)),
     post: (url: string, body: object = {}) => ctx.http().post(`/api/v1${url}`).set(as(token, facilityId)).send(body),
     put: (url: string, body: object = {}) => ctx.http().put(`/api/v1${url}`).set(as(token, facilityId)).send(body),
+    patch: (url: string, body: object = {}) => ctx.http().patch(`/api/v1${url}`).set(as(token, facilityId)).send(body),
   });
   const k = (token: string, session?: string) => {
     const headers = { ...as(token, tenant.facilityId), ...(session ? { "x-kiosk-session": session } : {}) };
@@ -97,10 +98,10 @@ describe("kiosk printing, devices and the display's settings", () => {
       await staff(admin).post("/clinic/visit-types", { code: "consult", name: "Consultation", defaultDurationMinutes: 30, kioskEnabled: true }).expect(201)
     ).body.id;
     await staff(admin)
-      .post("/kiosk/admin/devices", { code: "print-1", name: "Front kiosk", userId: await userId("kiosk1@print.ph") })
+      .post("/kiosk/admin/devices", { code: "print-1", name: "Front kiosk", userId: await userId("kiosk1@print.ph"), printsTickets: true })
       .expect(201);
     await staff(admin)
-      .post("/kiosk/admin/devices", { code: "print-2", name: "Side kiosk", userId: await userId("kiosk2@print.ph") })
+      .post("/kiosk/admin/devices", { code: "print-2", name: "Side kiosk", userId: await userId("kiosk2@print.ph"), printsTickets: true })
       .expect(201);
   });
   afterAll(() => ctx.close());
@@ -186,10 +187,25 @@ describe("kiosk printing, devices and the display's settings", () => {
       await k(kioskTwo).get(`/print-jobs/${ticket.printJobId}`).expect(404);
     });
 
-    it("is not queued for a kiosk that has no printer", async () => {
-      await ctx.pool.query(`UPDATE kiosk_device SET printer_status = 'none' WHERE code = 'print-2'`);
+    it("is not queued for a kiosk staff have not turned printing on for, and can be turned on and off later", async () => {
+      const devices = (await staff(admin).get("/kiosk/admin/devices").expect(200)).body.items as Array<Record<string, unknown>>;
+      const side = devices.find((d) => d.code === "print-2")!;
+      const off = await staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { printsTickets: false, version: side.version }).expect(200);
+      expect(off.body).toMatchObject({ printsTickets: false, printer: "none" });
       expect((await checkIn(kioskTwo)).printJobId).toBeNull();
-      await ctx.pool.query(`UPDATE kiosk_device SET printer_status = 'unknown' WHERE code = 'print-2'`);
+      await staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { version: off.body.version }).expect(400);
+      const on = await staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { printsTickets: true, version: off.body.version }).expect(200);
+      expect(on.body).toMatchObject({ printsTickets: true, printer: "unknown" });
+      expect((await checkIn(kioskTwo)).printJobId).not.toBeNull();
+      expect((await auditRows(ctx.pool, `action = 'kiosk.device.update'`)).length).toBeGreaterThan(0);
+    });
+
+    it("is off for a newly registered kiosk until staff turn it on", async () => {
+      await createStaff(ctx.pool, tenant, "kiosk3@print.ph", [{ role: "kiosk_device", facilityId: tenant.facilityId }]);
+      const created = await staff(admin)
+        .post("/kiosk/admin/devices", { code: "print-3", name: "New kiosk", userId: await userId("kiosk3@print.ph") })
+        .expect(201);
+      expect(created.body).toMatchObject({ printsTickets: false, printer: "none" });
     });
 
     it("is immutable in its content and moves only forward, by the database", async () => {

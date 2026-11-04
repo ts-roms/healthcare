@@ -16,6 +16,8 @@ export const registerDeviceSchema = z.object({
   /** The staff account the device signs in with: the Patient kiosk role for a kiosk, the Waiting-room display role for a display. */
   userId: z.string().uuid(),
   kind: z.enum(["kiosk", "display"]).default("kiosk"),
+  /** The kiosk has a ticket printer and a print agent: tickets are queued for printing. Off until staff turn it on. */
+  printsTickets: z.boolean().default(false),
 });
 export class RegisterDeviceDto extends createZodDto(registerDeviceSchema) {}
 
@@ -23,9 +25,10 @@ export const updateDeviceSchema = z
   .object({
     name: z.string().trim().min(2).max(100).optional(),
     status: z.enum(["active", "maintenance", "disabled"]).optional(),
+    printsTickets: z.boolean().optional(),
     version: z.number().int().positive(),
   })
-  .refine((v) => v.name !== undefined || v.status !== undefined, "Nothing to change");
+  .refine((v) => v.name !== undefined || v.status !== undefined || v.printsTickets !== undefined, "Nothing to change");
 export class UpdateDeviceDto extends createZodDto(updateDeviceSchema) {}
 
 // ---- The kiosk itself ----------------------------------------------------------------------------------------------

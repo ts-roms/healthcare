@@ -81,6 +81,13 @@ monitoring at it. It cannot be reached from another machine.
 | `agent.fatal` "The API refused the agent's sign-in" | The account's email, password or organization is wrong, or it asks for a two-step code.                                                                                 |
 | Tickets print twice                                 | The agent remembers the tickets it printed for an hour and does not print one again; a second copy usually means two agents serve the same kiosk — keep one per kiosk.  |
 
+## Turning printing on for a kiosk
+
+A kiosk **does not print** until staff say it can: **Queue → Devices → Edit → Prints tickets** (or the box when registering).
+Until then it queues no ticket, shows the number only, and **Queue → Devices** reads "Ticket printing off". Order of steps
+when a printer arrives: install the printer, run the agent with `PRINTER_TYPE=dryrun`, then the real printer, complete "Check
+it on the real printer" below, and only then turn **Prints tickets** on for that kiosk.
+
 ## Check it on the real printer
 
 Do this once per printer model, before relying on it. Record what you saw.

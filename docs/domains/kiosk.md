@@ -105,7 +105,7 @@ payload is erased on any decision. The queue board's actions (recall, no-show, p
 ## Printing and devices (phase 5, migration `0139`)
 
 **Ticket printing.** A kiosk check-in queues one `kiosk_print_job` per visit (a unique index; asking for the same ticket
-again returns the job already queued; a kiosk whose printer status is `none` queues nothing). A job holds only what is on
+again returns the job already queued; a kiosk queues nothing unless staff turned **Prints tickets** on for it). A job holds only what is on
 the ticket — number, service, facility, time, a plain instruction — never a patient; its content is fixed by a trigger
 and it moves forward only (`queued → printing → printed | failed`, back to `queued` for a retry, `cancelled` while it
 waits). A **local print agent** (`tools/kiosk-print-agent`, below) pulls the jobs: `POST /kiosk/print/claim` (permission
@@ -120,6 +120,14 @@ nothing happened within 40 seconds — to remember the number and ask the desk; 
 finished, with a reason, at most twice per ticket, only while the visit is open and the kiosk in service, audited
 `kiosk.print.reprint`; the list of the last 24 hours (`GET /kiosk/admin/print-jobs`, `kiosk.device.read`) shows how each
 print went and which can be printed again. A final failure is audited `kiosk.print.failed`.
+
+**Preparing for a printer that is not there yet (migration `0140`).** `kiosk_device.prints_tickets` is false for every new
+kiosk: no print job is queued, the kiosk screen says nothing about printing, the devices page shows "Ticket printing off", and
+a reprint is refused (`kiosk_not_printing`). Staff turn it on (register form or **Edit**, audited as a change of
+`printsTickets`) only once the printer and the print agent have passed the real-hardware checklist in
+`docs/runbooks/kiosk-print-agent.md`; turning it off again is always safe. Nothing else changes when a printer is
+bought: the agent, the job queue, the reprint and the status reporting already exist and are tested only against simulated
+printers. A different printer protocol would be a new `PRINTER_TYPE` in the agent, not an API change.
 
 **Devices.** `kiosk_device.kind` is `kiosk` or `display`: a waiting-room screen is registered like a kiosk, from an account
 holding only the `queue_display` role (and no `patient.read`), and reports in with `POST /kiosk/display/heartbeat`

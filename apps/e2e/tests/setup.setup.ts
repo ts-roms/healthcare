@@ -80,7 +80,7 @@ setup("configure the clinic", async () => {
     kioskEnabled: true,
   });
   const kioskUser = (await admin.get<Array<{ id: string; email: string }>>("/users")).find((u) => u.email === STAFF.kiosk)!;
-  await admin.post("/kiosk/admin/devices", { code: "e2e-front", name: "E2E front kiosk", userId: kioskUser.id });
+  await admin.post("/kiosk/admin/devices", { code: "e2e-front", name: "E2E front kiosk", userId: kioskUser.id, printsTickets: true });
   // The waiting-room screen is a registered device too, so staff can see that it is alive (journey 28).
   const displayUser = (await admin.get<Array<{ id: string; email: string }>>("/users")).find((u) => u.email === STAFF.display)!;
   await admin.post("/kiosk/admin/devices", { kind: "display", code: "e2e-lobby-tv", name: "E2E lobby screen", userId: displayUser.id });

@@ -1,6 +1,6 @@
-import { integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0137_kiosk.sql and 0139_kiosk_printing_and_displays.sql (the migrations are the source of truth). These tables belong to the API's
+// Mirrors database/migrations/0137_kiosk.sql, 0139_kiosk_printing_and_displays.sql and 0140_kiosk_prints_tickets.sql (the migrations are the source of truth). These tables belong to the API's
 // kiosk composition, which spans the patient and clinic domains (ADR-0015), not to a domain library.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -23,6 +23,8 @@ export const kioskDevice = pgTable("kiosk_device", {
   status: text("status").$type<KioskDeviceStatus>().notNull().default("active"),
   heartbeatAt: ts("heartbeat_at"),
   printerHeartbeatAt: ts("printer_heartbeat_at"),
+  /** Staff turned ticket printing on for this kiosk (it has a printer and a print agent); off until then (migration 0140). */
+  printsTickets: boolean("prints_tickets").notNull().default(false),
   appVersion: text("app_version"),
   printerStatus: text("printer_status").$type<KioskPrinterStatus>().notNull().default("unknown"),
   createdBy: uuid("created_by").notNull(),

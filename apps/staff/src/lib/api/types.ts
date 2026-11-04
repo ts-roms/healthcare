@@ -5697,6 +5697,8 @@ export interface KioskDevice {
   health: "online" | "offline" | "maintenance" | "disabled";
   heartbeatAt: string | null;
   appVersion: string | null;
+  /** Staff turned ticket printing on for this kiosk; off until it has a printer and a print agent. */
+  printsTickets: boolean;
   printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error";
   /** Whether the printer is known to be working: its last report and how recent it is (kiosks only). */
   printer: "available" | "attention" | "unavailable" | "unknown" | "none";

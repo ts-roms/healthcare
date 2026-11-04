@@ -217,7 +217,7 @@ with the **Patient kiosk** or **Waiting-room display** role) and **Edit** a name
 
 Below are the kiosk tickets of the last 24 hours and how each print went. If a patient lost a ticket or it did not print, choose **Print again…** on its
 row, say why and confirm. A ticket can be printed again twice, only after the earlier print has finished, and only while the patient is still in the queue.
-The kiosk always shows the number on its screen, so a printer problem never stops a check-in.
+The kiosk always shows the number on its screen, so a printer problem never stops a check-in. A kiosk without a printer keeps **Prints tickets** off (Edit on the device); turn it on only after the printer has been set up and checked.
 
 ### How to review a registration typed at a kiosk
 

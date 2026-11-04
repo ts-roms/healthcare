@@ -30,15 +30,16 @@ export const PRINTER_FRESH_MS = 2 * 60_000;
 export type PrinterAvailability = "available" | "attention" | "unavailable" | "unknown" | "none";
 
 /**
- * What staff see for a kiosk's printer: `none` when the kiosk has no printer, `unknown` until a print agent has reported,
+ * What staff see for a kiosk's printer: `none` when ticket printing is off for the kiosk (it has no printer set up yet),
+ * `unknown` until a print agent has reported,
  * `unavailable` when its last report is stale, `attention` when it reported a problem (paper out, offline, an error) and
  * `available` when its last, recent report was fine.
  */
 export function printerAvailability(
-  device: { printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error"; printerHeartbeatAt: Date | null },
+  device: { printsTickets: boolean; printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error"; printerHeartbeatAt: Date | null },
   now = new Date(),
 ): PrinterAvailability {
-  if (device.printerStatus === "none") return "none";
+  if (!device.printsTickets || device.printerStatus === "none") return "none";
   if (!device.printerHeartbeatAt) return "unknown";
   if (now.getTime() - device.printerHeartbeatAt.getTime() > PRINTER_FRESH_MS) return "unavailable";
   return device.printerStatus === "ok" ? "available" : "attention";

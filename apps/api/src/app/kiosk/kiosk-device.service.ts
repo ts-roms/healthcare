@@ -32,6 +32,8 @@ export interface KioskDeviceView {
   heartbeatAt: Date | null;
   appVersion: string | null;
   printerStatus: KioskDeviceRecord["printerStatus"];
+  /** Staff turned ticket printing on for this kiosk (a kiosk without a printer leaves it off). */
+  printsTickets: boolean;
   /** Whether the printer is known to be working: from its last report and how recent that is (kiosks only). */
   printer: PrinterAvailability;
   printerHeartbeatAt: Date | null;
@@ -49,6 +51,7 @@ const view = (row: KioskDeviceRecord, now = new Date()): KioskDeviceView => ({
   heartbeatAt: row.heartbeatAt,
   appVersion: row.appVersion,
   printerStatus: row.printerStatus,
+  printsTickets: row.kind === "kiosk" && row.printsTickets,
   printer: row.kind === "kiosk" ? printerAvailability(row, now) : "none",
   printerHeartbeatAt: row.printerHeartbeatAt,
   version: row.version,
@@ -108,6 +111,8 @@ export class KioskDeviceService {
             code: input.code,
             name: input.name,
             kind: input.kind,
+            // Only a kiosk can print tickets.
+            printsTickets: input.kind === "kiosk" && input.printsTickets,
             userId: input.userId,
             createdBy: actor.userId,
           })
@@ -117,7 +122,7 @@ export class KioskDeviceService {
           action: "kiosk.device.register",
           resourceType: "kiosk_device",
           resourceId: row.id,
-          metadata: { code: row.code, kind: row.kind, facilityId, kioskUserId: row.userId },
+          metadata: { code: row.code, kind: row.kind, facilityId, kioskUserId: row.userId, printsTickets: row.printsTickets },
         });
         await this.events.record(tx, {
           type: "KioskDeviceStatusChanged",
@@ -157,6 +162,7 @@ export class KioskDeviceService {
         .set({
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
+          ...(input.printsTickets !== undefined && current.kind === "kiosk" ? { printsTickets: input.printsTickets } : {}),
           updatedAt: new Date(),
           version: sql`${kioskDevice.version} + 1`,
         })
@@ -170,6 +176,7 @@ export class KioskDeviceService {
         changes: {
           ...(current.name !== row.name ? { name: { from: current.name, to: row.name } } : {}),
           ...(current.status !== row.status ? { status: { from: current.status, to: row.status } } : {}),
+          ...(current.printsTickets !== row.printsTickets ? { printsTickets: { from: current.printsTickets, to: row.printsTickets } } : {}),
         },
       });
       if (current.status !== row.status) {

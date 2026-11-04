@@ -3,7 +3,7 @@
 import * as React from "react";
 import { MonitorIcon, MonitorSmartphoneIcon, PencilIcon, PrinterIcon, TriangleAlertIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, Input, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, Checkbox, Input, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import type { KioskDevice } from "@/lib/api/types";
 import { DEVICE_HEALTH_LABEL, DEVICE_HEALTH_VARIANT, DEVICE_STATUS_LABEL, PRINTER_LABEL, PRINTER_STATUS_DETAIL, PRINTER_VARIANT } from "@/lib/kiosk-devices";
 import { useServerAction } from "@/lib/use-server-action";
@@ -91,7 +91,8 @@ function EditRow({ device, onDone }: { device: KioskDevice; onDone: () => void }
   const [name, setName] = React.useState(device.name);
   const [status, setStatus] = React.useState<KioskDevice["status"]>(device.status);
   const { pending, run } = useServerAction();
-  const changed = name.trim() !== device.name || status !== device.status;
+  const [printsTickets, setPrintsTickets] = React.useState(device.printsTickets);
+  const changed = name.trim() !== device.name || status !== device.status || printsTickets !== device.printsTickets;
   return (
     <TableRow>
       <TableCell colSpan={5}>
@@ -106,6 +107,7 @@ function EditRow({ device, onDone }: { device: KioskDevice; onDone: () => void }
                   version: device.version,
                   ...(name.trim() !== device.name ? { name: name.trim() } : {}),
                   ...(status !== device.status ? { status } : {}),
+                  ...(printsTickets !== device.printsTickets ? { printsTickets } : {}),
                 }),
               `${device.name} updated`,
               onDone,
@@ -130,6 +132,14 @@ function EditRow({ device, onDone }: { device: KioskDevice; onDone: () => void }
               ))}
             </NativeSelect>
           </div>
+          {device.kind === "kiosk" ? (
+            <div className="flex items-center gap-2 pb-2">
+              <Checkbox id={`prints-${device.id}`} checked={printsTickets} onCheckedChange={(v) => setPrintsTickets(v === true)} />
+              <label htmlFor={`prints-${device.id}`} className="text-meta">
+                Prints tickets
+              </label>
+            </div>
+          ) : null}
           <Button type="submit" size="sm" disabled={pending || !changed || name.trim().length < 2}>
             Save
           </Button>

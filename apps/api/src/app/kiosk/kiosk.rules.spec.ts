@@ -58,16 +58,17 @@ describe("kiosk rules", () => {
     const stale = new Date(t0.getTime() - PRINTER_FRESH_MS - 1_000);
 
     it("is working only when its last, recent report was fine", () => {
-      expect(printerAvailability({ printerStatus: "ok", printerHeartbeatAt: fresh }, t0)).toBe("available");
-      expect(printerAvailability({ printerStatus: "paper_out", printerHeartbeatAt: fresh }, t0)).toBe("attention");
-      expect(printerAvailability({ printerStatus: "offline", printerHeartbeatAt: fresh }, t0)).toBe("attention");
-      expect(printerAvailability({ printerStatus: "error", printerHeartbeatAt: fresh }, t0)).toBe("attention");
+      expect(printerAvailability({ printsTickets: true, printerStatus: "ok", printerHeartbeatAt: fresh }, t0)).toBe("available");
+      expect(printerAvailability({ printsTickets: true, printerStatus: "paper_out", printerHeartbeatAt: fresh }, t0)).toBe("attention");
+      expect(printerAvailability({ printsTickets: true, printerStatus: "offline", printerHeartbeatAt: fresh }, t0)).toBe("attention");
+      expect(printerAvailability({ printsTickets: true, printerStatus: "error", printerHeartbeatAt: fresh }, t0)).toBe("attention");
     });
 
     it("is not known to work when the agent has gone quiet, or never reported, or the kiosk has no printer", () => {
-      expect(printerAvailability({ printerStatus: "ok", printerHeartbeatAt: stale }, t0)).toBe("unavailable");
-      expect(printerAvailability({ printerStatus: "unknown", printerHeartbeatAt: null }, t0)).toBe("unknown");
-      expect(printerAvailability({ printerStatus: "none", printerHeartbeatAt: fresh }, t0)).toBe("none");
+      expect(printerAvailability({ printsTickets: true, printerStatus: "ok", printerHeartbeatAt: stale }, t0)).toBe("unavailable");
+      expect(printerAvailability({ printsTickets: true, printerStatus: "unknown", printerHeartbeatAt: null }, t0)).toBe("unknown");
+      expect(printerAvailability({ printsTickets: true, printerStatus: "none", printerHeartbeatAt: fresh }, t0)).toBe("none");
+      expect(printerAvailability({ printsTickets: false, printerStatus: "ok", printerHeartbeatAt: fresh }, t0)).toBe("none");
     });
 
     it("keeps the printing limits sensible: a lease shorter than the age, a few attempts, a few reprints", () => {

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { PlusIcon } from "lucide-react";
-import { Button, Card, Input, Label, NativeSelect } from "@healthcare/ui/primitives";
+import { Button, Card, Checkbox, Input, Label, NativeSelect } from "@healthcare/ui/primitives";
 import { useServerAction } from "@/lib/use-server-action";
 import { registerDevice } from "./actions";
 
@@ -23,6 +23,7 @@ export function RegisterDevice({ accounts }: { accounts: DeviceAccount[] }) {
   const [code, setCode] = React.useState("");
   const [name, setName] = React.useState("");
   const [userId, setUserId] = React.useState("");
+  const [printsTickets, setPrintsTickets] = React.useState(false);
   const { pending, run } = useServerAction();
   const offered = accounts.filter((a) => a.role === (kind === "kiosk" ? "kiosk_device" : "queue_display"));
 
@@ -40,13 +41,14 @@ export function RegisterDevice({ accounts }: { accounts: DeviceAccount[] }) {
         onSubmit={(e) => {
           e.preventDefault();
           run(
-            () => registerDevice({ kind, code, name, userId }),
+            () => registerDevice({ kind, code, name, userId, ...(kind === "kiosk" ? { printsTickets } : {}) }),
             `${name.trim()} registered`,
             () => {
               setOpen(false);
               setCode("");
               setName("");
               setUserId("");
+              setPrintsTickets(false);
             },
           );
         }}
@@ -89,12 +91,24 @@ export function RegisterDevice({ accounts }: { accounts: DeviceAccount[] }) {
             ))}
           </NativeSelect>
         </div>
+        {kind === "kiosk" ? (
+          <div className="flex items-center gap-2 pb-2">
+            <Checkbox id="device-prints" checked={printsTickets} onCheckedChange={(v) => setPrintsTickets(v === true)} />
+            <Label htmlFor="device-prints">Prints tickets</Label>
+          </div>
+        ) : null}
         <Button type="submit" size="sm" disabled={pending || !code.trim() || name.trim().length < 2 || !userId}>
           Register
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
         </Button>
+        {kind === "kiosk" ? (
+          <p className="basis-full text-meta text-muted-foreground">
+            Leave <strong>Prints tickets</strong> off until the kiosk has a ticket printer and the print agent has been checked on it; the patient then keeps
+            the number shown on the screen.
+          </p>
+        ) : null}
         <p className="basis-full text-meta text-muted-foreground">
           Create the account first in Administration → Users, with the <strong>{kind === "kiosk" ? "Patient kiosk" : "Waiting-room display"}</strong> role at
           this facility.

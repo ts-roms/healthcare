@@ -27,7 +27,7 @@ export const PRINTER_LABEL: Record<KioskDevice["printer"], string> = {
   attention: "Printer needs attention",
   unavailable: "Printer not reporting",
   unknown: "No printer report yet",
-  none: "No printer",
+  none: "Ticket printing off",
 };
 
 export const PRINTER_VARIANT: Record<KioskDevice["printer"], "success" | "danger" | "warning" | "neutral"> = {
@@ -45,7 +45,7 @@ export const PRINTER_STATUS_DETAIL: Record<KioskDevice["printerStatus"], string>
   offline: "Not reachable",
   error: "Reported an error",
   unknown: "Not reported yet",
-  none: "This kiosk has no printer",
+  none: "Ticket printing is off for this kiosk",
 };
 
 export const PRINT_STATUS_LABEL: Record<KioskPrintJob["status"], string> = {

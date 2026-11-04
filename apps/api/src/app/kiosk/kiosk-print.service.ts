@@ -72,15 +72,16 @@ export class KioskPrintService {
   // ---- Queued by the check-in -----------------------------------------------------------------------------------------
 
   /**
-   * Queues the ticket for the kiosk's printer; null when the kiosk has no printer or the job could not be queued (the screen
+   * Queues the ticket for the kiosk's printer; null when printing is off for the kiosk or the job could not be queued (the screen
    * still shows the ticket: printing never stands in the way of a check-in). A repeat for the same visit returns the job
    * already queued.
    */
   async enqueueTicket(
-    device: { id: string; organizationId: string; facilityId: string; printerStatus: string },
+    device: { id: string; organizationId: string; facilityId: string; printsTickets: boolean },
     ticket: { visitId: string; ticket: string; serviceName: string; facilityName: string; issuedAt: Date; instructions: string },
   ): Promise<string | null> {
-    if (device.printerStatus === "none") return null;
+    // A kiosk queues tickets for printing only once staff have turned printing on for it (it has a printer and an agent).
+    if (!device.printsTickets) return null;
     try {
       const [created] = await this.db
         .insert(kioskPrintJob)
@@ -314,6 +315,7 @@ export class KioskPrintService {
       }
       const [device] = await tx.select().from(kioskDevice).where(eq(kioskDevice.id, original.deviceId));
       if (!device || device.status !== "active") throw new BusinessRuleError("That kiosk is not in service", "kiosk_not_available");
+      if (!device.printsTickets) throw new BusinessRuleError("Ticket printing is turned off for that kiosk", "kiosk_not_printing");
 
       const [created] = await tx
         .insert(kioskPrintJob)
