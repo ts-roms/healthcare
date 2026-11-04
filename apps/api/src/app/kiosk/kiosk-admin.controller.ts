@@ -1,4 +1,5 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { DeviceRateLimitGuard } from "../rate-limit.guard";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { KioskDeviceService } from "./kiosk-device.service";
@@ -18,6 +19,7 @@ import {
 @ApiTags("kiosk administration")
 @ApiBearerAuth()
 @Controller({ path: "kiosk/admin", version: "1" })
+@UseGuards(DeviceRateLimitGuard)
 @RequireFacility()
 export class KioskAdminController {
   constructor(

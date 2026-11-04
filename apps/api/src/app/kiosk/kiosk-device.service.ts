@@ -34,6 +34,8 @@ export interface KioskDeviceView {
   printerStatus: KioskDeviceRecord["printerStatus"];
   /** Staff turned ticket printing on for this kiosk (a kiosk without a printer leaves it off). */
   printsTickets: boolean;
+  /** The print agent account that serves this kiosk; null = any print agent of the facility. */
+  printAgentUserId: string | null;
   /** Whether the printer is known to be working: from its last report and how recent that is (kiosks only). */
   printer: PrinterAvailability;
   printerHeartbeatAt: Date | null;
@@ -52,6 +54,7 @@ const view = (row: KioskDeviceRecord, now = new Date()): KioskDeviceView => ({
   appVersion: row.appVersion,
   printerStatus: row.printerStatus,
   printsTickets: row.kind === "kiosk" && row.printsTickets,
+  printAgentUserId: row.printAgentUserId,
   printer: row.kind === "kiosk" ? printerAvailability(row, now) : "none",
   printerHeartbeatAt: row.printerHeartbeatAt,
   version: row.version,
@@ -101,6 +104,10 @@ export class KioskDeviceService {
         display ? "display_account_too_powerful" : "kiosk_account_too_powerful",
       );
     }
+    if (input.printAgentUserId) {
+      if (display) throw new BusinessRuleError("A waiting-room screen has no print agent", "not_a_kiosk");
+      await this.requireAgentAccount(actor, facilityId, input.printAgentUserId);
+    }
     try {
       return await this.db.transaction(async (tx) => {
         const [created] = await tx
@@ -113,6 +120,7 @@ export class KioskDeviceService {
             kind: input.kind,
             // Only a kiosk can print tickets.
             printsTickets: input.kind === "kiosk" && input.printsTickets,
+            printAgentUserId: input.kind === "kiosk" ? (input.printAgentUserId ?? null) : null,
             userId: input.userId,
             createdBy: actor.userId,
           })
@@ -147,8 +155,17 @@ export class KioskDeviceService {
     }
   }
 
+  /** The account must hold the print agent role at this facility (and so open nothing else). */
+  private async requireAgentAccount(actor: Actor, facilityId: string, userId: string): Promise<void> {
+    const holders = await this.users.holdersOfRole(actor.organizationId, "kiosk_print_agent", facilityId);
+    if (!holders.some((u) => u.id === userId)) {
+      throw new BusinessRuleError("That account does not hold the Kiosk print agent role at this facility", "not_a_print_agent_account");
+    }
+  }
+
   async update(actor: Actor, deviceId: string, input: z.infer<typeof updateDeviceSchema>): Promise<KioskDeviceView> {
     const facilityId = requireFacilityId(actor);
+    if (input.printAgentUserId) await this.requireAgentAccount(actor, facilityId, input.printAgentUserId);
     return this.db.transaction(async (tx) => {
       const [locked] = await tx
         .select()
@@ -157,12 +174,16 @@ export class KioskDeviceService {
         .for("update");
       const current = found(locked, "Kiosk");
       assertVersion(current.version, input.version, "Kiosk");
+      if (input.printAgentUserId !== undefined && current.kind !== "kiosk") {
+        throw new BusinessRuleError("A waiting-room screen has no print agent", "not_a_kiosk");
+      }
       const [updated] = await tx
         .update(kioskDevice)
         .set({
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.status !== undefined ? { status: input.status } : {}),
           ...(input.printsTickets !== undefined && current.kind === "kiosk" ? { printsTickets: input.printsTickets } : {}),
+          ...(input.printAgentUserId !== undefined ? { printAgentUserId: input.printAgentUserId } : {}),
           updatedAt: new Date(),
           version: sql`${kioskDevice.version} + 1`,
         })
@@ -177,6 +198,7 @@ export class KioskDeviceService {
           ...(current.name !== row.name ? { name: { from: current.name, to: row.name } } : {}),
           ...(current.status !== row.status ? { status: { from: current.status, to: row.status } } : {}),
           ...(current.printsTickets !== row.printsTickets ? { printsTickets: { from: current.printsTickets, to: row.printsTickets } } : {}),
+          ...(current.printAgentUserId !== row.printAgentUserId ? { printAgentUserId: { from: current.printAgentUserId, to: row.printAgentUserId } } : {}),
         },
       });
       if (current.status !== row.status) {

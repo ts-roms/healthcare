@@ -37,7 +37,9 @@ export default async function KioskDevicesPage() {
     const users = await api<StaffUser[]>("/users").catch(() => []);
     accounts = users.flatMap((u) => {
       const role = u.roleAssignments.find(
-        (r) => (r.roleKey === "kiosk_device" || r.roleKey === "queue_display") && (r.facilityId === null || r.facilityId === facility.id),
+        (r) =>
+          (r.roleKey === "kiosk_device" || r.roleKey === "queue_display" || r.roleKey === "kiosk_print_agent") &&
+          (r.facilityId === null || r.facilityId === facility.id),
       );
       return role && u.membershipStatus === "active" ? [{ id: u.id, label: `${u.displayName} (${u.email})`, role: role.roleKey as DeviceAccount["role"] }] : [];
     });
@@ -52,7 +54,7 @@ export default async function KioskDevicesPage() {
       }`}
     >
       {canManage ? <RegisterDevice accounts={accounts} /> : null}
-      <DeviceList devices={devices} canManage={canManage} />
+      <DeviceList devices={devices} canManage={canManage} agents={accounts.filter((a) => a.role === "kiosk_print_agent")} />
       <h2 className="text-section font-semibold">Kiosk tickets, last 24 hours</h2>
       <PrintJobs jobs={jobs} canReprint={can(session, "kiosk.print.reprint")} />
     </ModulePage>

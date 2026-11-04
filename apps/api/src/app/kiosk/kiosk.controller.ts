@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
+import { DeviceRateLimitGuard } from "../rate-limit.guard";
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
@@ -26,6 +27,7 @@ const IDENTIFY_THROTTLE = { default: { limit: 40, ttl: 60_000 } };
 @ApiTags("kiosk")
 @ApiBearerAuth()
 @Controller({ path: "kiosk", version: "1" })
+@UseGuards(DeviceRateLimitGuard)
 @RequireFacility()
 @RequirePermissions("kiosk.session.use")
 export class KioskController {

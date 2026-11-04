@@ -137,7 +137,13 @@ export class KioskPrintService {
         ),
       );
     if (!device) throw new NotFoundError("Kiosk");
+    this.requireServes(actor, device);
     return device;
+  }
+
+  /** A kiosk that names its print agent is served by that account only; any other agent is told the kiosk is not found. */
+  private requireServes(actor: Actor, device: { printAgentUserId: string | null }): void {
+    if (device.printAgentUserId && device.printAgentUserId !== actor.userId) throw new NotFoundError("Kiosk");
   }
 
   /**
@@ -192,6 +198,8 @@ export class KioskPrintService {
         .where(and(eq(kioskPrintJob.organizationId, actor.organizationId), eq(kioskPrintJob.id, jobId), eq(kioskPrintJob.facilityId, facilityId)))
         .for("update");
       if (!job) throw new NotFoundError("Print job");
+      const [served] = await tx.select({ printAgentUserId: kioskDevice.printAgentUserId }).from(kioskDevice).where(eq(kioskDevice.id, job.deviceId));
+      if (served) this.requireServes(actor, served);
       if (input.outcome === "printed" && job.status === "printed") return { status: "printed" };
       if (job.status !== "printing") throw new BusinessRuleError("This ticket is not being printed", "print_job_not_active");
 

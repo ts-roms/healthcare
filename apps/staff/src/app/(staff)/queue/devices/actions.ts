@@ -35,6 +35,7 @@ const updateSchema = z.object({
   name: z.string().trim().min(2, "Give the device a name.").max(100).optional(),
   status: z.enum(["active", "maintenance", "disabled"]).optional(),
   printsTickets: z.boolean().optional(),
+  printAgentUserId: id.nullable().optional(),
   version: z.number().int().positive(),
 });
 

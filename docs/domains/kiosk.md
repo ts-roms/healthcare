@@ -134,6 +134,14 @@ a reprint is refused (`kiosk_not_printing`). Staff turn it on (register form or 
 bought: the agent, the job queue, the reprint and the status reporting already exist and are tested only against simulated
 printers. A different printer protocol would be a new `PRINTER_TYPE` in the agent, not an API change.
 
+**Print agent per kiosk and limits per device (migrations `0142`; audit KA-04, KA-07).** A kiosk may name the account of its
+print agent (`print_agent_user_id`, an account holding the `kiosk_print_agent` role at the facility; staff **Queue → Devices →
+Edit → Print agent**, audited): only that account may claim its tickets, report on them or send its printer heartbeat — any
+other agent is told the kiosk is not found. Left empty, any agent of the facility may serve it (one agent, one printer).
+Kiosk, print agent and waiting-room screen routes are rate-limited per signed-in device account, not per network address
+(`DeviceRateLimitGuard`, applied on the kiosk controllers so it runs after the access guard): kiosks in one clinic share an
+address, so one busy kiosk no longer uses up the others' allowance.
+
 **Devices.** `kiosk_device.kind` is `kiosk` or `display`: a waiting-room screen is registered like a kiosk, from an account
 holding only the `queue_display` role (and no `patient.read`), and reports in with `POST /kiosk/display/heartbeat`
 (any holder of `clinic.queue.display`; an account that is not a registered display is simply not monitored; a display in

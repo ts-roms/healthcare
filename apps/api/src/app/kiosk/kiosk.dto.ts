@@ -18,6 +18,8 @@ export const registerDeviceSchema = z.object({
   kind: z.enum(["kiosk", "display"]).default("kiosk"),
   /** The kiosk has a ticket printer and a print agent: tickets are queued for printing. Off until staff turn it on. */
   printsTickets: z.boolean().default(false),
+  /** The print agent account that serves this kiosk; leave empty to let any print agent of the facility serve it. */
+  printAgentUserId: z.string().uuid().optional(),
 });
 export class RegisterDeviceDto extends createZodDto(registerDeviceSchema) {}
 
@@ -26,9 +28,11 @@ export const updateDeviceSchema = z
     name: z.string().trim().min(2).max(100).optional(),
     status: z.enum(["active", "maintenance", "disabled"]).optional(),
     printsTickets: z.boolean().optional(),
+    /** The print agent account that serves this kiosk; null lets any print agent of the facility serve it. */
+    printAgentUserId: z.string().uuid().nullable().optional(),
     version: z.number().int().positive(),
   })
-  .refine((v) => v.name !== undefined || v.status !== undefined || v.printsTickets !== undefined, "Nothing to change");
+  .refine((v) => v.name !== undefined || v.status !== undefined || v.printsTickets !== undefined || v.printAgentUserId !== undefined, "Nothing to change");
 export class UpdateDeviceDto extends createZodDto(updateDeviceSchema) {}
 
 // ---- The kiosk itself ----------------------------------------------------------------------------------------------

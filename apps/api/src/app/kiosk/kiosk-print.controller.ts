@@ -1,4 +1,5 @@
-import { Body, Controller, HttpCode, Param, ParseUUIDPipe, Post } from "@nestjs/common";
+import { Body, Controller, HttpCode, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
+import { DeviceRateLimitGuard } from "../rate-limit.guard";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
@@ -17,6 +18,7 @@ const AGENT_THROTTLE = { default: { limit: 120, ttl: 60_000 } };
 @ApiTags("kiosk printing")
 @ApiBearerAuth()
 @Controller({ path: "kiosk/print", version: "1" })
+@UseGuards(DeviceRateLimitGuard)
 @RequireFacility()
 @RequirePermissions("kiosk.print.agent")
 export class KioskPrintController {
@@ -51,6 +53,7 @@ export class KioskPrintController {
 @ApiTags("kiosk devices")
 @ApiBearerAuth()
 @Controller({ path: "kiosk/display", version: "1" })
+@UseGuards(DeviceRateLimitGuard)
 @RequireFacility()
 @RequirePermissions("clinic.queue.display")
 export class KioskDisplayController {

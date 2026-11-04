@@ -476,4 +476,41 @@ describe("kiosk printing, devices and the display's settings", () => {
       expect(JSON.stringify(body)).not.toMatch(/Print\d+x|Given\d+|P\d{8}/);
     });
   });
+
+  describe("a kiosk's own print agent (KA-04)", () => {
+    it("lets only the named agent account claim, report and heartbeat for a kiosk; an unnamed kiosk is served by any agent", async () => {
+      await createStaff(ctx.pool, tenant, "agent3@print.ph", [{ role: "kiosk_print_agent", facilityId: tenant.facilityId }]);
+      const agent3 = (await login(ctx, "agent3@print.ph")).accessToken;
+      const devices = (await staff(admin).get("/kiosk/admin/devices").expect(200)).body.items as Array<{ id: string; code: string; version: number }>;
+      const side = devices.find((d) => d.code === "print-2")!;
+
+      // Only an account holding the print agent role at the facility can be named.
+      const notAgent = await staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { printAgentUserId: await userId("desk@print.ph"), version: side.version });
+      expect(notAgent.status).toBe(422);
+      expect(notAgent.body.error.code).toBe("not_a_print_agent_account");
+
+      const bound = await staff(admin)
+        .patch(`/kiosk/admin/devices/${side.id}`, { printAgentUserId: await userId("agent3@print.ph"), version: side.version })
+        .expect(200);
+      expect(bound.body.printAgentUserId).toBe(await userId("agent3@print.ph"));
+
+      const ticket = await checkIn(kioskTwo);
+      // The other agent of the facility no longer sees this kiosk at all.
+      await claim(agent, "print-2").expect(404);
+      await staff(agent).post("/kiosk/print/heartbeat", { deviceCode: "print-2", printerStatus: "ok" }).expect(404);
+      const claimed = (await claim(agent3, "print-2").expect(200)).body.job;
+      expect(claimed).toMatchObject({ id: ticket.printJobId });
+      await result(ticket.printJobId!, { outcome: "printed" }, agent).expect(404);
+      await result(ticket.printJobId!, { outcome: "printed" }, agent3).expect(200);
+      // An unnamed kiosk is still served by any agent of the facility.
+      await claim(agent, "print-1").expect(200);
+      await claim(agent3, "print-1").expect(200);
+
+      // Letting any agent serve it again.
+      const freed = await staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { printAgentUserId: null, version: bound.body.version }).expect(200);
+      expect(freed.body.printAgentUserId).toBeNull();
+      await claim(agent, "print-2").expect(200);
+      expect((await auditRows(ctx.pool, `action = 'kiosk.device.update'`)).length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -7,13 +7,14 @@ import { Badge, Button, Card, Checkbox, Input, NativeSelect, Table, TableBody, T
 import type { KioskDevice } from "@/lib/api/types";
 import { DEVICE_HEALTH_LABEL, DEVICE_HEALTH_VARIANT, DEVICE_STATUS_LABEL, PRINTER_LABEL, PRINTER_STATUS_DETAIL, PRINTER_VARIANT } from "@/lib/kiosk-devices";
 import { useServerAction } from "@/lib/use-server-action";
+import type { DeviceAccount } from "./register-device";
 import { updateDevice } from "./actions";
 
 /**
  * The facility's kiosks and waiting-room displays: whether each is reporting, when it last did, its version and (for a
  * kiosk) whether its printer is working. Text with an icon, never colour alone.
  */
-export function DeviceList({ devices, canManage }: { devices: KioskDevice[]; canManage: boolean }) {
+export function DeviceList({ devices, canManage, agents }: { devices: KioskDevice[]; canManage: boolean; agents: DeviceAccount[] }) {
   const [editing, setEditing] = React.useState<string | null>(null);
   return (
     <Card className="py-0">
@@ -33,7 +34,7 @@ export function DeviceList({ devices, canManage }: { devices: KioskDevice[]; can
           <TableBody>
             {devices.map((d) =>
               editing === d.id ? (
-                <EditRow key={d.id} device={d} onDone={() => setEditing(null)} />
+                <EditRow key={d.id} device={d} agents={agents} onDone={() => setEditing(null)} />
               ) : (
                 <TableRow key={d.id}>
                   <TableCell>
@@ -87,12 +88,14 @@ export function DeviceList({ devices, canManage }: { devices: KioskDevice[]; can
   );
 }
 
-function EditRow({ device, onDone }: { device: KioskDevice; onDone: () => void }) {
+function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: DeviceAccount[]; onDone: () => void }) {
   const [name, setName] = React.useState(device.name);
   const [status, setStatus] = React.useState<KioskDevice["status"]>(device.status);
   const { pending, run } = useServerAction();
   const [printsTickets, setPrintsTickets] = React.useState(device.printsTickets);
-  const changed = name.trim() !== device.name || status !== device.status || printsTickets !== device.printsTickets;
+  const [agentId, setAgentId] = React.useState(device.printAgentUserId ?? "");
+  const changed =
+    name.trim() !== device.name || status !== device.status || printsTickets !== device.printsTickets || agentId !== (device.printAgentUserId ?? "");
   return (
     <TableRow>
       <TableCell colSpan={5}>
@@ -108,6 +111,7 @@ function EditRow({ device, onDone }: { device: KioskDevice; onDone: () => void }
                   ...(name.trim() !== device.name ? { name: name.trim() } : {}),
                   ...(status !== device.status ? { status } : {}),
                   ...(printsTickets !== device.printsTickets ? { printsTickets } : {}),
+                  ...(agentId !== (device.printAgentUserId ?? "") ? { printAgentUserId: agentId || null } : {}),
                 }),
               `${device.name} updated`,
               onDone,
@@ -138,6 +142,27 @@ function EditRow({ device, onDone }: { device: KioskDevice; onDone: () => void }
               <label htmlFor={`prints-${device.id}`} className="text-meta">
                 Prints tickets
               </label>
+            </div>
+          ) : null}
+          {device.kind === "kiosk" ? (
+            <div className="grid gap-1">
+              <label htmlFor={`agent-${device.id}`} className="text-meta text-muted-foreground">
+                Print agent
+              </label>
+              <NativeSelect
+                id={`agent-${device.id}`}
+                value={agentId}
+                emptyText="No print agent accounts set up"
+                onChange={(e) => setAgentId(e.target.value)}
+                className="w-64"
+              >
+                <option value="">Any print agent of this facility</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.label}
+                  </option>
+                ))}
+              </NativeSelect>
             </div>
           ) : null}
           <Button type="submit" size="sm" disabled={pending || !changed || name.trim().length < 2}>

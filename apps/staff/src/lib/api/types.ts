@@ -5699,6 +5699,8 @@ export interface KioskDevice {
   appVersion: string | null;
   /** Staff turned ticket printing on for this kiosk; off until it has a printer and a print agent. */
   printsTickets: boolean;
+  /** The print agent account that serves this kiosk; null = any print agent of the facility. */
+  printAgentUserId: string | null;
   printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error";
   /** Whether the printer is known to be working: its last report and how recent it is (kiosks only). */
   printer: "available" | "attention" | "unavailable" | "unknown" | "none";

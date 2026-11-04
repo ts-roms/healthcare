@@ -10,7 +10,7 @@ export interface DeviceAccount {
   id: string;
   label: string;
   /** The built-in role the account holds: `kiosk_device` or `queue_display`. */
-  role: "kiosk_device" | "queue_display";
+  role: "kiosk_device" | "queue_display" | "kiosk_print_agent";
 }
 
 /**

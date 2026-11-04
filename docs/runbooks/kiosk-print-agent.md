@@ -81,6 +81,12 @@ monitoring at it. It cannot be reached from another machine.
 | `agent.fatal` "The API refused the agent's sign-in" | The account's email, password or organization is wrong, or it asks for a two-step code.                                                                                 |
 | Tickets print twice                                 | The agent remembers the tickets it printed for an hour and does not print one again; a second copy usually means two agents serve the same kiosk — keep one per kiosk.  |
 
+## Binding the agent to its kiosk
+
+By default any print agent account of the facility can serve any kiosk there. With several agents, or to limit what a stolen agent
+password can do, name the agent for each kiosk: **Queue → Devices → Edit → Print agent**. That kiosk's tickets and printer state can
+then be claimed and reported only by that account; set it back to "Any print agent" to undo it.
+
 ## Turning printing on for a kiosk
 
 A kiosk **does not print** until staff say it can: **Queue → Devices → Edit → Prints tickets** (or the box when registering).
