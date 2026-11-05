@@ -146,6 +146,8 @@ address, so one busy kiosk no longer uses up the others' allowance.
 
 **Flooding, missed calls and scripts (audit KA-06, KA-08, KA-09).** A kiosk accepts at most 50 waiting registrations and 20 in any hour (`kiosk_registration_busy`: "please see the front desk"); the waiting-room display reads out every call made since the one it last showed, oldest first (not only the newest), still one at a time, never repeated and with at most three waiting; the kiosk app sends a per-request nonce policy (`apps/kiosk/src/lib/csp.ts`, set in `proxy.ts`): scripts run only with the request's nonce, no inline or eval scripts, nothing loads from another origin.
 
+**Telling patients (MyHealth home).** `GET /portal/kiosk` (patient guard, `@ProxyAllowed()`; `PortalKioskController`) answers `{ available, locations }`: the names of the facilities with a kiosk in service (`KioskDeviceService.inServiceLocations`; nothing about a patient or a device, not audited). MyHealth's Home shows the notice "Skip the front desk line" with three steps only when `available` is true and the patient has not hidden it (`apps/portal/src/components/kiosk-promo.tsx`, hidden state in the browser's storage); if the answer fails the home page simply shows no notice. Journey `apps/e2e/tests/31-kiosk-notice.journey.ts`.
+
 **Devices.** `kiosk_device.kind` is `kiosk` or `display`: a waiting-room screen is registered like a kiosk, from an account
 holding only the `queue_display` role (and no `patient.read`), and reports in with `POST /kiosk/display/heartbeat`
 (any holder of `clinic.queue.display`; an account that is not a registered display is simply not monitored; a display in

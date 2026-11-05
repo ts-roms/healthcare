@@ -86,6 +86,21 @@ export class KioskDeviceService {
     return rows.map((r) => view(r, now));
   }
 
+  /** The facilities that have at least one kiosk in service (for MyHealth's notice to patients): names only. */
+  async inServiceLocations(organizationId: string): Promise<{ available: boolean; locations: string[] }> {
+    const rows = await this.db
+      .selectDistinct({ facilityId: kioskDevice.facilityId })
+      .from(kioskDevice)
+      .where(and(eq(kioskDevice.organizationId, organizationId), eq(kioskDevice.kind, "kiosk"), eq(kioskDevice.status, "active")));
+    const names: string[] = [];
+    for (const { facilityId } of rows) {
+      const site = await this.organizations.findFacility(organizationId, facilityId);
+      if (site) names.push(site.name);
+    }
+    names.sort((x, y) => x.localeCompare(y));
+    return { available: names.length > 0, locations: names };
+  }
+
   async register(actor: Actor, input: z.infer<typeof registerDeviceSchema>): Promise<KioskDeviceView> {
     const facilityId = requireFacilityId(actor);
     // The account must be a device account at this facility and nothing more: a kiosk or a display is never given general

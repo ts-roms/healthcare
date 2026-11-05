@@ -1,3 +1,4 @@
+import { KioskDeviceService } from "../src/app/kiosk/kiosk-device.service";
 import { KioskRegistrationService } from "../src/app/kiosk/kiosk-registration.service";
 import { KioskSessionService } from "../src/app/kiosk/kiosk-session.service";
 import { as, auditRows, createClinician, createStaff, createTenant, createTestApp, login, type Tenant, type TestContext, underPlatform } from "./harness";
@@ -698,6 +699,17 @@ describe("patient self-service kiosk", () => {
         .post("/registrations", typedBody({ givenName: "Elsewhere" }))
         .expect(201);
       await k(kiosk.one, other).delete("/sessions");
+    });
+
+    it("tells MyHealth which facilities have a kiosk in service, by name only, and none when every kiosk is out of service", async () => {
+      const devices = underPlatform(ctx.app.get(KioskDeviceService));
+      const before = await devices.inServiceLocations(tenant.organizationId);
+      expect(before.available).toBe(true);
+      expect(before.locations.length).toBeGreaterThanOrEqual(1);
+      expect(Object.keys(before).sort()).toEqual(["available", "locations"]);
+      await ctx.pool.query(`UPDATE kiosk_device SET status = 'maintenance' WHERE organization_id = $1`, [tenant.organizationId]);
+      expect(await devices.inServiceLocations(tenant.organizationId)).toEqual({ available: false, locations: [] });
+      await ctx.pool.query(`UPDATE kiosk_device SET status = 'active' WHERE organization_id = $1`, [tenant.organizationId]);
     });
   });
 });
