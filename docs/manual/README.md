@@ -31,26 +31,29 @@ Developers and system operators should read the technical documentation instead:
 
 ## Find a task quickly
 
-| I want to…                                 | Go to                                                                                                        |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Register a new patient                     | [Patients → registration](02-patients.md)                                                                    |
-| Keep working when the internet is down     | [Appointments and queue → Offline page](03-appointments-and-queue.md#when-the-internet-is-down-offline-page) |
-| Send a message to a group of patients      | [Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign)                        |
-| Book an appointment or check a patient in  | [Appointments and queue](03-appointments-and-queue.md)                                                       |
-| Take vital signs at triage                 | [Appointments and queue → triage](03-appointments-and-queue.md)                                              |
-| Record a nurse procedure without a doctor  | [Appointments and queue → procedures](03-appointments-and-queue.md)                                          |
-| Write and sign a consultation note         | [Consultations](04-consultations-and-care-plans.md)                                                          |
-| Prescribe, or order laboratory tests       | [Consultations](04-consultations-and-care-plans.md)                                                          |
-| Collect a specimen and print its label     | [Laboratory](06-laboratory.md)                                                                               |
-| Enter, verify, approve and release results | [Laboratory](06-laboratory.md)                                                                               |
-| Record a QC run or a fridge temperature    | [Laboratory quality](07-laboratory-quality.md)                                                               |
-| See reagent use and cost per test run      | [Laboratory quality](07-laboratory-quality.md)                                                               |
-| Chart teeth or record a dental procedure   | [Dental](08-dental.md)                                                                                       |
-| Dispense a prescription                    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                       |
-| Receive stock or raise a purchase order    | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                       |
-| Issue an invoice and take payment          | [Billing](10-billing.md)                                                                                     |
-| Give a patient access to MyHealth          | [Patients → patient portal access](02-patients.md)                                                           |
-| Help a patient activate MyHealth           | [MyHealth patient portal](12-patient-portal.md)                                                              |
+| I want to…                                   | Go to                                                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Register a new patient                       | [Patients → registration](02-patients.md)                                                                                                   |
+| Keep working when the internet is down       | [Appointments and queue → Offline page](03-appointments-and-queue.md#when-the-internet-is-down-offline-page)                                |
+| Send a message to a group of patients        | [Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign)                                                       |
+| Book an appointment or check a patient in    | [Appointments and queue](03-appointments-and-queue.md)                                                                                      |
+| Take vital signs at triage                   | [Appointments and queue → triage](03-appointments-and-queue.md)                                                                             |
+| Record a nurse procedure without a doctor    | [Appointments and queue → procedures](03-appointments-and-queue.md)                                                                         |
+| Write and sign a consultation note           | [Consultations](04-consultations-and-care-plans.md)                                                                                         |
+| Prescribe, or order laboratory tests         | [Consultations](04-consultations-and-care-plans.md)                                                                                         |
+| Collect a specimen and print its label       | [Laboratory](06-laboratory.md)                                                                                                              |
+| Enter, verify, approve and release results   | [Laboratory](06-laboratory.md)                                                                                                              |
+| Record a QC run or a fridge temperature      | [Laboratory quality](07-laboratory-quality.md)                                                                                              |
+| See reagent use and cost per test run        | [Laboratory quality](07-laboratory-quality.md)                                                                                              |
+| Chart teeth or record a dental procedure     | [Dental](08-dental.md)                                                                                                                      |
+| Dispense a prescription                      | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                                                      |
+| Receive stock or raise a purchase order      | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                                                      |
+| Issue an invoice and take payment            | [Billing](10-billing.md)                                                                                                                    |
+| Give a patient access to MyHealth            | [Patients → patient portal access](02-patients.md)                                                                                          |
+| Help a patient activate MyHealth             | [MyHealth patient portal](12-patient-portal.md)                                                                                             |
+| Add a facility and see what it needs         | [Administration → set up a facility](13-administration.md#how-to-set-up-a-facility-its-type-and-what-it-needs)                              |
+| Set up a patient kiosk                       | [Appointments and queue → set up a kiosk](03-appointments-and-queue.md#how-to-set-up-a-patient-kiosk)                                       |
+| Record a facility's licence or accreditation | [Administration → licences and accreditations](13-administration.md#licences-and-accreditations-the-platform-keeps-as-issued-never-checked) |
 
 ## How to read this manual
 

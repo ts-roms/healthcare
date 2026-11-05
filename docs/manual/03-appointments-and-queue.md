@@ -210,6 +210,36 @@ These appear in the ticket panel next to **Call patient to**.
 
 If you would rather keep the visit open, use **Skip** (the patient goes back behind later arrivals).
 
+### How to set up a patient kiosk
+
+A **patient kiosk** is a touch screen in the waiting area where patients check themselves in and take a queue number. Setting one up takes about ten minutes
+and is done by an administrator (`clinic.configure`, `user.manage`, `kiosk.device.manage`). Do the steps in this order.
+
+1. **Choose the services the kiosk offers.** Open **Appointments → Online booking** (`/appointments/visit-types`) and tick **Patient kiosk** on each in-person
+   visit type that patients may pick on arrival, for example "Consultation". A kiosk lists only the visit types ticked here, so with none ticked there is
+   nothing to choose. Online (video) types are never offered. See [How to set up visit types](#how-to-set-up-visit-types-and-choose-which-patients-may-book-online).
+2. **Create the kiosk's own account.** Under **Settings → Staff users** create a staff account only for this device (for example `front-kiosk`), and grant it the
+   single role **Patient kiosk** at the kiosk's facility. Use a long random password. Add no other role: an account that can read patient records is refused
+   at registration. If your organization requires two-step verification for staff, exempt this account with a reason, because the kiosk signs in with a
+   password only.
+3. **Register the device.** Open **Queue → Devices**, choose **Register a device**, pick **Kiosk**, give it a **Code** (3–40 lower-case letters, digits or
+   hyphens, for example `front-1`) and a **Name**, and choose the account from step 2. Leave **Prints tickets** off for now.
+4. **Set up the screen itself.** Open the kiosk's address on the device in a full-screen kiosk-mode browser (your IT team provides the address). The first time,
+   it asks you to sign in: use the kiosk account once. After that the screen stays signed in and renews itself. In **Queue → Devices** the kiosk should show
+   **Online** within a minute.
+5. **Try it with a test patient.** Check in as a walk-in and, if you have a test appointment, for the appointment. Watch the ticket appear on the **Queue**
+   board, and a new-patient registration appear under **Queue → Registrations**. Use test data only.
+6. **Optional: ticket printing.** Add a receipt printer and the **print agent** program next to it, create the agent's own account with the single role
+   **Kiosk print agent**, and follow the printer checklist in the print agent runbook (`docs/runbooks/kiosk-print-agent.md`, for your IT team). Only when the printer has been checked, open **Queue → Devices → Edit**
+   on the kiosk and tick **Prints tickets**. If you run several agents, choose which one serves this kiosk under **Print agent**; with none chosen, any
+   print agent of the facility may serve it.
+7. **Keep it safe.** Put the kiosk and its printer on a network that visitors do not use, allow it to reach only the API over https, and keep the cabinet and
+   its ports locked.
+
+Until a printer is checked, the kiosk shows the queue number on screen only and says nothing about printing. To take a kiosk out of service, set it to
+**Maintenance** (it serves nobody) or **Disabled** (it is refused) under **Edit**. Patients are told about kiosks on their MyHealth home page while one is in
+service; the front desk is always the fallback.
+
 ### How to see your kiosks and screens, and print a ticket again
 
 Open **Queue → Devices**. Each kiosk and waiting-room screen is listed with whether it is **Online** (it keeps reporting), when it last did, its
