@@ -26,12 +26,21 @@ export function currentCallKey(display: Pick<QueueDisplay, "calls"> | null): str
  * re-read; when two calls happen between two looks (the feed was down, or reception was quick) the older one used to be
  * skipped. The display lists its recent calls newest first, so those above the previously shown call are the ones missed.
  * When the previous call is no longer in the list (a long gap), only the newest call is announced: older ones are stale.
+ * When the screen showed no call before (the day's first calls, or a list that could not be read), the calls made in the
+ * last `FRESH_CALL_MS` are all announced — two counters calling together are both read — and if none is that recent, only
+ * the newest, so a screen that reloads with a day's old calls never reads them all out.
  */
-export function callsSince(previousKey: string | null | undefined, calls: readonly DisplayCall[]): DisplayCall[] {
+export const FRESH_CALL_MS = 30_000;
+export function callsSince(previousKey: string | null | undefined, calls: readonly DisplayCall[], now: number = Date.now()): DisplayCall[] {
   const newest = calls[0];
   if (!newest) return [];
   const seen = previousKey ? calls.findIndex((c) => callKeyOf(c) === previousKey) : -1;
-  return seen > 0 ? calls.slice(0, seen).reverse() : [newest];
+  if (seen > 0) return calls.slice(0, seen).reverse();
+  if (!previousKey) {
+    const fresh = calls.filter((c) => now - new Date(c.calledAt).getTime() <= FRESH_CALL_MS);
+    if (fresh.length > 1) return fresh.reverse();
+  }
+  return [newest];
 }
 
 /** Whether to chime: the call shown now changed since the last render, and it is not the first render of the page. */

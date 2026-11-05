@@ -46,9 +46,19 @@ describe("calls made while the screen was not looking", () => {
   it("announces only the newest call when the one shown before is no longer listed, or nothing was shown", () => {
     const calls = [at("A-009", 9), at("A-008", 8)];
     expect(callsSince(callKeyOf(at("A-001", 1)), calls).map((c) => c.ticket)).toEqual(["A-009"]);
-    expect(callsSince(null, calls).map((c) => c.ticket)).toEqual(["A-009"]);
+    expect(callsSince(null, calls, Date.UTC(2026, 9, 9, 3)).map((c) => c.ticket)).toEqual(["A-009"]);
     expect(callsSince(callKeyOf(calls[0]!), calls).map((c) => c.ticket)).toEqual(["A-009"]);
     expect(callsSince("x", [])).toEqual([]);
+  });
+
+  it("announces every call made in the last half minute when the screen showed none before, oldest first", () => {
+    const calls = [at("A-003", 3), at("A-002", 2), at("A-001", 1)];
+    const now = new Date(calls[0]!.calledAt).getTime() + 5_000;
+    // at() spaces the calls an hour apart or so: pin them close together here.
+    const close = calls.map((c, i) => ({ ...c, calledAt: new Date(now - 5_000 - i * 1_000).toISOString() }));
+    expect(callsSince(null, close, now).map((c) => c.ticket)).toEqual(["A-001", "A-002", "A-003"]);
+    // Old calls are not read out again by a screen that reloads.
+    expect(callsSince(null, close, now + 10 * 60_000).map((c) => c.ticket)).toEqual(["A-003"]);
   });
 });
 
