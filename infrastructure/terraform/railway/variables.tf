@@ -40,6 +40,7 @@ variable "custom_domains" {
     api    = optional(string)
     staff  = optional(string)
     portal = optional(string)
+    kiosk  = optional(string)
   })
   default = {}
 }
@@ -50,6 +51,7 @@ variable "service_subdomains" {
     api    = optional(string, "healthcare-api")
     staff  = optional(string, "healthcare-staff")
     portal = optional(string, "healthcare-portal")
+    kiosk  = optional(string, "healthcare-kiosk")
   })
   default = {}
 }
@@ -66,6 +68,12 @@ variable "portal_organization_code" {
   description = "The organization's code the patient portal serves (the seed's SEED_ORG_CODE)."
   type        = string
   default     = "demo"
+}
+
+variable "kiosk_privacy_notice" {
+  description = "The privacy notice a new patient accepts at the patient kiosk (KIOSK_PRIVACY_NOTICE of the kiosk service). The wording is the organization's own decision; null leaves the kiosk's plain statement of what it does."
+  type        = string
+  default     = null
 }
 
 variable "log_level" {

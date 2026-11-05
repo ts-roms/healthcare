@@ -1,23 +1,24 @@
 # Deploying on Railway
 
-The platform runs on Railway as five services from this one repository, plus Railway's PostgreSQL and Redis. Each
+The platform runs on Railway as six services from this one repository, plus Railway's PostgreSQL and Redis. Each
 service has a config-as-code file next to its app. In each service's **Settings → Config-as-code**, set the file path.
 Keep **Root Directory** empty (the build needs the whole workspace).
 
 The repository root also has a `railway.json` that is a copy of `apps/api/railway.json`. Railway reads it when a service
 has no config-as-code path, so a service that misses its path builds and starts the `api` instead of failing in Railpack
 on the workspace's two Next.js apps. It is a safety net only: still set the path on every service, and keep the root file
-identical to the API's when either changes. `staff`, `portal` and the workers must have their own path (or
+identical to the API's when either changes. `staff`, `portal`, `kiosk` and the workers must have their own path (or
 `RAILPACK_NX_APP`), because they would otherwise get the API's commands.
 
-| Service               | Config file                              | Public domain | Notes                                                                                                                                                                |
-| --------------------- | ---------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `api`                 | `/apps/api/railway.json`                 | yes           | Runs migrations before each deploy; health check `/api/v1/health/ready` (`503` only when the database is unreachable; Redis or storage down answers `200 degraded`). |
-| `notification-worker` | `/apps/notification-worker/railway.json` | no            | BullMQ consumer, no HTTP port.                                                                                                                                       |
-| `integration-worker`  | `/apps/integration-worker/railway.json`  | no            | BullMQ consumer, no HTTP port.                                                                                                                                       |
-| `staff`               | `/apps/staff/railway.json`               | yes           | Next.js; calls the API over the private network.                                                                                                                     |
-| `portal`              | `/apps/portal/railway.json`              | yes           | Next.js; calls the API over the private network.                                                                                                                     |
-| `Postgres`, `Redis`   | Railway templates                        | no            | PostgreSQL 16+ (`btree_gist`, `pg_trgm` are created by migrations).                                                                                                  |
+| Service               | Config file                              | Public domain | Notes                                                                                                                                                                 |
+| --------------------- | ---------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `api`                 | `/apps/api/railway.json`                 | yes           | Runs migrations before each deploy; health check `/api/v1/health/ready` (`503` only when the database is unreachable; Redis or storage down answers `200 degraded`).  |
+| `notification-worker` | `/apps/notification-worker/railway.json` | no            | BullMQ consumer, no HTTP port.                                                                                                                                        |
+| `integration-worker`  | `/apps/integration-worker/railway.json`  | no            | BullMQ consumer, no HTTP port.                                                                                                                                        |
+| `staff`               | `/apps/staff/railway.json`               | yes           | Next.js; calls the API over the private network.                                                                                                                      |
+| `portal`              | `/apps/portal/railway.json`              | yes           | Next.js; calls the API over the private network.                                                                                                                      |
+| `kiosk`               | `/apps/kiosk/railway.json`               | yes           | Next.js; the patient self-service kiosk's web app. Opened in a kiosk device's browser; calls the API over the private network from its server. Health check `/setup`. |
+| `Postgres`, `Redis`   | Railway templates                        | no            | PostgreSQL 16+ (`btree_gist`, `pg_trgm` are created by migrations).                                                                                                   |
 
 Railpack picks up Node 22 from `.nvmrc` and pnpm 10 from `packageManager`.
 
@@ -28,8 +29,8 @@ Railpack picks up Node 22 from `.nvmrc` and pnpm 10 from `packageManager`.
   backend app therefore depends on its own `typecheck` (which depends on `^typecheck`), declared in the app's
   `package.json`, and `typecheck` declares `dist`/`out-tsc` as outputs in `nx.json` so a cache hit restores them. A plain
   `nx run api:build` works from a clean checkout, so the build command is just that.
-- **The Next.js apps listen on `$PORT`.** The `start` scripts in `apps/staff` and `apps/portal` use `${PORT:-3000}` and
-  `${PORT:-3001}`: Railway's `$PORT` when set, the local development ports otherwise. The Railway start command also
+- **The Next.js apps listen on `$PORT`.** The `start` scripts in `apps/staff`, `apps/portal` and `apps/kiosk` use `${PORT:-3000}`,
+  `${PORT:-3001}` and `${PORT:-3002}`: Railway's `$PORT` when set, the local development ports otherwise. The Railway start command also
   passes `--port $PORT` explicitly, so a service still deploys if Railpack falls back to the `start` script.
 - `pnpm db:migrate` runs as the API's pre-deploy command. It needs dev dependencies (`@swc-node/register`), so do not
   enable `RAILPACK_PRUNE_DEPS`.
@@ -37,7 +38,7 @@ Railpack picks up Node 22 from `.nvmrc` and pnpm 10 from `packageManager`.
 ## Deploy triggers
 
 Automatic deploys on push are turned off. Railway keeps this setting in the dashboard, not in `railway.json`
-(`watchPatterns` only narrows which changes count). For each of the five app services, in **Settings → Source**, remove
+(`watchPatterns` only narrows which changes count). For each of the six app services, in **Settings → Source**, remove
 the branch trigger (or disconnect the repository) so pushes do not deploy. To keep automatic deploys but only after
 GitHub checks pass, enable **Wait for CI** there instead.
 
@@ -115,9 +116,21 @@ unset, so a variable left empty in the dashboard does not stop start-up. Require
 | `PORTAL_ORGANIZATION_CODE`                     | The organization's `code` (the seed's `SEED_ORG_CODE`, default `demo`).                                                                                                                                                                                                            |
 | `MOBILE_APP_IOS_URL`, `MOBILE_APP_ANDROID_URL` | Optional: the MyHealth app's store listings, or for Android an APK served from this app's public folder (`/downloads/myhealth.apk`); the sign-in page then shows "Get the MyHealth app" with a QR code each (`docs/deployment/mobile-release.md`, "Distributing an APK directly"). |
 
+### kiosk
+
+| Variable               | Value                                                                                                                                                                                                                |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`             | `production`                                                                                                                                                                                                         |
+| `API_BASE_URL`         | Same as staff (the API over the private network, including `/api/v1`).                                                                                                                                               |
+| `KIOSK_PRIVACY_NOTICE` | Optional: the privacy notice a new patient accepts at the kiosk. The wording is the organization's own decision (`kiosk_privacy_notice` in Terraform); without it the kiosk shows a plain statement of what it does. |
+| `KIOSK_APP_VERSION`    | Optional: the version the kiosk reports to the API (shown on **Queue → Devices**).                                                                                                                                   |
+
+The kiosk service needs no CORS entry: it calls the API from its server. A kiosk device opens the service's public address and signs in once at `/setup` with its own
+staff account (docs/domains/kiosk.md). The print agent is not a Railway service: it runs next to a printer (docs/runbooks/kiosk-print-agent.md).
+
 ## First deploy
 
-1. Create the Postgres and Redis services, then the five app services from this repository, each with its config file.
+1. Create the Postgres and Redis services, then the six app services from this repository, each with its config file.
 2. Set the variables above. Generate every secret fresh for this environment.
 3. Deploy `api` first. Its pre-deploy step applies `database/migrations`.
 4. Seed the first organization and platform administrator once from the API container:
@@ -147,20 +160,20 @@ The checklist for rebuilding this environment or creating another (ADR-0010). Ro
 `infrastructure/terraform/railway/` (`docs/runbooks/railway-terraform.md`); tick the "by hand" rows when setting one
 up.
 
-| Item                                                                                             | Where it is defined                                                                     |
-| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| Build command, watch patterns, pre-deploy migration, start command, health check, restarts       | `railway.json` next to each app (config-as-code), root `railway.json`                   |
-| Project, default environment                                                                     | Terraform (`railway_project`)                                                           |
-| Postgres and Redis services                                                                      | By hand (Railway templates; the provider has no database resource)                      |
-| The five app services, bound to this repository and its branch                                   | Terraform (`railway_service`, `source_repo`, `source_repo_branch`)                      |
-| Each service's config-as-code path                                                               | Terraform (`config_path`)                                                               |
-| Deploy-on-push turned off per service (**Settings → Source**)                                    | By hand (not in the provider)                                                           |
-| Shared and per-service variables (tables above)                                                  | Terraform (`railway_variable`); secrets supplied at apply time, never in the repository |
-| Public domains for `api`, `staff`, `portal`; `CORS_ORIGINS` and `REALTIME_URL` follow them       | Terraform (`railway_custom_domain` / `railway_service_domain`; derived variables)       |
-| First deploy order and the one-time seed (`railway ssh`, `pnpm db:seed`)                         | By hand, steps above                                                                    |
-| Worker health probes (`HEALTH_PORT`, `healthcheckPath`)                                          | Not set up (observability.md; Railway checks on `PORT` only)                            |
-| Telemetry backend and its OTLP endpoint, credentials and alert rules (`docs/runbooks/alerts.md`) | Not chosen; `optional_settings` / `secrets` in Terraform once it is                     |
-| Local development dependencies                                                                   | `infrastructure/docker/docker-compose.yml`                                              |
+| Item                                                                                                | Where it is defined                                                                     |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Build command, watch patterns, pre-deploy migration, start command, health check, restarts          | `railway.json` next to each app (config-as-code), root `railway.json`                   |
+| Project, default environment                                                                        | Terraform (`railway_project`)                                                           |
+| Postgres and Redis services                                                                         | By hand (Railway templates; the provider has no database resource)                      |
+| The six app services, bound to this repository and its branch                                       | Terraform (`railway_service`, `source_repo`, `source_repo_branch`)                      |
+| Each service's config-as-code path                                                                  | Terraform (`config_path`)                                                               |
+| Deploy-on-push turned off per service (**Settings → Source**)                                       | By hand (not in the provider)                                                           |
+| Shared and per-service variables (tables above)                                                     | Terraform (`railway_variable`); secrets supplied at apply time, never in the repository |
+| Public domains for `api`, `staff`, `portal`, `kiosk`; `CORS_ORIGINS` and `REALTIME_URL` follow them | Terraform (`railway_custom_domain` / `railway_service_domain`; derived variables)       |
+| First deploy order and the one-time seed (`railway ssh`, `pnpm db:seed`)                            | By hand, steps above                                                                    |
+| Worker health probes (`HEALTH_PORT`, `healthcheckPath`)                                             | Not set up (observability.md; Railway checks on `PORT` only)                            |
+| Telemetry backend and its OTLP endpoint, credentials and alert rules (`docs/runbooks/alerts.md`)    | Not chosen; `optional_settings` / `secrets` in Terraform once it is                     |
+| Local development dependencies                                                                      | `infrastructure/docker/docker-compose.yml`                                              |
 
 In production the API does not serve Swagger (`/api/docs`).
 

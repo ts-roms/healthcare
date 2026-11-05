@@ -1,6 +1,6 @@
 # Railway environment in Terraform
 
-One Railway environment of the platform as code: the project, the five app services bound to the repository and
+One Railway environment of the platform as code: the project, the six app services bound to the repository and
 their `railway.json` config-as-code files, their variables and public domains. Decided in ADR-0010
 (`docs/architecture/decisions.md`); how to apply, import an existing environment or add a staging one is in
 `docs/runbooks/railway-terraform.md`. What stays by hand (Postgres and Redis templates, deploy-on-push, the first

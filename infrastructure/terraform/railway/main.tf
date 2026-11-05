@@ -1,4 +1,4 @@
-# One Railway environment of the platform: the project, the five app services bound to the repository with their
+# One Railway environment of the platform: the project, the six app services bound to the repository with their
 # config-as-code files, their variables and public domains. Postgres and Redis stay Railway templates created by hand
 # (the provider has no database resource); their connection strings reach the services as Railway references.
 #
@@ -13,8 +13,10 @@ locals {
     portal                = { config_path = "apps/portal/railway.json" }
     "notification-worker" = { config_path = "apps/notification-worker/railway.json" }
     "integration-worker"  = { config_path = "apps/integration-worker/railway.json" }
+    # The patient self-service kiosk's web app (docs/domains/kiosk.md): a public address a kiosk device opens; it calls the API from its server.
+    kiosk = { config_path = "apps/kiosk/railway.json" }
   }
-  public_services  = ["api", "staff", "portal"]
+  public_services  = ["api", "staff", "portal", "kiosk"]
   backend_services = ["api", "notification-worker", "integration-worker"]
 
   # The public host of each public service: the custom domain when given, else the Railway-provided one.
@@ -73,13 +75,18 @@ locals {
     paymongo_webhook_secret = "PAYMONGO_WEBHOOK_SECRET"
   }
 
+  # The kiosk's privacy notice, as a variable only when the organization gave one.
+  kiosk_notice_variable = var.kiosk_privacy_notice == null ? {} : { "kiosk/KIOSK_PRIVACY_NOTICE" = { service = "kiosk", name = "KIOSK_PRIVACY_NOTICE", value = var.kiosk_privacy_notice } }
+
   # Every (service, variable) pair this module manages. Keys never carry a value, so for_each stays non-sensitive.
   plain_variables = merge(
     { for pair in setproduct(local.backend_services, keys(local.shared_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.shared_settings[pair[1]] } },
     { for name, value in local.api_settings : "api/${name}" => { service = "api", name = name, value = value } },
-    { for pair in setproduct(["staff", "portal"], keys(local.web_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.web_settings[pair[1]] } },
+    { for pair in setproduct(["staff", "portal", "kiosk"], keys(local.web_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.web_settings[pair[1]] } },
     { "staff/REALTIME_URL" = { service = "staff", name = "REALTIME_URL", value = "https://${local.public_host.api}/realtime" } },
     { "portal/PORTAL_ORGANIZATION_CODE" = { service = "portal", name = "PORTAL_ORGANIZATION_CODE", value = var.portal_organization_code } },
+    # The organization's own privacy notice shown to a new patient at the kiosk; without it the kiosk shows a plain statement of what it does.
+    local.kiosk_notice_variable,
   )
   shared_secret_pairs = { for pair in setproduct(local.backend_services, keys(local.shared_secret_names)) : "${pair[0]}/${pair[1]}" => { service = pair[0], field = pair[1] } }
   api_secret_pairs    = { for field in keys(local.api_secret_names) : "api/${field}" => { service = "api", field = field } }

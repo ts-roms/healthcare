@@ -12,16 +12,21 @@ source_branch    = "main"
 #   api    = "api.example.ph"
 #   staff  = "staff.example.ph"
 #   portal = "myhealth.example.ph"
+#   kiosk  = "kiosk.example.ph"
 # }
 # ...or Railway-provided subdomains (the default when a custom domain is not given).
 service_subdomains = {
   api    = "healthcare-api"
   staff  = "healthcare-staff"
   portal = "healthcare-portal"
+  kiosk  = "healthcare-kiosk"
 }
 
 api_port                 = 8080
 portal_organization_code = "demo"
+
+# The organization's own privacy notice for a new patient at the kiosk (leave unset for the kiosk's plain statement).
+# kiosk_privacy_notice = "..."
 log_level                = "log"
 
 optional_settings = {
