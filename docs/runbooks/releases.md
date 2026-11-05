@@ -13,6 +13,9 @@ How a version of the platform is cut, deployed and, if it goes wrong, rolled bac
 
 Version numbers follow `MAJOR.MINOR.PATCH`: a patch is a fix only, a minor adds behaviour without breaking an API or screen in use, a major changes a contract (API shape, permission meaning, a migration that cannot run beside the old code).
 
+Release notes are written before the tag, one file per version, in [`docs/releases/`](../releases/v1.1.0.md) (what changed, migrations, anything to do on
+deploy, how it was tested, known gaps). The GitHub Release's generated notes should link to them.
+
 ## Cutting a release
 
 `pnpm release` does the bump, the commit and the tag; pushing and deploying are flags, so nothing leaves your machine unless you ask.

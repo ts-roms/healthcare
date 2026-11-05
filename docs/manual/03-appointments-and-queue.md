@@ -217,7 +217,9 @@ and is done by an administrator (`clinic.configure`, `user.manage`, `kiosk.devic
 
 1. **Choose the services the kiosk offers.** Open **Appointments → Online booking** (`/appointments/visit-types`) and tick **Patient kiosk** on each in-person
    visit type that patients may pick on arrival, for example "Consultation". A kiosk lists only the visit types ticked here, so with none ticked there is
-   nothing to choose. Online (video) types are never offered. See [How to set up visit types](#how-to-set-up-visit-types-and-choose-which-patients-may-book-online).
+   nothing to choose. Online (video) types are never offered. **Mind the name:** the service's name is shown on the kiosk screen, printed on the ticket and grouped on the
+   waiting-room screen, where other patients can see it. Do not offer a service whose name would reveal a sensitive condition; give it a neutral name such
+   as "Consultation", or send those patients to the front desk. See [How to set up visit types](#how-to-set-up-visit-types-and-choose-which-patients-may-book-online).
 2. **Create the kiosk's own account.** Under **Settings → Staff users** create a staff account only for this device (for example `front-kiosk`), and grant it the
    single role **Patient kiosk** at the kiosk's facility. Use a long random password. Add no other role: an account that can read patient records is refused
    at registration. If your organization requires two-step verification for staff, exempt this account with a reason, because the kiosk signs in with a

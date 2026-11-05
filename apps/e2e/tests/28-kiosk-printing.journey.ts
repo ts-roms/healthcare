@@ -41,6 +41,25 @@ async function waitForPortFree() {
   throw new Error("An earlier print agent is still answering on the health port");
 }
 
+/**
+ * Waits until the agent has signed in and asked for tickets once (its health report then has a poll time). The API turns away
+ * more than about ten sign-ins a minute from one address, and a full run reaches that; an agent refused at start-up waits out
+ * the API's Retry-After (up to a minute) before it signs in, so a ticket checked in meanwhile would otherwise look unprinted.
+ */
+async function waitUntilSignedIn(child: ChildProcess) {
+  for (let i = 0; i < 180; i++) {
+    if (child.exitCode !== null) throw new Error(`The print agent exited at start-up (code ${child.exitCode})`);
+    try {
+      const health = (await (await fetch(healthUrl())).json()) as { lastPollAt?: string | null };
+      if (health.lastPollAt) return;
+    } catch {
+      // not answering yet
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error("The print agent never signed in (the API may be refusing its sign-in)");
+}
+
 /** Starts the print agent; resolves when its health check answers. `printer` is where it prints. */
 async function startAgent(printer: { dryRunDir: string } | { path: string }): Promise<ChildProcess> {
   // The agent before this one must be gone: it uses the same health port, and its answer must not pass for this agent's.
@@ -61,7 +80,10 @@ async function startAgent(printer: { dryRunDir: string } | { path: string }): Pr
   agents.push(child);
   for (let i = 0; i < 60; i++) {
     if (child.exitCode !== null) throw new Error(`The print agent exited at start-up (code ${child.exitCode})`);
-    if (await answersHealth()) return child;
+    if (await answersHealth()) {
+      await waitUntilSignedIn(child);
+      return child;
+    }
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error("The print agent did not start");
