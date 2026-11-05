@@ -43,8 +43,20 @@ export class Agent {
   private health: AgentHealth = { status: "ok", lastPollAt: null, lastPrintAt: null, lastError: null, printer: "unknown", printedSinceStart: 0 };
   private timers: NodeJS.Timeout[] = [];
   private stopped = true;
+  private codes: string[];
 
-  constructor(private readonly deps: AgentDeps) {}
+  constructor(private readonly deps: AgentDeps) {
+    this.codes = [...deps.deviceCodes];
+  }
+
+  /** The kiosks this agent serves now (the printer settings may add or remove one). */
+  setDeviceCodes(codes: string[]): void {
+    this.codes = [...codes];
+  }
+
+  getDeviceCodes(): string[] {
+    return [...this.codes];
+  }
 
   getHealth(): AgentHealth {
     return { ...this.health };
@@ -57,7 +69,7 @@ export class Agent {
   /** One round: every kiosk's waiting tickets, until none is left (or a few, so one busy kiosk cannot starve the others). */
   async pollOnce(): Promise<number> {
     let printed = 0;
-    for (const code of this.deps.deviceCodes) {
+    for (const code of this.codes) {
       for (let i = 0; i < 5; i++) {
         const done = await this.handleNext(code);
         if (!done) break;
@@ -128,7 +140,7 @@ export class Agent {
   async heartbeatOnce(): Promise<PrinterState> {
     const state = await this.deps.printer.status();
     this.health.printer = state;
-    for (const code of this.deps.deviceCodes) await this.deps.api.heartbeat(code, state);
+    for (const code of this.codes) await this.deps.api.heartbeat(code, state);
     return state;
   }
 

@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { mkdtemp, readdir, readFile } from "node:fs/promises";
+import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
@@ -24,6 +25,7 @@ let desk: StaffApi;
 let kiosk: Page;
 let n = 0;
 const agents: ChildProcess[] = [];
+let agentOutput = "";
 
 const healthUrl = () => `http://127.0.0.1:${HEALTH_PORT}/health`;
 const answersHealth = () =>
@@ -57,26 +59,41 @@ async function waitUntilSignedIn(child: ChildProcess) {
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error("The print agent never signed in (the API may be refusing its sign-in)");
+  throw new Error(`The print agent never signed in (the API may be refusing its sign-in). Its output:
+${agentOutput}`);
 }
 
 /** Starts the print agent; resolves when its health check answers. `printer` is where it prints. */
-async function startAgent(printer: { dryRunDir: string } | { path: string }): Promise<ChildProcess> {
+async function startAgent(printer: { dryRunDir: string } | { path: string } | null): Promise<ChildProcess> {
   // The agent before this one must be gone: it uses the same health port, and its answer must not pass for this agent's.
   await waitForPortFree();
+  // With no printer given, the agent gets only how to reach the API: which kiosks print, where each printer is and the paper
+  // width are read from the settings in the staff app.
   const env = {
     ...process.env,
     API_BASE_URL: API_URL,
     AGENT_EMAIL: STAFF.agent,
     AGENT_PASSWORD: STAFF_PASSWORD,
-    FACILITY_ID: state.facilityId,
-    DEVICE_CODES: state.kioskDeviceCode,
     POLL_MS: "1000",
     HEARTBEAT_MS: "5000",
+    CONFIG_REFRESH_MS: "5000",
     HEALTH_PORT: String(HEALTH_PORT),
-    ...("dryRunDir" in printer ? { PRINTER_TYPE: "dryrun", DRYRUN_DIR: printer.dryRunDir } : { PRINTER_TYPE: "file", PRINTER_PATH: printer.path }),
+    ...(printer === null
+      ? {}
+      : {
+          FACILITY_ID: state.facilityId,
+          DEVICE_CODES: state.kioskDeviceCode,
+          ...("dryRunDir" in printer ? { PRINTER_TYPE: "dryrun", DRYRUN_DIR: printer.dryRunDir } : { PRINTER_TYPE: "file", PRINTER_PATH: printer.path }),
+        }),
   };
-  const child = spawn(process.execPath, ["-r", "@swc-node/register", "tools/kiosk-print-agent/src/main.ts"], { cwd: REPO_ROOT, env, stdio: "ignore" });
+  const child = spawn(process.execPath, ["-r", "@swc-node/register", "tools/kiosk-print-agent/src/main.ts"], {
+    cwd: REPO_ROOT,
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  // What the agent says, kept so that a failure to start can show it.
+  agentOutput = "";
+  for (const stream of [child.stdout, child.stderr]) stream?.on("data", (chunk: Buffer) => (agentOutput = (agentOutput + chunk.toString()).slice(-4000)));
   agents.push(child);
   for (let i = 0; i < 60; i++) {
     if (child.exitCode !== null) throw new Error(`The print agent exited at start-up (code ${child.exitCode})`);
@@ -248,6 +265,58 @@ test("a printer that cannot print: the kiosk sends the person to the desk, staff
   } finally {
     await stopAgent(fixed);
     await reception.context().close();
+  }
+});
+
+test("the printer is set in the staff app, not in the agent's environment: the agent finds the kiosk and its network printer by itself", async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  // A stand-in for a ticket printer on the clinic's network: it accepts connections and keeps what it is sent.
+  const received: Buffer[] = [];
+  const printer: Server = createServer((socket) => socket.on("data", (chunk) => received.push(chunk)));
+  await new Promise<void>((resolve) => printer.listen(0, "127.0.0.1", resolve));
+  const port = (printer.address() as { port: number }).port;
+  const text = () => Buffer.concat(received).toString("latin1");
+
+  const admin = await staffApi(STAFF.admin, state.facilityId);
+  const devicesNow = async () =>
+    (await admin.get<{ items: Array<{ id: string; code: string; version: number; printerConnection: string }> }>("/kiosk/admin/devices")).items;
+  let agent: ChildProcess | undefined;
+  try {
+    // The administrator sets the printer on the kiosk's Devices screen.
+    const page = await staffPage(browser, STAFF.admin, errors);
+    await page.goto("/queue/devices");
+    await page.getByRole("button", { name: /^Edit E2E front kiosk/ }).click();
+    await page.getByLabel("Where is the printer?").selectOption("network");
+    // An address outside the clinic's network is refused where it is entered, and says why.
+    await page.getByLabel("Printer address").fill("8.8.8.8");
+    await page.getByRole("button", { name: "Save" }).click();
+    await toast(page, /own network/);
+    await page.getByLabel("Printer address").fill("127.0.0.1");
+    await page.getByLabel("Port").fill(String(port));
+    await page.getByLabel("Paper width").selectOption("58");
+    await page.getByRole("button", { name: "Save" }).click();
+    await toast(page, /E2E front kiosk updated/);
+    await expect(page.getByText(`Network printer 127.0.0.1:${port} · 58 mm`)).toBeVisible();
+    await page.context().close();
+
+    // The agent has no kiosk code, facility or printer of its own; it needs only the API and its sign-in.
+    agent = await startAgent(null);
+    const ticket = await checkInAtKiosk();
+    await expect.poll(() => text().includes(ticket), { timeout: 60_000 }).toBe(true);
+    // The ticket reached the network printer, set for 58 mm paper (32 columns).
+    expect(text()).toContain(state.kioskVisitType.name.slice(0, 30));
+    const health = (await (await fetch(healthUrl())).json()) as { printedSinceStart: number };
+    expect(health.printedSinceStart).toBeGreaterThanOrEqual(1);
+  } finally {
+    if (agent) await stopAgent(agent);
+    // Put the kiosk back on the printer connected to the agent's computer, as the other journeys expect.
+    const kiosk = (await devicesNow()).find((d) => d.code === state.kioskDeviceCode);
+    if (kiosk && kiosk.printerConnection !== "agent_local")
+      await admin.patch(`/kiosk/admin/devices/${kiosk.id}`, { printerConnection: "agent_local", paperMm: 80, version: kiosk.version });
+    await admin.dispose();
+    await new Promise<void>((resolve) => printer.close(() => resolve()));
   }
 });
 

@@ -1,7 +1,7 @@
 import { appendFile, access, constants, mkdir, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { join } from "node:path";
-import { type AgentConfig } from "./config";
+import { type PrinterConfig } from "./config";
 
 /** What a printer reports; the same words the API uses for a kiosk's printer. */
 export type PrinterState = "ok" | "paper_out" | "offline" | "error";
@@ -138,7 +138,7 @@ export class DryRunPrinter implements Printer {
   }
 }
 
-export function createPrinter(config: AgentConfig["printer"], preview?: (data: Buffer) => string): Printer {
+export function createPrinter(config: PrinterConfig, preview?: (data: Buffer) => string): Printer {
   switch (config.type) {
     case "tcp":
       return new TcpPrinter(config.host, config.port);

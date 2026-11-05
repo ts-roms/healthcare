@@ -5703,6 +5703,12 @@ export interface KioskDevice {
   printsTickets: boolean;
   /** The print agent account that serves this kiosk; null = any print agent of the facility. */
   printAgentUserId: string | null;
+  /** Where the printer is: on the print agent's own computer, or on the clinic's network at `printerHost` (migration 0143). */
+  printerConnection: "agent_local" | "network";
+  printerHost: string | null;
+  printerPort: number | null;
+  /** The ticket roll's width in millimetres. */
+  paperMm: 58 | 80;
   printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error";
   /** Whether the printer is known to be working: its last report and how recent it is (kiosks only). */
   printer: "available" | "attention" | "unavailable" | "unknown" | "none";

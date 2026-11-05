@@ -17,9 +17,30 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { heartbeatSchema, registerDeviceSchema, updateDeviceSchema } from "./kiosk.dto";
-import { type DeviceHealth, deviceHealth, type PrinterAvailability, printerAvailability } from "./kiosk.rules";
+import { type DeviceHealth, deviceHealth, type PrinterAvailability, printerAvailability, printerHostProblem } from "./kiosk.rules";
 import { kioskDevice, type KioskDeviceRecord } from "./kiosk.schema";
 import { assertVersion, found } from "./kiosk-support";
+
+/**
+ * The printer columns for a device, checked as a whole: only a kiosk has a printer; a network printer needs an address on the
+ * clinic's own network; a printer on the agent's computer keeps no address.
+ */
+function printerColumns(
+  kind: KioskDeviceRecord["kind"],
+  value: { connection: "agent_local" | "network"; host: string | null; port: number | null; paperMm: 58 | 80 },
+): Pick<KioskDeviceRecord, "printerConnection" | "printerHost" | "printerPort" | "paperMm"> {
+  if (kind !== "kiosk") {
+    if (value.connection !== "agent_local" || value.host !== null || value.port !== null || value.paperMm !== 80) {
+      throw new BusinessRuleError("A waiting-room screen has no printer", "not_a_kiosk");
+    }
+    return { printerConnection: "agent_local", printerHost: null, printerPort: null, paperMm: 80 };
+  }
+  if (value.connection === "agent_local") return { printerConnection: "agent_local", printerHost: null, printerPort: null, paperMm: value.paperMm };
+  if (!value.host) throw new BusinessRuleError("Enter the printer's address or name", "printer_host_required");
+  const problem = printerHostProblem(value.host);
+  if (problem) throw new BusinessRuleError(problem.message, problem.code);
+  return { printerConnection: "network", printerHost: value.host, printerPort: value.port, paperMm: value.paperMm };
+}
 
 export interface KioskDeviceView {
   id: string;
@@ -36,6 +57,11 @@ export interface KioskDeviceView {
   printsTickets: boolean;
   /** The print agent account that serves this kiosk; null = any print agent of the facility. */
   printAgentUserId: string | null;
+  /** Where the printer is, and the roll's width (migration 0143). */
+  printerConnection: "agent_local" | "network";
+  printerHost: string | null;
+  printerPort: number | null;
+  paperMm: 58 | 80;
   /** Whether the printer is known to be working: from its last report and how recent that is (kiosks only). */
   printer: PrinterAvailability;
   printerHeartbeatAt: Date | null;
@@ -55,6 +81,10 @@ const view = (row: KioskDeviceRecord, now = new Date()): KioskDeviceView => ({
   printerStatus: row.printerStatus,
   printsTickets: row.kind === "kiosk" && row.printsTickets,
   printAgentUserId: row.printAgentUserId,
+  printerConnection: row.printerConnection,
+  printerHost: row.printerHost,
+  printerPort: row.printerPort,
+  paperMm: row.paperMm,
   printer: row.kind === "kiosk" ? printerAvailability(row, now) : "none",
   printerHeartbeatAt: row.printerHeartbeatAt,
   version: row.version,
@@ -136,6 +166,12 @@ export class KioskDeviceService {
             // Only a kiosk can print tickets.
             printsTickets: input.kind === "kiosk" && input.printsTickets,
             printAgentUserId: input.kind === "kiosk" ? (input.printAgentUserId ?? null) : null,
+            ...printerColumns(input.kind, {
+              connection: input.printerConnection,
+              host: input.printerHost ?? null,
+              port: input.printerPort ?? null,
+              paperMm: input.paperMm,
+            }),
             userId: input.userId,
             createdBy: actor.userId,
           })
@@ -170,6 +206,37 @@ export class KioskDeviceService {
     }
   }
 
+  /**
+   * What the print agent needs to know, read by the agent account: for each kiosk of its facility that it may serve, whether the
+   * kiosk prints tickets and where its printer is, and the facility's time zone for the time on the ticket. Settings only:
+   * nothing about a patient, a visit or a ticket.
+   */
+  async printConfig(actor: Actor): Promise<{
+    timeZone: string;
+    kiosks: Array<{ code: string; printsTickets: boolean; connection: "agent_local" | "network"; host: string | null; port: number | null; paperMm: 58 | 80 }>;
+  }> {
+    const facilityId = requireFacilityId(actor);
+    const rows = await this.db
+      .select()
+      .from(kioskDevice)
+      .where(and(eq(kioskDevice.organizationId, actor.organizationId), eq(kioskDevice.facilityId, facilityId), eq(kioskDevice.kind, "kiosk")))
+      .orderBy(asc(kioskDevice.code));
+    const site = await this.organizations.findFacility(actor.organizationId, facilityId);
+    return {
+      timeZone: site?.timezone ?? "Asia/Manila",
+      kiosks: rows
+        .filter((r) => r.printAgentUserId === null || r.printAgentUserId === actor.userId)
+        .map((r) => ({
+          code: r.code,
+          printsTickets: r.printsTickets,
+          connection: r.printerConnection,
+          host: r.printerHost,
+          port: r.printerPort,
+          paperMm: r.paperMm,
+        })),
+    };
+  }
+
   /** The account must hold the print agent role at this facility (and so open nothing else). */
   private async requireAgentAccount(actor: Actor, facilityId: string, userId: string): Promise<void> {
     const holders = await this.users.holdersOfRole(actor.organizationId, "kiosk_print_agent", facilityId);
@@ -192,6 +259,16 @@ export class KioskDeviceService {
       if (input.printAgentUserId !== undefined && current.kind !== "kiosk") {
         throw new BusinessRuleError("A waiting-room screen has no print agent", "not_a_kiosk");
       }
+      const printerChanged =
+        input.printerConnection !== undefined || input.printerHost !== undefined || input.printerPort !== undefined || input.paperMm !== undefined;
+      const printer = printerChanged
+        ? printerColumns(current.kind, {
+            connection: input.printerConnection ?? current.printerConnection,
+            host: input.printerHost === undefined ? current.printerHost : input.printerHost,
+            port: input.printerPort === undefined ? current.printerPort : input.printerPort,
+            paperMm: input.paperMm ?? current.paperMm,
+          })
+        : null;
       const [updated] = await tx
         .update(kioskDevice)
         .set({
@@ -199,6 +276,7 @@ export class KioskDeviceService {
           ...(input.status !== undefined ? { status: input.status } : {}),
           ...(input.printsTickets !== undefined && current.kind === "kiosk" ? { printsTickets: input.printsTickets } : {}),
           ...(input.printAgentUserId !== undefined ? { printAgentUserId: input.printAgentUserId } : {}),
+          ...(printer ?? {}),
           updatedAt: new Date(),
           version: sql`${kioskDevice.version} + 1`,
         })
@@ -214,6 +292,14 @@ export class KioskDeviceService {
           ...(current.status !== row.status ? { status: { from: current.status, to: row.status } } : {}),
           ...(current.printsTickets !== row.printsTickets ? { printsTickets: { from: current.printsTickets, to: row.printsTickets } } : {}),
           ...(current.printAgentUserId !== row.printAgentUserId ? { printAgentUserId: { from: current.printAgentUserId, to: row.printAgentUserId } } : {}),
+          ...(printer
+            ? {
+                printer: {
+                  from: { connection: current.printerConnection, host: current.printerHost, port: current.printerPort, paperMm: current.paperMm },
+                  to: { connection: row.printerConnection, host: row.printerHost, port: row.printerPort, paperMm: row.paperMm },
+                },
+              }
+            : {}),
         },
       });
       if (current.status !== row.status) {

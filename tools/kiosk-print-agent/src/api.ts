@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { claimAnswerSchema, type AgentJob, jobIdOf } from "./job";
 import { ConfigError } from "./config";
 import type { PrinterState } from "./printer";
@@ -30,7 +31,8 @@ export interface ApiOptions {
   baseUrl: string;
   email: string;
   password: string;
-  facilityId: string;
+  /** Null: found through the API (the one facility the account works in). */
+  facilityId: string | null;
   organizationId?: string;
   fetchImpl?: typeof fetch;
   /** The clock, in milliseconds (tests). */
@@ -42,6 +44,24 @@ export const SIGN_IN_BACKOFF_MS = 30_000;
 /** The longest it waits, whatever the API asks for. */
 export const SIGN_IN_BACKOFF_MAX_MS = 120_000;
 
+/** What the API says about the kiosks the agent may serve: whether each prints, where its printer is and the roll width. */
+export const printConfigSchema = z.object({
+  timeZone: z.string().min(1).max(64),
+  kiosks: z
+    .array(
+      z.object({
+        code: z.string().regex(/^[a-z0-9][a-z0-9-]{2,39}$/),
+        printsTickets: z.boolean(),
+        connection: z.enum(["agent_local", "network"]),
+        host: z.string().nullable(),
+        port: z.number().int().min(1).max(65535).nullable(),
+        paperMm: z.union([z.literal(58), z.literal(80)]),
+      }),
+    )
+    .max(200),
+});
+export type PrintConfig = z.infer<typeof printConfigSchema>;
+
 export type PrintOutcome = { outcome: "printed" } | { outcome: "failed"; error: "paper_out" | "offline" | "error"; retry: boolean };
 
 /**
@@ -51,12 +71,39 @@ export type PrintOutcome = { outcome: "printed" } | { outcome: "failed"; error: 
  */
 export class AgentApi {
   private token: string | null = null;
+  private facilityId: string | null;
   /** After a sign-in the API turned away (busy, rate limited), no new attempt is made before this time. */
   private signInBlockedUntil = 0;
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: ApiOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.facilityId = options.facilityId;
+  }
+
+  /**
+   * The facility the agent works in: the one set in its environment, else the only facility its account holds a role at.
+   * More than one (or none) is a setting the operator must fix.
+   */
+  async resolveFacility(): Promise<string> {
+    if (this.facilityId) return this.facilityId;
+    const raw = await this.request("/auth/me/facilities", undefined, "GET", false);
+    const parsed = z.array(z.object({ id: z.uuid() })).safeParse(raw);
+    if (!parsed.success || parsed.data.length === 0) {
+      throw new ConfigError("The agent's account has no role at any facility: grant it the Kiosk print agent role at the kiosk's facility");
+    }
+    if (parsed.data.length > 1) throw new ConfigError("The agent's account works at several facilities: set FACILITY_ID");
+    this.facilityId = parsed.data[0]!.id;
+    return this.facilityId;
+  }
+
+  /** Where each kiosk's printer is and its roll width, set in the staff app; the kiosks the agent may serve at its facility. */
+  async config(): Promise<PrintConfig> {
+    await this.resolveFacility();
+    const raw = await this.request("/kiosk/print/config", undefined, "GET");
+    const parsed = printConfigSchema.safeParse(raw);
+    if (!parsed.success) throw new TransientApiError("The API's printer settings could not be read");
+    return parsed.data;
   }
 
   /** The next ticket for one kiosk's printer; null when nothing waits. A job the API sent that cannot be read comes back as `invalid`. */
@@ -103,6 +150,8 @@ export class AgentApi {
       "/auth/login",
       { email: this.options.email, password: this.options.password, organizationId: this.options.organizationId },
       null,
+      "POST",
+      false,
     );
     const body = (await response.json().catch(() => ({}))) as { accessToken?: string; status?: string };
     if (!response.ok) {
@@ -116,17 +165,17 @@ export class AgentApi {
     return body.accessToken;
   }
 
-  private async send(path: string, body: unknown, token: string | null): Promise<Response> {
+  private async send(path: string, body: unknown, token: string | null, method: "GET" | "POST" = "POST", withFacility = true): Promise<Response> {
     try {
       return await this.fetchImpl(`${this.options.baseUrl}${path}`, {
-        method: "POST",
+        method,
         headers: {
-          "content-type": "application/json",
           accept: "application/json",
-          "x-facility-id": this.options.facilityId,
+          ...(method === "POST" ? { "content-type": "application/json" } : {}),
+          ...(withFacility && this.facilityId ? { "x-facility-id": this.facilityId } : {}),
           ...(token ? { authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify(body),
+        ...(method === "POST" ? { body: JSON.stringify(body) } : {}),
         signal: AbortSignal.timeout(10_000),
       });
     } catch {
@@ -134,10 +183,10 @@ export class AgentApi {
     }
   }
 
-  private async request(path: string, body: unknown): Promise<unknown> {
+  private async request(path: string, body: unknown, method: "GET" | "POST" = "POST", withFacility = true): Promise<unknown> {
     for (let attempt = 0; attempt < 2; attempt++) {
       this.token ??= await this.signIn();
-      const response = await this.send(path, body, this.token);
+      const response = await this.send(path, body, this.token, method, withFacility);
       if (response.status === 401) {
         // The token expired or the session ended: sign in again once.
         this.token = null;

@@ -231,9 +231,12 @@ and is done by an administrator (`clinic.configure`, `user.manage`, `kiosk.devic
    **Online** within a minute.
 5. **Try it with a test patient.** Check in as a walk-in and, if you have a test appointment, for the appointment. Watch the ticket appear on the **Queue**
    board, and a new-patient registration appear under **Queue → Registrations**. Use test data only.
-6. **Optional: ticket printing.** Add a receipt printer and the **print agent** program next to it, create the agent's own account with the single role
-   **Kiosk print agent**, and follow the printer checklist in the print agent runbook (`docs/runbooks/kiosk-print-agent.md`, for your IT team). Only when the printer has been checked, open **Queue → Devices → Edit**
-   on the kiosk and tick **Prints tickets**. If you run several agents, choose which one serves this kiosk under **Print agent**; with none chosen, any
+6. **Optional: ticket printing.** Add a receipt printer (80 mm or 58 mm, ESC/POS) and the **print agent** program on a computer next to it. Create the agent's own
+   account with the single role **Kiosk print agent**. The agent itself needs only how to reach the API and sign in; the rest is set here. Open **Queue → Devices →
+   Edit** on the kiosk and, under **Printer**, choose **Where is the printer?**: **On the clinic's network** (enter its **Printer address**, for example
+   `192.168.1.50`, and the **Port**, usually 9100) or **Connected to the agent's computer**; choose the **Paper width**; then check the printer as the print agent
+   runbook describes, and only then tick **Prints tickets** and **Save**. The agent picks up the change within a minute, with nothing to change on its computer.
+   An address outside the clinic's network is refused. If you run several agents, choose which one serves this kiosk under **Print agent**; with none chosen, any
    print agent of the facility may serve it.
 7. **Keep it safe.** Put the kiosk and its printer on a network that visitors do not use, allow it to reach only the API over https, and keep the cabinet and
    its ports locked.

@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { isIP } from "node:net";
 
 /** A person who stops touching the screen is signed out after this long. */
 export const SESSION_IDLE_MS = 2 * 60_000;
@@ -63,6 +64,37 @@ const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I, O, 0, 1
 export function newRegistrationReference(): string {
   const bytes = randomBytes(6);
   return `KR-${[...bytes].map((b) => REFERENCE_ALPHABET[b % REFERENCE_ALPHABET.length]).join("")}`;
+}
+
+/**
+ * A printer must be on the clinic's own network: a private, loopback or link-local address, or a local name (one label, or a
+ * `.local`, `.lan` or `.internal` name). Never a public address, so a setting cannot point the print agent at the internet.
+ */
+export function isPrivateHost(host: string): boolean {
+  const kind = isIP(host);
+  if (kind === 4) {
+    const [a = 0, b = 0] = host.split(".").map(Number);
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  }
+  if (kind === 6) return host === "::1" || /^f[cd][0-9a-f]{2}:/i.test(host) || /^fe80:/i.test(host);
+  return !host.includes(".") || /\.(local|lan|internal)$/i.test(host);
+}
+
+/** What is wrong with a printer host, in words for the person setting it up; null when it is fine. */
+export function printerHostProblem(host: string): { code: "printer_host_invalid" | "printer_host_not_private"; message: string } | null {
+  if (!/^[A-Za-z0-9._:[\]-]{1,253}$/.test(host)) {
+    return {
+      code: "printer_host_invalid",
+      message: "Enter the printer's address or name: letters, digits, dots, hyphens or colons, with no spaces or slashes",
+    };
+  }
+  if (!isPrivateHost(host)) {
+    return {
+      code: "printer_host_not_private",
+      message: "The printer must be on the clinic's own network (a private address such as 192.168.1.50, or a local name)",
+    };
+  }
+  return null;
 }
 
 export type DeviceHealth = "online" | "offline" | "maintenance" | "disabled";

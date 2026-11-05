@@ -4,10 +4,6 @@ const base: NodeJS.ProcessEnv = {
   API_BASE_URL: "https://clinic.example.ph/api/v1",
   AGENT_EMAIL: "agent@clinic.example.ph",
   AGENT_PASSWORD: "a-long-agent-password",
-  FACILITY_ID: "11111111-1111-4111-8111-111111111111",
-  DEVICE_CODES: "front-1, Front-2",
-  PRINTER_TYPE: "tcp",
-  PRINTER_HOST: "192.168.1.50",
 };
 
 const refused = (env: NodeJS.ProcessEnv, readFile?: (p: string) => string) => {
@@ -43,16 +39,35 @@ describe("isPrivateHost", () => {
 });
 
 describe("loadConfig", () => {
-  it("reads a complete setting, with the defaults for what is left out", () => {
+  it("needs only how to reach and sign in to the API: kiosks and printers come from the staff app", () => {
     const config = loadConfig(base);
     expect(config).toMatchObject({
       apiBaseUrl: "https://clinic.example.ph/api/v1",
-      deviceCodes: ["front-1", "front-2"],
-      printer: { type: "tcp", host: "192.168.1.50", port: 9100 },
-      paperWidth: 80,
-      timeZone: "Asia/Manila",
+      email: "agent@clinic.example.ph",
+      facilityId: null,
+      deviceCodes: null,
+      localPrinter: null,
+      timeZone: null,
       pollMs: 2000,
+      configRefreshMs: 60_000,
       healthPort: 8788,
+    });
+  });
+
+  it("can still name the facility, the kiosks to serve and the printer connected to this computer", () => {
+    const config = loadConfig({
+      ...base,
+      FACILITY_ID: "11111111-1111-4111-8111-111111111111",
+      DEVICE_CODES: "front-1, Front-2",
+      PRINTER_TYPE: "tcp",
+      PRINTER_HOST: "192.168.1.50",
+      TIMEZONE: "Asia/Manila",
+    });
+    expect(config).toMatchObject({
+      facilityId: "11111111-1111-4111-8111-111111111111",
+      deviceCodes: ["front-1", "front-2"],
+      localPrinter: { type: "tcp", host: "192.168.1.50", port: 9100 },
+      timeZone: "Asia/Manila",
     });
   });
 
@@ -62,15 +77,15 @@ describe("loadConfig", () => {
     expect(refused({ API_BASE_URL: "http://clinic.example.ph/api/v1" })).toMatch(/https/);
   });
 
-  it("keeps the printer on the clinic's network", () => {
-    expect(refused({ PRINTER_HOST: "203.0.113.9" })).toMatch(/own network/);
-    expect(refused({ PRINTER_HOST: undefined })).toMatch(/PRINTER_HOST/);
+  it("keeps the printer connected to this computer on the clinic's network or the operating system", () => {
+    expect(refused({ PRINTER_TYPE: "tcp", PRINTER_HOST: "203.0.113.9" })).toMatch(/own network/);
+    expect(refused({ PRINTER_TYPE: "tcp" })).toMatch(/PRINTER_HOST/);
     expect(refused({ PRINTER_TYPE: "file" })).toMatch(/PRINTER_PATH/);
-    expect(loadConfig({ ...base, PRINTER_TYPE: "file", PRINTER_PATH: "\\\\localhost\\TicketPrinter" }).printer).toEqual({
+    expect(loadConfig({ ...base, PRINTER_TYPE: "file", PRINTER_PATH: "\\\\localhost\\TicketPrinter" }).localPrinter).toEqual({
       type: "file",
       path: "\\\\localhost\\TicketPrinter",
     });
-    expect(loadConfig({ ...base, PRINTER_TYPE: "dryrun" }).printer).toMatchObject({ type: "dryrun" });
+    expect(loadConfig({ ...base, PRINTER_TYPE: "dryrun" }).localPrinter).toMatchObject({ type: "dryrun" });
   });
 
   it("needs a password, from the environment or from a file", () => {
@@ -78,12 +93,10 @@ describe("loadConfig", () => {
     expect(loadConfig({ ...base, AGENT_PASSWORD: undefined, AGENT_PASSWORD_FILE: "/run/secrets/agent" }, () => "from-a-file\n").password).toBe("from-a-file");
   });
 
-  it("refuses bad kiosk codes, paper widths, ports and time zones", () => {
+  it("refuses bad kiosk codes, ports, time zones and facility ids", () => {
     expect(refused({ DEVICE_CODES: "Bad Code" })).toMatch(/kiosk code/);
-    expect(refused({ DEVICE_CODES: "" })).toBeTruthy();
-    expect(refused({ PAPER_MM: "70" })).toBeTruthy();
-    expect(loadConfig({ ...base, PAPER_MM: "58" }).paperWidth).toBe(58);
     expect(refused({ HEALTH_PORT: "80" })).toBeTruthy();
+    expect(refused({ CONFIG_REFRESH_MS: "100" })).toBeTruthy();
     expect(refused({ TIMEZONE: "Mars/Olympus" })).toMatch(/time zone/);
     expect(refused({ FACILITY_ID: "not-a-uuid" })).toMatch(/FACILITY_ID/);
   });

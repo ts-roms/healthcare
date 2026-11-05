@@ -21,6 +21,15 @@ export const DEVICE_STATUS_LABEL: Record<KioskDevice["status"], string> = {
   disabled: "Disabled (refused)",
 };
 
+/** Where a kiosk's printer is, in words: "Network printer 192.168.1.50:9100", or the printer on the agent's computer. */
+export function printerWhere(device: Pick<KioskDevice, "printerConnection" | "printerHost" | "printerPort" | "paperMm">): string {
+  const where =
+    device.printerConnection === "network"
+      ? `Network printer ${device.printerHost}${device.printerPort ? `:${device.printerPort}` : ""}`
+      : "Printer on the agent's computer";
+  return `${where} · ${device.paperMm} mm`;
+}
+
 /** What staff read for a kiosk's printer: what is known, and what to do about it. */
 export const PRINTER_LABEL: Record<KioskDevice["printer"], string> = {
   available: "Printer working",

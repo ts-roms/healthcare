@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Post, UseGuards } from "@nestjs/common";
 import { DeviceRateLimitGuard } from "../rate-limit.guard";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
@@ -24,7 +24,19 @@ const AGENT_THROTTLE = { default: { limit: 600, ttl: 60_000 } };
 @RequireFacility()
 @RequirePermissions("kiosk.print.agent")
 export class KioskPrintController {
-  constructor(private readonly print: KioskPrintService) {}
+  constructor(
+    private readonly print: KioskPrintService,
+    private readonly devices: KioskDeviceService,
+  ) {}
+
+  @Get("config")
+  @Throttle(AGENT_THROTTLE)
+  @ApiOperation({
+    summary: "What the print agent needs: its facility's time zone and, for each kiosk it may serve, whether it prints and where its printer is",
+  })
+  config(@CurrentActor() actor: Actor) {
+    return this.devices.printConfig(actor);
+  }
 
   @Post("claim")
   @HttpCode(200)

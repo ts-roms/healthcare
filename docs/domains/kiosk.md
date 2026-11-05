@@ -150,6 +150,15 @@ address, so one busy kiosk no longer uses up the others' allowance.
 
 **Telling patients (MyHealth home).** `GET /portal/kiosk` (patient guard, `@ProxyAllowed()`; `PortalKioskController`) answers `{ available, locations }`: the names of the facilities with a kiosk in service (`KioskDeviceService.inServiceLocations`; nothing about a patient or a device, not audited). MyHealth's Home shows the notice "Skip the front desk line" with three steps only when `available` is true and the patient has not hidden it (`apps/portal/src/components/kiosk-promo.tsx`, hidden state in the browser's storage); if the answer fails the home page simply shows no notice. Journey `apps/e2e/tests/31-kiosk-notice.journey.ts`.
 
+**Printer settings in the staff app (migration `0143`).** The kiosk's printer is set on **Queue → Devices → Edit**, not in the agent's environment:
+`kiosk_device.printer_connection` (`agent_local`: the printer connected to the agent's computer, which one is set in that machine's own environment because a
+path on a machine is not changed from a web page; `network`: `printer_host` and `printer_port`) and `paper_mm` (58 or 80). A network printer's address must be on
+the clinic's own network (`isPrivateHost`, checked on save with `printer_host_not_private` / `printer_host_invalid` / `printer_host_required`, and again by the
+agent). The print agent reads `GET /kiosk/print/config` (`kiosk.print.agent`: the facility's time zone and, for each kiosk it may serve, whether it prints, its
+connection, host, port and paper width; no patient data; not audited, changes are audited on the device update with before and after) every minute, and its
+`Supervisor` runs one agent per distinct printer, starting, stopping or changing them when the settings change. The agent finds its facility through
+`/auth/me/facilities` when `FACILITY_ID` is not set. Only the API address and the agent's sign-in (and a local printer, if any) stay in the environment.
+
 **Devices.** `kiosk_device.kind` is `kiosk` or `display`: a waiting-room screen is registered like a kiosk, from an account
 holding only the `queue_display` role (and no `patient.read`), and reports in with `POST /kiosk/display/heartbeat`
 (any holder of `clinic.queue.display`; an account that is not a registered display is simply not monitored; a display in

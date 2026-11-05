@@ -6,9 +6,12 @@ job. Full set-up and operation: [`docs/runbooks/kiosk-print-agent.md`](../../doc
 [`docs/domains/kiosk.md`](../../docs/domains/kiosk.md) ("Printing and devices").
 
 ```bash
-# the settings are environment variables; see the runbook for each one
-API_BASE_URL=https://clinic.example.ph/api/v1 AGENT_EMAIL=agent@clinic.example.ph AGENT_PASSWORD_FILE=/etc/kiosk-agent/password \
-FACILITY_ID=<facility id> DEVICE_CODES=front-1 PRINTER_TYPE=tcp PRINTER_HOST=192.168.1.50 pnpm kiosk:print-agent
+# the agent needs only how to reach and sign in to the API; which kiosks print, where each network printer is and the paper width
+# are set in the staff app (Queue → Devices → Edit)
+API_BASE_URL=https://clinic.example.ph/api/v1 AGENT_EMAIL=agent@clinic.example.ph AGENT_PASSWORD_FILE=/etc/kiosk-agent/password pnpm kiosk:print-agent
+
+# a printer connected to this computer, for kiosks set to "Connected to the agent's computer"
+PRINTER_TYPE=file PRINTER_PATH=/dev/usb/lp0 ... pnpm kiosk:print-agent
 
 # try it without a printer: every ticket is written to ./printed as raw bytes and a readable .txt
 PRINTER_TYPE=dryrun ... pnpm kiosk:print-agent

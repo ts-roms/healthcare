@@ -5,7 +5,15 @@ import { MonitorIcon, MonitorSmartphoneIcon, PencilIcon, PrinterIcon, TriangleAl
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, Checkbox, Input, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import type { KioskDevice } from "@/lib/api/types";
-import { DEVICE_HEALTH_LABEL, DEVICE_HEALTH_VARIANT, DEVICE_STATUS_LABEL, PRINTER_LABEL, PRINTER_STATUS_DETAIL, PRINTER_VARIANT } from "@/lib/kiosk-devices";
+import {
+  DEVICE_HEALTH_LABEL,
+  DEVICE_HEALTH_VARIANT,
+  DEVICE_STATUS_LABEL,
+  PRINTER_LABEL,
+  PRINTER_STATUS_DETAIL,
+  PRINTER_VARIANT,
+  printerWhere,
+} from "@/lib/kiosk-devices";
 import { useServerAction } from "@/lib/use-server-action";
 import type { DeviceAccount } from "./register-device";
 import { updateDevice } from "./actions";
@@ -62,6 +70,7 @@ export function DeviceList({ devices, canManage, agents }: { devices: KioskDevic
                           {d.printer === "attention" || d.printer === "unavailable" ? <TriangleAlertIcon aria-hidden /> : <PrinterIcon aria-hidden />}
                           {PRINTER_LABEL[d.printer]}
                         </Badge>
+                        {d.printsTickets ? <span className="block text-meta text-muted-foreground">{printerWhere(d)}</span> : null}
                         {d.printer !== "none" && d.printer !== "unknown" ? (
                           <span className="block text-meta text-muted-foreground">
                             {PRINTER_STATUS_DETAIL[d.printerStatus]}
@@ -94,8 +103,24 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
   const { pending, run } = useServerAction();
   const [printsTickets, setPrintsTickets] = React.useState(device.printsTickets);
   const [agentId, setAgentId] = React.useState(device.printAgentUserId ?? "");
+  const [connection, setConnection] = React.useState(device.printerConnection);
+  const [host, setHost] = React.useState(device.printerHost ?? "");
+  const [port, setPort] = React.useState(device.printerPort ? String(device.printerPort) : "");
+  const [paperMm, setPaperMm] = React.useState<58 | 80>(device.paperMm);
+  const portNumber = port.trim() === "" ? null : Number(port);
+  const printerChanged =
+    connection !== device.printerConnection ||
+    paperMm !== device.paperMm ||
+    (connection === "network" && (host.trim() !== (device.printerHost ?? "") || portNumber !== device.printerPort));
+  const printerReady =
+    connection === "agent_local" ||
+    (host.trim().length > 0 && (portNumber === null || (Number.isInteger(portNumber) && portNumber >= 1 && portNumber <= 65535)));
   const changed =
-    name.trim() !== device.name || status !== device.status || printsTickets !== device.printsTickets || agentId !== (device.printAgentUserId ?? "");
+    name.trim() !== device.name ||
+    status !== device.status ||
+    printsTickets !== device.printsTickets ||
+    agentId !== (device.printAgentUserId ?? "") ||
+    printerChanged;
   return (
     <TableRow>
       <TableCell colSpan={5}>
@@ -112,6 +137,11 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
                   ...(status !== device.status ? { status } : {}),
                   ...(printsTickets !== device.printsTickets ? { printsTickets } : {}),
                   ...(agentId !== (device.printAgentUserId ?? "") ? { printAgentUserId: agentId || null } : {}),
+                  ...(printerChanged
+                    ? connection === "network"
+                      ? { printerConnection: "network" as const, printerHost: host.trim(), printerPort: portNumber, paperMm }
+                      : { printerConnection: "agent_local" as const, paperMm }
+                    : {}),
                 }),
               `${device.name} updated`,
               onDone,
@@ -165,7 +195,76 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
               </NativeSelect>
             </div>
           ) : null}
-          <Button type="submit" size="sm" disabled={pending || !changed || name.trim().length < 2}>
+          {device.kind === "kiosk" ? (
+            <fieldset className="grid basis-full gap-3 rounded-lg border p-3">
+              <legend className="px-1 text-meta font-medium text-muted-foreground">Printer</legend>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="grid shrink-0 gap-1">
+                  <label htmlFor={`connection-${device.id}`} className="text-meta text-muted-foreground">
+                    Where is the printer?
+                  </label>
+                  <NativeSelect
+                    id={`connection-${device.id}`}
+                    value={connection}
+                    onChange={(e) => setConnection(e.target.value as KioskDevice["printerConnection"])}
+                    className="w-80 max-w-full"
+                  >
+                    <option value="agent_local">Connected to the agent&apos;s computer</option>
+                    <option value="network">On the clinic&apos;s network</option>
+                  </NativeSelect>
+                </div>
+                {connection === "network" ? (
+                  <>
+                    <div className="grid shrink-0 gap-1">
+                      <label htmlFor={`host-${device.id}`} className="text-meta text-muted-foreground">
+                        Printer address
+                      </label>
+                      <Input
+                        id={`host-${device.id}`}
+                        value={host}
+                        maxLength={253}
+                        placeholder="192.168.1.50"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        onChange={(e) => setHost(e.target.value)}
+                        className="w-52 font-mono"
+                      />
+                    </div>
+                    <div className="grid shrink-0 gap-1">
+                      <label htmlFor={`port-${device.id}`} className="text-meta text-muted-foreground">
+                        Port
+                      </label>
+                      <Input
+                        id={`port-${device.id}`}
+                        inputMode="numeric"
+                        value={port}
+                        maxLength={5}
+                        placeholder="9100"
+                        onChange={(e) => setPort(e.target.value.replace(/\D/g, ""))}
+                        className="w-24 font-mono"
+                      />
+                    </div>
+                  </>
+                ) : null}
+                <div className="grid shrink-0 gap-1">
+                  <label htmlFor={`paper-${device.id}`} className="text-meta text-muted-foreground">
+                    Paper width
+                  </label>
+                  <NativeSelect id={`paper-${device.id}`} value={String(paperMm)} onChange={(e) => setPaperMm(e.target.value === "58" ? 58 : 80)}>
+                    <option value="80">80 mm</option>
+                    <option value="58">58 mm</option>
+                  </NativeSelect>
+                </div>
+              </div>
+              <p className="text-meta text-muted-foreground">
+                {connection === "network"
+                  ? "The printer must be on the clinic's own network (an address like 192.168.1.50, or a local name); the port is usually 9100. "
+                  : "Which printer that is, is set on the agent's computer, not here. "}
+                The print agent picks up a change within a minute; nothing needs changing on its computer.
+              </p>
+            </fieldset>
+          ) : null}
+          <Button type="submit" size="sm" disabled={pending || !changed || name.trim().length < 2 || !printerReady}>
             Save
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={onDone}>

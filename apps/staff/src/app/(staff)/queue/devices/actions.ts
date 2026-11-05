@@ -36,6 +36,10 @@ const updateSchema = z.object({
   status: z.enum(["active", "maintenance", "disabled"]).optional(),
   printsTickets: z.boolean().optional(),
   printAgentUserId: id.nullable().optional(),
+  printerConnection: z.enum(["agent_local", "network"]).optional(),
+  printerHost: z.string().trim().min(1).max(253).nullable().optional(),
+  printerPort: z.number().int().min(1, "A port is a number from 1 to 65535.").max(65535, "A port is a number from 1 to 65535.").nullable().optional(),
+  paperMm: z.union([z.literal(58), z.literal(80)]).optional(),
   version: z.number().int().positive(),
 });
 

@@ -14,7 +14,7 @@ whether the printer works (staff **Queue → Devices**).
 
 ## Before you start
 
-1. A kiosk registered at the facility (**Queue → Devices**, or `POST /kiosk/admin/devices`) — note its **code**.
+1. A kiosk registered at the facility (**Queue → Devices**, or `POST /kiosk/admin/devices`).
 2. A staff account for the agent: **Administration → Users**, role **Kiosk print agent** at the kiosk's facility, and nothing
    else. If your organization requires two-step verification, exempt this account with a reason (the agent signs in with a
    password only). Use a long random password; the account can claim ticket jobs and report printer state and can open no
@@ -24,26 +24,42 @@ whether the printer works (staff **Queue → Devices**).
    on Windows). Direct USB drivers are not included. Give a network printer a fixed address on the clinic's own network.
 4. Node 22 on the machine, and a copy of this repository (or a build of the tool).
 
-## Settings (environment variables)
+## Where the settings live
 
-| Variable                             | Meaning                                                                                                                                                     |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `API_BASE_URL`                       | The API address including `/api/v1`. **https is required**; http is accepted only for `localhost`.                                                          |
-| `AGENT_EMAIL`, `AGENT_PASSWORD_FILE` | The agent's account. Prefer a file holding the password (readable only by the agent's service account); `AGENT_PASSWORD` is accepted but shows in listings. |
-| `ORGANIZATION_ID`                    | Only if the account belongs to several organizations.                                                                                                       |
-| `FACILITY_ID`                        | The facility the kiosk and the account belong to.                                                                                                           |
-| `DEVICE_CODES`                       | Comma-separated kiosk codes this printer serves (one or a few kiosks sharing a printer).                                                                    |
-| `PRINTER_TYPE`                       | `tcp` (network), `file` (operating-system path) or `dryrun` (write tickets to a folder, no printer).                                                        |
-| `PRINTER_HOST`, `PRINTER_PORT`       | For `tcp`. The host must be on the clinic's own network (a private address, or a name ending `.local`/`.lan`, or a single-word name). Port default 9100.    |
-| `PRINTER_PATH`                       | For `file`.                                                                                                                                                 |
-| `DRYRUN_DIR`                         | For `dryrun` (default `./printed`).                                                                                                                         |
-| `PAPER_MM`                           | `80` (48 characters a line, default) or `58` (32).                                                                                                          |
-| `TIMEZONE`                           | The facility's time zone for the time on the ticket (default `Asia/Manila`).                                                                                |
-| `POLL_MS`, `HEARTBEAT_MS`            | How often it asks for tickets (default 2000) and reports the printer (default 30000).                                                                       |
-| `HEALTH_PORT`                        | The local health port (default 8788, `127.0.0.1` only).                                                                                                     |
+**In the staff app** (**Queue → Devices → Edit** on the kiosk, an administrator with `kiosk.device.manage`): whether the kiosk **Prints tickets**,
+which **Print agent** serves it, and its **Printer** section:
 
-The agent refuses to start, and says why, when a setting is wrong (an http address that is not local, a printer outside the
-clinic's network, no password, an unknown time zone).
+| Setting                   | Meaning                                                                                                                                            |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Where is the printer?** | **On the clinic's network** (an address and a port) or **Connected to the agent's computer** (which printer that is, is set on that computer).     |
+| **Printer address**       | For a network printer: an address on the clinic's own network (such as `192.168.1.50`) or a local name. A public address is refused when you save. |
+| **Port**                  | For a network printer; normally 9100 (left empty it is 9100).                                                                                      |
+| **Paper width**           | **80 mm** (48 characters a line) or **58 mm** (32).                                                                                                |
+
+The agent reads these about once a minute, so a change needs **nothing** done on the agent's computer: no restart, no edit. Kiosks that share a printer
+are served together.
+
+**On the agent's computer** (environment variables) only how it reaches and signs in to the API, and the printer connected to that computer if there is one:
+
+| Variable                             | Meaning                                                                                                                                                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `API_BASE_URL`                       | The API address including `/api/v1`. **https is required**; http is accepted only for `localhost`.                                                                                                            |
+| `AGENT_EMAIL`, `AGENT_PASSWORD_FILE` | The agent's account. Prefer a file holding the password (readable only by the agent's service account); `AGENT_PASSWORD` is accepted but shows in listings.                                                   |
+| `ORGANIZATION_ID`                    | Only if the account belongs to several organizations.                                                                                                                                                         |
+| `FACILITY_ID`                        | Optional. The agent finds its facility itself when its account holds a role at exactly one; set it when the account works at several.                                                                         |
+| `DEVICE_CODES`                       | Optional. Serve only these kiosks (comma-separated). Without it the agent serves every kiosk of its facility that prints tickets.                                                                             |
+| `PRINTER_TYPE`                       | Only for kiosks set to "Connected to the agent's computer": `file` (operating-system path), `tcp` (a network printer for those kiosks) or `dryrun` (write tickets to a folder, no printer).                   |
+| `PRINTER_PATH`                       | For `file`: a device file (`/dev/usb/lp0`) or a shared raw queue (`\\localhost\TicketPrinter`). It is set here, not in the staff app, because a path on a machine is not something to change from a web page. |
+| `PRINTER_HOST`, `PRINTER_PORT`       | For `tcp`. The host must be on the clinic's own network (a private address, or a name ending `.local`/`.lan`, or a single-word name). Port default 9100.                                                      |
+| `DRYRUN_DIR`                         | For `dryrun` (default `./printed`).                                                                                                                                                                           |
+| `TIMEZONE`                           | Optional: the time zone for the time on the ticket. Without it the facility's own time zone is used.                                                                                                          |
+| `POLL_MS`, `HEARTBEAT_MS`            | How often it asks for tickets (default 2000) and reports the printer (default 30000).                                                                                                                         |
+| `CONFIG_REFRESH_MS`                  | How often it asks for changed printer settings (default 60000).                                                                                                                                               |
+| `HEALTH_PORT`                        | The local health port (default 8788, `127.0.0.1` only).                                                                                                                                                       |
+
+The agent refuses to start, and says why, when a setting is wrong (an http address that is not local, a local printer outside the clinic's network, no
+password, an unknown time zone). It also refuses, with a line in its log, to print to an address outside the clinic's network that the staff app gave it.
+The paper width (formerly `PAPER_MM`) is set in the staff app.
 
 ## Run it
 
@@ -93,15 +109,17 @@ then be claimed and reported only by that account; set it back to "Any print age
 
 A kiosk **does not print** until staff say it can: **Queue → Devices → Edit → Prints tickets** (or the box when registering).
 Until then it queues no ticket, shows the number only, and **Queue → Devices** reads "Ticket printing off". Order of steps
-when a printer arrives: install the printer, run the agent with `PRINTER_TYPE=dryrun`, then the real printer, complete "Check
-it on the real printer" below, and only then turn **Prints tickets** on for that kiosk.
+when a printer arrives: install the printer; in the staff app set the kiosk's **Printer** section (a network printer's address, or "Connected to the agent's
+computer"); start the agent (it needs only its API sign-in); complete "Check it on the real printer" below; and only then turn **Prints tickets** on for that kiosk.
 
 ## Check it on the real printer
 
 Do this once per printer model, before relying on it. Record what you saw.
 
-1. Run the agent with `PRINTER_TYPE=dryrun` first and read a ticket in `printed/*.txt`: the number, the service, the time, the instruction.
-2. Switch to the real printer (`tcp` or `file`) and check in at a kiosk: the ticket prints, is the right width, is not cut off,
+1. Rehearse without a printer: set the kiosk to "Connected to the agent's computer", run the agent with `PRINTER_TYPE=dryrun`, turn **Prints tickets** on, check in
+   a test patient and read the ticket in `printed/*.txt`: the number, the service, the time, the instruction.
+2. Use the real printer: for a network printer, set its address, port and paper width under **Printer** in the staff app (no restart); for a printer on the agent's
+   computer, set `PRINTER_TYPE=file` and `PRINTER_PATH` and restart the agent. Then check in at a kiosk: the ticket prints, is the right width, is not cut off,
    and the number is large and readable; the cut works.
 3. Take the paper out: the kiosk should say it could not print, and **Queue → Devices** should show the printer needs attention
    (some models do not report the paper sensor; then only the failed print shows it). Put paper back and print the ticket again.

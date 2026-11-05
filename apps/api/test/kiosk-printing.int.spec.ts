@@ -513,4 +513,83 @@ describe("kiosk printing, devices and the display's settings", () => {
       expect((await auditRows(ctx.pool, `action = 'kiosk.device.update'`)).length).toBeGreaterThan(0);
     });
   });
+
+  describe("printer settings (migration 0143)", () => {
+    const devices = async () =>
+      (await staff(admin).get("/kiosk/admin/devices").expect(200)).body.items as Array<{ id: string; code: string; version: number } & Record<string, unknown>>;
+
+    it("sets where a kiosk's printer is and its roll width, refusing an address outside the clinic's network", async () => {
+      const side = (await devices()).find((d) => d.code === "print-2")!;
+      const set = (body: object, version = side.version) => staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { ...body, version });
+
+      const refused = await set({ printerConnection: "network", printerHost: "8.8.8.8" });
+      expect(refused.status).toBe(422);
+      expect(refused.body.error.code).toBe("printer_host_not_private");
+      expect((await set({ printerConnection: "network", printerHost: "http://192.168.1.50/" })).body.error.code).toBe("printer_host_invalid");
+      expect((await set({ printerConnection: "network" })).body.error.code).toBe("printer_host_required");
+
+      const network = await set({ printerConnection: "network", printerHost: "192.168.1.50", printerPort: 9101, paperMm: 58 }).expect(200);
+      expect(network.body).toMatchObject({ printerConnection: "network", printerHost: "192.168.1.50", printerPort: 9101, paperMm: 58 });
+      // Only the roll width changes: the address stays.
+      const narrow = await set({ paperMm: 80 }, network.body.version).expect(200);
+      expect(narrow.body).toMatchObject({ printerConnection: "network", printerHost: "192.168.1.50", paperMm: 80 });
+      // Back to the printer on the agent's computer: no address is kept.
+      const local = await set({ printerConnection: "agent_local" }, narrow.body.version).expect(200);
+      expect(local.body).toMatchObject({ printerConnection: "agent_local", printerHost: null, printerPort: null });
+      const audited = await ctx.pool.query(
+        `SELECT count(*)::int AS n FROM audit_event WHERE action = 'kiosk.device.update' AND changes::text LIKE '%192.168.1.50%'`,
+      );
+      expect(audited.rows[0].n).toBeGreaterThan(0);
+    });
+
+    it("gives a waiting-room screen no printer", async () => {
+      const screen = await staff(admin)
+        .post("/kiosk/admin/devices", { kind: "display", code: "lobby-cfg", name: "Lobby", userId: await userId("screen2@print.ph") })
+        .expect(201);
+      const refused = await staff(admin).patch(`/kiosk/admin/devices/${screen.body.id}`, {
+        printerConnection: "network",
+        printerHost: "192.168.1.60",
+        version: screen.body.version,
+      });
+      expect(refused.status).toBe(422);
+      expect(refused.body.error.code).toBe("not_a_kiosk");
+    });
+
+    it("tells the print agent its kiosks, where each printer is and the facility's time zone, and no one else", async () => {
+      const side = (await devices()).find((d) => d.code === "print-2")!;
+      await staff(admin)
+        .patch(`/kiosk/admin/devices/${side.id}`, { printerConnection: "network", printerHost: "printer-2.local", paperMm: 58, version: side.version })
+        .expect(200);
+
+      const config = (await staff(agent).get("/kiosk/print/config").expect(200)).body;
+      expect(config.timeZone).toBe("Asia/Manila");
+      const codes = config.kiosks.map((k: { code: string }) => k.code);
+      expect(codes).toEqual(expect.arrayContaining(["print-1", "print-2"]));
+      expect(config.kiosks.find((k: { code: string }) => k.code === "print-2")).toMatchObject({
+        printsTickets: true,
+        connection: "network",
+        host: "printer-2.local",
+        paperMm: 58,
+      });
+      expect(config.kiosks.find((k: { code: string }) => k.code === "print-1")).toMatchObject({ connection: "agent_local", host: null, paperMm: 80 });
+      // A display is not a kiosk, and the config carries nothing about a patient.
+      expect(codes).not.toContain("lobby-cfg");
+      expect(JSON.stringify(config)).not.toMatch(/patientId|visitId|displayName|birth/i);
+
+      // Another facility's agent sees none of this facility's kiosks; staff and kiosk accounts are refused.
+      expect((await staff(annexAgent, tenant.otherFacilityId).get("/kiosk/print/config").expect(200)).body.kiosks).toEqual([]);
+      await staff(desk).get("/kiosk/print/config").expect(403);
+      await staff(kioskOne).get("/kiosk/print/config").expect(403);
+    });
+
+    it("leaves out a kiosk that names another agent", async () => {
+      const side = (await devices()).find((d) => d.code === "print-2")!;
+      const other = await userId("agent3@print.ph");
+      await staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { printAgentUserId: other, version: side.version }).expect(200);
+      const seen = (await staff(agent).get("/kiosk/print/config").expect(200)).body.kiosks.map((k: { code: string }) => k.code);
+      expect(seen).not.toContain("print-2");
+      const bound = (await devices()).find((d) => d.code === "print-2")!;
+      await staff(admin).patch(`/kiosk/admin/devices/${side.id}`, { printAgentUserId: null, version: bound.version }).expect(200);
+    });
+  });
 });

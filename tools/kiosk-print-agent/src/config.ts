@@ -29,7 +29,9 @@ const envSchema = z.object({
   AGENT_PASSWORD: z.string().min(1).optional(),
   AGENT_PASSWORD_FILE: z.string().min(1).optional(),
   ORGANIZATION_ID: z.uuid().optional(),
-  FACILITY_ID: z.uuid(),
+  /** Optional: the agent finds its facility itself when its account holds a role at exactly one. */
+  FACILITY_ID: z.uuid().optional(),
+  /** Optional: serve only these kiosks. Without it the agent serves every kiosk of its facility that prints tickets. */
   DEVICE_CODES: z
     .string()
     .transform((v) =>
@@ -38,40 +40,49 @@ const envSchema = z.object({
         .map((c) => c.trim().toLowerCase())
         .filter(Boolean),
     )
-    .pipe(z.array(deviceCode).min(1).max(10)),
-  PRINTER_TYPE: z.enum(["tcp", "file", "dryrun"]),
+    .pipe(z.array(deviceCode).max(10))
+    .optional(),
+  /** The printer connected to THIS computer, for kiosks whose settings say "the printer on the agent's computer". */
+  PRINTER_TYPE: z.enum(["tcp", "file", "dryrun"]).optional(),
   PRINTER_HOST: z.string().optional(),
   PRINTER_PORT: z.coerce.number().int().min(1).max(65535).default(9100),
   PRINTER_PATH: z.string().optional(),
   DRYRUN_DIR: z.string().default("./printed"),
-  PAPER_MM: z.coerce
-    .number()
-    .pipe(z.union([z.literal(58), z.literal(80)]))
-    .default(80),
-  TIMEZONE: z.string().default("Asia/Manila"),
+  /** Optional: the time zone for the time on the ticket. Without it, the facility's own time zone from the API is used. */
+  TIMEZONE: z.string().optional(),
   POLL_MS: z.coerce.number().int().min(500).max(60_000).default(2_000),
   HEARTBEAT_MS: z.coerce.number().int().min(5_000).max(300_000).default(30_000),
+  /** How often the agent asks the API whether the printer settings changed. */
+  CONFIG_REFRESH_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
   HEALTH_PORT: z.coerce.number().int().min(1024).max(65535).default(8788),
 });
+
+export type PrinterConfig = { type: "tcp"; host: string; port: number } | { type: "file"; path: string } | { type: "dryrun"; dir: string };
 
 export interface AgentConfig {
   apiBaseUrl: string;
   email: string;
   password: string;
   organizationId?: string;
-  facilityId: string;
-  deviceCodes: string[];
-  printer: { type: "tcp"; host: string; port: number } | { type: "file"; path: string } | { type: "dryrun"; dir: string };
-  paperWidth: 58 | 80;
-  timeZone: string;
+  /** Null: the agent finds it through the API. */
+  facilityId: string | null;
+  /** Null: every kiosk of the facility that prints tickets. */
+  deviceCodes: string[] | null;
+  /** The printer connected to this computer, if this machine has one set in its environment. */
+  localPrinter: PrinterConfig | null;
+  /** Null: the facility's own time zone. */
+  timeZone: string | null;
   pollMs: number;
   heartbeatMs: number;
+  configRefreshMs: number;
   healthPort: number;
 }
 
 /**
- * The agent's settings, from its environment, checked before anything starts. Refused: an API address that is not https (http
- * only for this machine), a printer outside the clinic's network, no password, a time zone the system does not know.
+ * The agent's own settings, from its environment, checked before anything starts: how to reach and sign in to the API, and the
+ * printer connected to this computer if there is one. Which kiosks print, where their printers are on the network and the paper
+ * width are set in the staff app (Queue → Devices) and read from the API. Refused: an API address that is not https (http only
+ * for this machine), a local printer outside the clinic's network, no password, a time zone the system does not know.
  */
 export function loadConfig(env: NodeJS.ProcessEnv, readFile: (path: string) => string = (p) => readFileSync(p, "utf8")): AgentConfig {
   const parsed = envSchema.safeParse(env);
@@ -89,22 +100,24 @@ export function loadConfig(env: NodeJS.ProcessEnv, readFile: (path: string) => s
   const password = v.AGENT_PASSWORD ?? (v.AGENT_PASSWORD_FILE ? readFile(v.AGENT_PASSWORD_FILE).trim() : undefined);
   if (!password) throw new ConfigError("Set AGENT_PASSWORD or AGENT_PASSWORD_FILE (a file is better: it keeps the password out of the process list)");
 
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: v.TIMEZONE });
-  } catch {
-    throw new ConfigError(`TIMEZONE "${v.TIMEZONE}" is not a known time zone`);
+  if (v.TIMEZONE) {
+    try {
+      new Intl.DateTimeFormat("en", { timeZone: v.TIMEZONE });
+    } catch {
+      throw new ConfigError(`TIMEZONE "${v.TIMEZONE}" is not a known time zone`);
+    }
   }
 
-  let printer: AgentConfig["printer"];
+  let localPrinter: PrinterConfig | null = null;
   if (v.PRINTER_TYPE === "tcp") {
     if (!v.PRINTER_HOST) throw new ConfigError("PRINTER_HOST is required for a network printer");
     if (!isPrivateHost(v.PRINTER_HOST)) throw new ConfigError("PRINTER_HOST must be on the clinic's own network (a private address or a local name)");
-    printer = { type: "tcp", host: v.PRINTER_HOST, port: v.PRINTER_PORT };
+    localPrinter = { type: "tcp", host: v.PRINTER_HOST, port: v.PRINTER_PORT };
   } else if (v.PRINTER_TYPE === "file") {
     if (!v.PRINTER_PATH) throw new ConfigError("PRINTER_PATH is required for a printer reached through the operating system");
-    printer = { type: "file", path: v.PRINTER_PATH };
-  } else {
-    printer = { type: "dryrun", dir: v.DRYRUN_DIR };
+    localPrinter = { type: "file", path: v.PRINTER_PATH };
+  } else if (v.PRINTER_TYPE === "dryrun") {
+    localPrinter = { type: "dryrun", dir: v.DRYRUN_DIR };
   }
 
   return {
@@ -112,13 +125,13 @@ export function loadConfig(env: NodeJS.ProcessEnv, readFile: (path: string) => s
     email: v.AGENT_EMAIL,
     password,
     organizationId: v.ORGANIZATION_ID,
-    facilityId: v.FACILITY_ID,
-    deviceCodes: v.DEVICE_CODES,
-    printer,
-    paperWidth: v.PAPER_MM,
-    timeZone: v.TIMEZONE,
+    facilityId: v.FACILITY_ID ?? null,
+    deviceCodes: v.DEVICE_CODES && v.DEVICE_CODES.length > 0 ? v.DEVICE_CODES : null,
+    localPrinter,
+    timeZone: v.TIMEZONE ?? null,
     pollMs: v.POLL_MS,
     heartbeatMs: v.HEARTBEAT_MS,
+    configRefreshMs: v.CONFIG_REFRESH_MS,
     healthPort: v.HEALTH_PORT,
   };
 }

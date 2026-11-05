@@ -20,6 +20,12 @@ export const registerDeviceSchema = z.object({
   printsTickets: z.boolean().default(false),
   /** The print agent account that serves this kiosk; leave empty to let any print agent of the facility serve it. */
   printAgentUserId: z.string().uuid().optional(),
+  /** Where the printer is: on the print agent's own computer, or on the clinic's network at `printerHost`. */
+  printerConnection: z.enum(["agent_local", "network"]).default("agent_local"),
+  printerHost: z.string().trim().min(1).max(253).optional(),
+  printerPort: z.number().int().min(1).max(65535).optional(),
+  /** The ticket roll's width in millimetres. */
+  paperMm: z.union([z.literal(58), z.literal(80)]).default(80),
 });
 export class RegisterDeviceDto extends createZodDto(registerDeviceSchema) {}
 
@@ -30,9 +36,24 @@ export const updateDeviceSchema = z
     printsTickets: z.boolean().optional(),
     /** The print agent account that serves this kiosk; null lets any print agent of the facility serve it. */
     printAgentUserId: z.string().uuid().nullable().optional(),
+    printerConnection: z.enum(["agent_local", "network"]).optional(),
+    printerHost: z.string().trim().min(1).max(253).nullable().optional(),
+    printerPort: z.number().int().min(1).max(65535).nullable().optional(),
+    paperMm: z.union([z.literal(58), z.literal(80)]).optional(),
     version: z.number().int().positive(),
   })
-  .refine((v) => v.name !== undefined || v.status !== undefined || v.printsTickets !== undefined || v.printAgentUserId !== undefined, "Nothing to change");
+  .refine(
+    (v) =>
+      v.name !== undefined ||
+      v.status !== undefined ||
+      v.printsTickets !== undefined ||
+      v.printAgentUserId !== undefined ||
+      v.printerConnection !== undefined ||
+      v.printerHost !== undefined ||
+      v.printerPort !== undefined ||
+      v.paperMm !== undefined,
+    "Nothing to change",
+  );
 export class UpdateDeviceDto extends createZodDto(updateDeviceSchema) {}
 
 // ---- The kiosk itself ----------------------------------------------------------------------------------------------

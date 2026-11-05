@@ -1,9 +1,10 @@
-import { Agent, type AgentLogger } from "./agent";
+import type { AgentLogger } from "./agent";
 import { AgentApi } from "./api";
 import { ConfigError, loadConfig } from "./config";
 import { previewBytes } from "./escpos";
 import { startHealthServer } from "./health";
 import { createPrinter } from "./printer";
+import { Supervisor } from "./supervisor";
 
 /** One JSON object per line, like the platform's own services; nothing about a ticket's content is logged. */
 const log: AgentLogger = {
@@ -21,26 +22,51 @@ async function main(): Promise<void> {
     facilityId: config.facilityId,
     organizationId: config.organizationId,
   });
-  // The dry-run printer keeps a readable copy of each ticket beside its raw bytes.
-  const printer = createPrinter(config.printer, previewBytes);
-  const agent = new Agent({ api, printer, deviceCodes: config.deviceCodes, paperWidth: config.paperWidth, timeZone: config.timeZone, log });
 
-  const health = await startHealthServer(config.healthPort, () => agent.getHealth());
-  log.info("agent.started", { devices: config.deviceCodes, printer: config.printer.type, paper: config.paperWidth, health: `127.0.0.1:${config.healthPort}` });
+  let stopAll = () => undefined;
+  const fatal = (error: ConfigError) => {
+    log.error("agent.fatal", { error: error.message });
+    stopAll();
+    process.exit(1);
+  };
+  // Which kiosks print, where each network printer is and the paper width come from the staff app (Queue → Devices); this
+  // machine's environment holds only how to reach the API and the printer connected to this computer, if any.
+  const supervisor = new Supervisor(
+    {
+      api,
+      localPrinter: config.localPrinter,
+      onlyCodes: config.deviceCodes,
+      timeZoneOverride: config.timeZone,
+      // The dry-run printer keeps a readable copy of each ticket beside its raw bytes.
+      createPrinter: (printer) => createPrinter(printer, previewBytes),
+      pollMs: config.pollMs,
+      heartbeatMs: config.heartbeatMs,
+      refreshMs: config.configRefreshMs,
+      log,
+    },
+    fatal,
+  );
 
+  const health = await startHealthServer(config.healthPort, () => supervisor.getHealth());
+  log.info("agent.started", {
+    local: config.localPrinter?.type ?? "none",
+    only: config.deviceCodes ?? "all kiosks that print",
+    health: `127.0.0.1:${config.healthPort}`,
+  });
+
+  stopAll = () => {
+    supervisor.stop();
+    health.close();
+  };
   const shutdown = (signal: string) => {
     log.info("agent.stopping", { signal });
-    agent.stop();
+    supervisor.stop();
     health.close(() => process.exit(0));
   };
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-  agent.start(config.pollMs, config.heartbeatMs, (error) => {
-    log.error("agent.fatal", { error: error.message });
-    agent.stop();
-    health.close(() => process.exit(1));
-  });
+  supervisor.start();
 }
 
 main().catch((error) => {

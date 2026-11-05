@@ -1,4 +1,6 @@
 import {
+  isPrivateHost,
+  printerHostProblem,
   DEVICE_FAILURE_BUDGET,
   deviceCoolingDown,
   DEVICE_ONLINE_MS,
@@ -76,6 +78,36 @@ describe("kiosk rules", () => {
       expect(PRINT_MAX_ATTEMPTS).toBeGreaterThanOrEqual(2);
       expect(PRINT_MAX_ATTEMPTS * PRINT_LEASE_MS).toBeLessThan(PRINT_JOB_MAX_AGE_MS);
       expect(MAX_REPRINTS).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe("printer addresses", () => {
+    it("accepts only addresses and names on the clinic's own network", () => {
+      for (const ok of [
+        "192.168.1.50",
+        "10.0.0.7",
+        "172.16.4.2",
+        "172.31.255.1",
+        "127.0.0.1",
+        "169.254.10.1",
+        "::1",
+        "fd00::1",
+        "receipt-printer",
+        "printer.local",
+        "front.lan",
+      ]) {
+        expect(isPrivateHost(ok)).toBe(true);
+      }
+      for (const bad of ["8.8.8.8", "172.32.0.1", "192.169.1.1", "example.com", "printer.example.ph", "2001:db8::1"]) {
+        expect(isPrivateHost(bad)).toBe(false);
+      }
+    });
+
+    it("explains what is wrong with an address in words for the person setting it up", () => {
+      expect(printerHostProblem("192.168.1.50")).toBeNull();
+      expect(printerHostProblem("8.8.8.8")).toMatchObject({ code: "printer_host_not_private" });
+      expect(printerHostProblem("http://192.168.1.50/")).toMatchObject({ code: "printer_host_invalid" });
+      expect(printerHostProblem("my printer")).toMatchObject({ code: "printer_host_invalid" });
     });
   });
 });

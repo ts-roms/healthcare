@@ -22,7 +22,7 @@ interface Call {
 function fakeFetch(answers: Array<{ status: number; body?: unknown }>) {
   const calls: Call[] = [];
   const impl = (async (url: string, init: RequestInit) => {
-    calls.push({ url, headers: init.headers as Record<string, string>, body: JSON.parse(String(init.body)) });
+    calls.push({ url, headers: init.headers as Record<string, string>, body: init.body ? JSON.parse(String(init.body)) : {} });
     const answer = answers.shift() ?? { status: 500 };
     return new Response(JSON.stringify(answer.body ?? {}), { status: answer.status, headers: { "content-type": "application/json" } });
   }) as unknown as typeof fetch;
@@ -127,6 +127,60 @@ describe("AgentApi", () => {
     clock += 6_000;
     expect(await api.claim("front-1")).toEqual({ job: null });
     expect(signIns).toBe(2);
+  });
+
+  it("reads the printer settings with the facility header, and checks their shape", async () => {
+    const answer = {
+      timeZone: "Asia/Manila",
+      kiosks: [{ code: "front-1", printsTickets: true, connection: "network", host: "192.168.1.50", port: 9100, paperMm: 80 }],
+    };
+    const { api, calls } = make([
+      { status: 200, body: { accessToken: "tok-1" } },
+      { status: 200, body: answer },
+    ]);
+    expect(await api.config()).toEqual(answer);
+    expect(calls[1]).toMatchObject({
+      url: "https://clinic.example.ph/api/v1/kiosk/print/config",
+      headers: { authorization: "Bearer tok-1", "x-facility-id": FACILITY },
+    });
+
+    const bad = make([
+      { status: 200, body: { accessToken: "t" } },
+      { status: 200, body: { timeZone: "Asia/Manila", kiosks: [{ code: "front-1", paperMm: 70 }] } },
+    ]);
+    await expect(bad.api.config()).rejects.toBeInstanceOf(TransientApiError);
+  });
+
+  it("finds its facility itself when the account works at exactly one, and asks the operator otherwise", async () => {
+    const ID = "22222222-2222-4222-8222-222222222222";
+    const noFacility = (answers: Array<{ status: number; body?: unknown }>) => {
+      const { calls, impl } = fakeFetch(answers);
+      const api = new AgentApi({ baseUrl: "https://clinic.example.ph/api/v1", email: "agent@x.ph", password: "p", facilityId: null, fetchImpl: impl });
+      return { api, calls };
+    };
+    const one = noFacility([
+      { status: 200, body: { accessToken: "tok" } },
+      { status: 200, body: [{ id: ID }] },
+      { status: 200, body: { timeZone: "Asia/Manila", kiosks: [] } },
+    ]);
+    await one.api.config();
+    // The lookup carries no facility header; the settings call carries the one found.
+    expect(one.calls[1]?.url).toBe("https://clinic.example.ph/api/v1/auth/me/facilities");
+    expect(one.calls[1]?.headers["x-facility-id"]).toBeUndefined();
+    expect(one.calls[2]?.headers["x-facility-id"]).toBe(ID);
+
+    await expect(
+      noFacility([
+        { status: 200, body: { accessToken: "t" } },
+        { status: 200, body: [{ id: ID }, { id: FACILITY }] },
+      ]).api.resolveFacility(),
+    ).rejects.toThrow(/FACILITY_ID/);
+    await expect(
+      noFacility([
+        { status: 200, body: { accessToken: "t" } },
+        { status: 200, body: [] },
+      ]).api.resolveFacility(),
+    ).rejects.toBeInstanceOf(ConfigError);
   });
 
   it("does not trust a claim answer that is not a ticket", async () => {
