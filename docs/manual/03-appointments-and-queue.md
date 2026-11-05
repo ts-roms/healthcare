@@ -72,6 +72,8 @@ case, after booking you return to where you started.
 
 **Calendar** in the menu shows the selected facility's month, week or day. Appointments and staff events appear together (untick **Show appointments** to see events only); click an appointment to open that day's schedule.
 
+**The day view** shows the hours of the day in the middle, with each appointment and event drawn where it falls (two that overlap sit side by side) and all-day events above the hours; on today a red line marks the current time. On the left are a small month (select a date to open that day), the **Day total** (what is scheduled, in hours, split into appointments and events) and what comes **Up next**. Select any entry to see it in full on the right: an appointment shows its status, the doctor, the room and the reason for the visit, with **Open in appointments**; an event shows its place, notes and who is invited, with **Edit event** and **Cancel event…** if you may change it. **By room** puts each room in its own column. On a phone the three parts stack, hours first.
+
 1. Choose **New event**, give it a title and a type (meeting, event, blocked time, training or reminder).
 2. Set the start and end (or tick **All day**). Times are in the facility's time zone.
 3. Choose who can see it: everyone with calendar access, or only you and the clinicians you invite.
