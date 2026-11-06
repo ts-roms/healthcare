@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { APP_CONFIG, type AppConfig, UnauthenticatedError } from "@healthcare/core";
@@ -76,6 +77,9 @@ export class TokenService {
       issuer: ISSUER,
       audience: AUDIENCE,
       expiresIn,
+      // A random id per token: two signed in the same second for the same person are never identical, so a single-use
+      // token (challenge, ticket; ConsumedTokens) is never mistaken for a replay of another.
+      jwtid: randomUUID(),
     });
   }
 

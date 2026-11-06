@@ -64,6 +64,11 @@ proxy refuses every new password until that is arranged.
 
 ### Idle sign-out (staff app)
 
+**On the server too:** a staff session not refreshed for `SESSION_IDLE_MINUTES` (API, default 720 = 12 hours; `0` off)
+is ended at its next refresh (`revoked_reason = 'idle'`; `sessionIdle` in `libs/auth/src/lib/session.service.ts`), so
+a browser closed or abandoned without signing out does not keep a live session for the full refresh lifetime. A tab
+left open and polling still refreshes, which is what the browser's own idle sign-out below is for.
+
 A staff browser left alone is signed out after `STAFF_IDLE_MINUTES` without keyboard, pointer or touch activity
 (default 20; `0` turns it off; `apps/staff/src/components/idle-sign-out.tsx`, rules in `apps/staff/src/lib/idle.ts`):
 a dialog warns for the last minute ("Still there?") and **Stay signed in** resets the clock; at the limit the ordinary
@@ -293,8 +298,11 @@ sub-records / consent / preferences, document create / upload / list / download
   with none). Browsers present a ticket from
   `POST /auth/realtime-tickets`: a JWT typed `realtime`, valid 60 seconds,
   bound to one session and facility, and refused as an access token (and vice
-  versa). A ticket is not single-use: replayed within its minute it opens a
-  socket for the same user and facility only, and never after the session ends.
+  versa). A ticket is single-use (migration `0147`, `ConsumedTokens` in
+  `libs/core`: its SHA-256 is recorded when its socket opens and a second use is
+  refused), and so is the sign-in challenge between the password and the second
+  step, staff and MyHealth alike: a wrong code leaves it usable for another try,
+  a successful second step spends it, so it never opens a second session.
   Server-side clients may still connect with an access token and facility id.
   Every open socket is checked again every minute (`RealtimeGateway.revalidateAll`,
   `REALTIME_REVALIDATE_MS`) with the identity it was opened with: an ended

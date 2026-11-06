@@ -300,6 +300,9 @@ describe("realtime queue and laboratory updates", () => {
 
       const socket = connect({ ticket: issued.body.ticket });
       await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "registrations", "notices"] });
+      // Spent on first use: the same ticket never opens a second socket, even within its minute.
+      const replay = connect({ ticket: issued.body.ticket });
+      await expect(next(replay, "unauthorized")).resolves.toBeDefined();
     });
 
     it("needs a facility, and a ticket is never accepted as an access token", async () => {

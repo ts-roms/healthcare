@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { type Actor, BadRequestError, ForbiddenError, type RequestMetadata, UnauthenticatedError } from "@healthcare/core";
+import { type Actor, BadRequestError, ForbiddenError, type RequestMetadata, UnauthenticatedError, ConsumedTokens, tokenExpiry } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { AccessService } from "./access.service";
 import { AuthService } from "./auth.service";
@@ -28,6 +28,7 @@ export class ActorResolver {
     private readonly access: AccessService,
     private readonly organizations: OrganizationService,
     private readonly mfaPolicy: MfaPolicyService,
+    private readonly consumedTokens: ConsumedTokens,
   ) {}
 
   async resolve(accessToken: string, context: ActorContextRequest, request: RequestMetadata): Promise<Actor> {
@@ -38,6 +39,10 @@ export class ActorResolver {
   /** For the realtime gateway: a ticket from `POST /auth/realtime-tickets`, bound to one session and facility. */
   async resolveRealtimeTicket(ticket: string, request: RequestMetadata): Promise<Actor> {
     const claims = await this.tokens.verifyRealtimeTicket(ticket);
+    // A ticket opens one socket (zero trust: not replayable within its minute).
+    if (!(await this.consumedTokens.consume("staff_realtime_ticket", ticket, tokenExpiry(claims)))) {
+      throw new UnauthenticatedError("This ticket was already used", "invalid_token");
+    }
     return this.fromSession(claims, { facilityId: claims.fac }, request);
   }
 

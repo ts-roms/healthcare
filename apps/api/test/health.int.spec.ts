@@ -19,6 +19,19 @@ describe("health", () => {
     expect(headers["x-request-id"]).toMatch(/^[0-9a-f-]{36}$/);
   });
 
+  it("gives the details only to monitoring when a details token is set: everyone else gets the status alone", async () => {
+    const token = "monitoring-".padEnd(40, "x");
+    const guarded = await createTestApp({ rateLimitStorage: { redisUrl: TEST_REDIS_URL, keyPrefix: "health-test:" } }, { HEALTH_DETAILS_TOKEN: token });
+    try {
+      expect((await guarded.http().get("/api/v1/health/ready").expect(200)).body).toEqual({ status: "ok" });
+      expect((await guarded.http().get("/api/v1/health/ready").set("x-health-token", "wrong").expect(200)).body).toEqual({ status: "ok" });
+      const detailed = await guarded.http().get("/api/v1/health/ready").set("x-health-token", token).expect(200);
+      expect(detailed.body).toMatchObject({ status: "ok", checks: { database: "ok", malwareScanner: "unconfigured" } });
+    } finally {
+      await guarded.close();
+    }
+  });
+
   it("answers 200 degraded, not 503, while Redis is unreachable", async () => {
     const offline = await createTestApp({ rateLimitStorage: { redisUrl: "redis://127.0.0.1:1", keyPrefix: "health-test:" } });
     try {

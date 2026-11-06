@@ -18,6 +18,7 @@ export * from "./lib/idempotency/idempotency.interceptor";
 export * from "./lib/pagination";
 export * from "./lib/ph/mobile";
 export * from "./lib/security/crypto";
+export * from "./lib/security/consumed-tokens";
 export * from "./lib/text/normalize";
 export * from "./lib/text/csv";
 export * from "./lib/access/decorators";

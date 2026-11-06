@@ -42,6 +42,10 @@ const appConfigSchema = z
     PORT: z.coerce.number().int().positive().default(3333),
     // Workers have no HTTP server; with a port set they answer GET /live and /ready for the platform's health probes.
     HEALTH_PORT: z.coerce.number().int().positive().optional(),
+    // Readiness details (which dependency is down, whether malware scanning is off) go only to a caller sending this
+    // value as `X-Health-Token` (monitoring). Unset: details outside production only; production answers the status
+    // alone. At least 32 characters (healthDetailsVisible).
+    HEALTH_DETAILS_TOKEN: z.string().min(32, "HEALTH_DETAILS_TOKEN must be at least 32 characters").optional(),
     LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),
     DATABASE_URL: z.string().url(),
     DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
@@ -57,6 +61,9 @@ const appConfigSchema = z
     JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
+    // A staff session not refreshed for this long ends at its next refresh (server-side idle limit, behind the staff
+    // app's own STAFF_IDLE_MINUTES in the browser). 0 turns it off. Default 12 hours: a browser left open overnight.
+    SESSION_IDLE_MINUTES: z.coerce.number().int().min(0).max(43_200).default(720),
     MFA_ENCRYPTION_KEY: z.string().refine((value) => Buffer.from(value, "base64").length === 32, "MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
     CORS_ORIGINS: z
       .string()
@@ -205,13 +212,39 @@ const SAMPLE_MFA_ENCRYPTION_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
  * Secrets that pass the length checks but were copied from an example file or are plainly guessable. Checked in
  * production only, so development and tests keep their sample values.
  */
-export function placeholderSecretProblems(config: Pick<AppConfig, "JWT_ACCESS_SECRET" | "MFA_ENCRYPTION_KEY">): Array<{ path: string; message: string }> {
+/** The development values in .env.example and the compose file: public, so never acceptable in production. */
+const SAMPLE_SECRETS: Readonly<Record<string, readonly string[]>> = {
+  LIVEKIT_API_KEY: ["devkey"],
+  LIVEKIT_API_SECRET: ["secret"],
+  S3_ACCESS_KEY_ID: ["healthcare", "minioadmin", "rustfsadmin"],
+  S3_SECRET_ACCESS_KEY: ["healthcare-dev-secret", "minioadmin", "rustfsadmin"],
+};
+
+/** A LiveKit secret signs room tokens: whoever knows it joins any consultation. */
+const MIN_LIVEKIT_SECRET_LENGTH = 32;
+
+export function placeholderSecretProblems(
+  config: Pick<AppConfig, "JWT_ACCESS_SECRET" | "MFA_ENCRYPTION_KEY"> &
+    Partial<Pick<AppConfig, "LIVEKIT_API_KEY" | "LIVEKIT_API_SECRET" | "S3_ACCESS_KEY_ID" | "S3_SECRET_ACCESS_KEY">>,
+): Array<{ path: string; message: string }> {
   const problems: Array<{ path: string; message: string }> = [];
   if (/change[-_ ]?me|example|placeholder|password|secret/i.test(config.JWT_ACCESS_SECRET) || new Set(config.JWT_ACCESS_SECRET).size < 12) {
     problems.push({ path: "JWT_ACCESS_SECRET", message: "looks like a placeholder or a guessable value; generate one with `openssl rand -base64 48`" });
   }
   if (config.MFA_ENCRYPTION_KEY === SAMPLE_MFA_ENCRYPTION_KEY) {
     problems.push({ path: "MFA_ENCRYPTION_KEY", message: "is the sample key from .env.example; generate one with `openssl rand -base64 32`" });
+  }
+  for (const [name, samples] of Object.entries(SAMPLE_SECRETS)) {
+    const value = config[name as keyof typeof config];
+    if (typeof value === "string" && samples.includes(value)) {
+      problems.push({ path: name, message: "is a development sample value (.env.example / docker compose); use this environment's own credential" });
+    }
+  }
+  if (config.LIVEKIT_API_SECRET && config.LIVEKIT_API_SECRET.length < MIN_LIVEKIT_SECRET_LENGTH) {
+    problems.push({
+      path: "LIVEKIT_API_SECRET",
+      message: `must be at least ${MIN_LIVEKIT_SECRET_LENGTH} characters in production: it signs the tokens that open consultation rooms`,
+    });
   }
   return problems;
 }
@@ -311,6 +344,7 @@ export function integrationPayloadKeyring(config: IntegrationKeyConfig): Keyring
  */
 const BLANK_MEANS_UNSET = [
   "HEALTH_PORT",
+  "HEALTH_DETAILS_TOKEN",
   "S3_ENDPOINT",
   "S3_REGION",
   "S3_BUCKET",

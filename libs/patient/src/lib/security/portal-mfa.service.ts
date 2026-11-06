@@ -16,6 +16,8 @@ import {
   NotFoundError,
   type RequestMetadata,
   UnauthenticatedError,
+  ConsumedTokens,
+  tokenExpiry,
 } from "@healthcare/core";
 import { organization } from "@healthcare/organization";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
@@ -65,6 +67,7 @@ export class PortalMfaService {
     private readonly audit: AuditService,
     private readonly devices: PortalTrustedDeviceService,
     private readonly passkeys: PortalPasskeyService,
+    private readonly consumedTokens: ConsumedTokens,
   ) {}
 
   async status(principal: PortalPrincipal): Promise<PortalMfaStatusView> {
@@ -237,6 +240,11 @@ export class PortalMfaService {
           const checked = await this.checkSecondFactor(tx, fresh, answer.code, true);
           if (!checked.ok) return { kind: "bad" };
           result = checked;
+        }
+        // The challenge opens one session: spent now (a refusal here rolls back the spent code), so it cannot be
+        // replayed with another code or passkey answer while it lasts.
+        if (!(await this.consumedTokens.consume("patient_mfa_challenge", challengeToken, tokenExpiry(claims)))) {
+          throw new UnauthenticatedError("Invalid or expired token", "invalid_token");
         }
         const method = result.kind === "passkey" ? "password+passkey" : result.kind === "totp" ? "password+totp" : "password+recovery_code";
         const tokens = await this.accounts.completeLogin(tx, account, request, method, metadata);

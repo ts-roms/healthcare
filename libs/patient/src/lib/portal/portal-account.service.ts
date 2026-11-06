@@ -27,6 +27,8 @@ import {
   sha256Hex,
   UnauthenticatedError,
   withinOrganization,
+  ConsumedTokens,
+  tokenExpiry,
 } from "@healthcare/core";
 import { facility, organization } from "@healthcare/organization";
 import { and, count, desc, eq, gt, isNull, sql, or } from "drizzle-orm";
@@ -114,6 +116,7 @@ export class PortalAccountService {
     @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
     private readonly devices: PortalTrustedDeviceService,
     private readonly mfaPolicy: PortalMfaPolicyService,
+    private readonly consumedTokens: ConsumedTokens,
   ) {}
 
   // ---- staff side ------------------------------------------------------------------
@@ -588,7 +591,12 @@ export class PortalAccountService {
 
   /** For the realtime gateway: the patient behind a ticket, with session, account and consent re-checked as for any request. */
   async authenticateRealtimeTicket(ticket: string, request: RequestMetadata): Promise<PortalPrincipal> {
-    return this.principalFor(await this.tokens.verifyRealtimeTicket(ticket), request);
+    const claims = await this.tokens.verifyRealtimeTicket(ticket);
+    // A ticket opens one socket (zero trust: not replayable within its minute).
+    if (!(await this.consumedTokens.consume("patient_realtime_ticket", ticket, tokenExpiry(claims)))) {
+      throw new UnauthenticatedError("This ticket was already used", "invalid_token");
+    }
+    return this.principalFor(claims, request);
   }
 
   /** For the realtime gateway's periodic re-check of a patient's open socket: session, account and consent again. */

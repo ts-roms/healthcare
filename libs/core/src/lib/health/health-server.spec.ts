@@ -1,5 +1,5 @@
 import type { AddressInfo } from "node:net";
-import { type HealthCheck, healthReport, healthStatusCode, startHealthServer } from "./health-server";
+import { cachedHealthReport, type HealthCheck, healthDetailsVisible, healthReport, healthStatusCode, startHealthServer } from "./health-server";
 
 const check = (name: string, required: boolean, state: "ok" | "unreachable" | "unconfigured" | Error): HealthCheck => ({
   name,
@@ -26,7 +26,7 @@ describe("healthReport", () => {
 
 describe("startHealthServer", () => {
   it("serves /live and /ready and nothing else", async () => {
-    const server = startHealthServer(0, [check("database", true, "ok"), check("redis", false, "unreachable")]);
+    const server = startHealthServer(0, [check("database", true, "ok"), check("redis", false, "unreachable")], () => true);
     try {
       const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       const live = await fetch(`${base}/live`);
@@ -40,5 +40,36 @@ describe("startHealthServer", () => {
     } finally {
       server.close();
     }
+  });
+});
+
+describe("readiness details", () => {
+  const token = "t".repeat(40);
+
+  it("go only to a caller with the operators' token, else nobody in production and everyone elsewhere", () => {
+    expect(healthDetailsVisible({ NODE_ENV: "production", HEALTH_DETAILS_TOKEN: token }, token)).toBe(true);
+    expect(healthDetailsVisible({ NODE_ENV: "production", HEALTH_DETAILS_TOKEN: token }, "wrong")).toBe(false);
+    expect(healthDetailsVisible({ NODE_ENV: "production", HEALTH_DETAILS_TOKEN: token }, undefined)).toBe(false);
+    expect(healthDetailsVisible({ NODE_ENV: "production" }, token)).toBe(false);
+    expect(healthDetailsVisible({ NODE_ENV: "development" }, undefined)).toBe(true);
+  });
+
+  it("are left out of a worker's answer by default: the status alone", async () => {
+    const server = startHealthServer(0, [check("database", true, "ok"), check("redis", false, "unreachable")]);
+    try {
+      const ready = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/ready`);
+      expect(ready.status).toBe(200);
+      expect(await ready.json()).toEqual({ status: "degraded" });
+    } finally {
+      server.close();
+    }
+  });
+
+  it("are checked at most once per window, however many probes arrive", async () => {
+    let runs = 0;
+    const report = cachedHealthReport([{ name: "database", required: true, probe: async () => (runs++, "ok") }], 60_000);
+    await Promise.all([report(), report(), report()]);
+    await report();
+    expect(runs).toBe(1);
   });
 });

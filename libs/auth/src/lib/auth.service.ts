@@ -14,6 +14,8 @@ import {
   ForbiddenError,
   type RequestMetadata,
   UnauthenticatedError,
+  ConsumedTokens,
+  tokenExpiry,
 } from "@healthcare/core";
 import { organization } from "@healthcare/organization";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
@@ -51,6 +53,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly mfaPolicy: MfaPolicyService,
     @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
+    private readonly consumedTokens: ConsumedTokens,
   ) {}
 
   async login(input: z.infer<typeof loginSchema>, request: RequestMetadata): Promise<TokenResponse | MfaRequiredResponse> {
@@ -126,6 +129,10 @@ export class AuthService {
     if (!factor.ok) {
       await this.recordFailedAttempt(user, context, "wrong_mfa_code");
       throw new UnauthenticatedError("Invalid verification code", "invalid_mfa_code");
+    }
+    // The challenge opens one session: spent now, so it cannot be replayed with another code while it lasts.
+    if (!(await this.consumedTokens.consume("staff_mfa_challenge", challengeToken, tokenExpiry(claims)))) {
+      throw new UnauthenticatedError("Invalid or expired token", "invalid_token");
     }
     // Membership may have changed during the challenge window.
     await this.selectOrganization(user.id, claims.org, context);

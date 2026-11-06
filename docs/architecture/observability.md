@@ -64,7 +64,12 @@ also carries `traceId` and `spanId` when telemetry is on.
   storage degrade**: unreachable → `200 degraded` — the API still serves (rate limits are let through, uploads and
   report archives fail) and stays on routing, so one of them being down does not take the whole API offline. Object
   storage is `unconfigured` without `S3_ACCESS_KEY_ID` and probed at most once a minute (a head of a key that never
-  exists, through `DocumentsService.probeStorage`). Railway probes `/ready` (`apps/api/railway.json`).
+  exists, through `DocumentsService.probeStorage`). Railway probes `/ready` (`apps/api/railway.json`). The checks run at
+  most once every 5 seconds (`cachedHealthReport`), so a flood of probes on this public, unthrottled route costs one round
+  of database, Redis and scanner connections per window. **The per-dependency `checks` are for monitoring only**: with
+  `HEALTH_DETAILS_TOKEN` set they are returned only to a caller sending it as `X-Health-Token`; without it, outside
+  production only. Everyone else gets `{ status }` with the same status code (`healthDetailsVisible`), so nobody learns
+  from the public answer that, say, malware scanning is down. The workers' `/ready` follows the same rule.
 
 **Workers** — no HTTP server by default. With `HEALTH_PORT` set, each worker serves `GET /live` and `GET /ready`
 (database required, Redis reported) on that port and nothing else (`startWorkerHealth` and

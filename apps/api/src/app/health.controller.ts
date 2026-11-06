@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Res } from "@nestjs/common";
+import { Controller, Get, Inject, Req, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { SkipThrottle } from "@nestjs/throttler";
 import {
@@ -7,15 +7,17 @@ import {
   asPlatform,
   DATABASE,
   type Database,
+  cachedHealthReport,
   type DependencyState,
-  type HealthCheck,
-  healthReport,
+  healthAnswer,
+  healthDetailsVisible,
+  type HealthReport,
   healthStatusCode,
   Public,
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { sql } from "drizzle-orm";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { RedisThrottlerStorage } from "./redis-throttler-storage";
 
 /** Object storage is probed at most once a minute (DocumentsService.probeStorage). */
@@ -26,13 +28,22 @@ const STORAGE_PROBE_INTERVAL_MS = 60_000;
 @SkipThrottle()
 export class HealthController {
   private storageProbe: { at: number; state: DependencyState } | undefined;
+  private readonly report: () => Promise<HealthReport>;
 
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly documents: DocumentsService,
     private readonly redis: RedisThrottlerStorage,
-  ) {}
+  ) {
+    this.report = cachedHealthReport([
+      { name: "database", required: true, probe: () => asPlatform("readiness check", async () => this.db.execute(sql`SELECT 1`)).then(() => "ok" as const) },
+      { name: "redis", required: false, probe: async () => ((await this.redis.ping()) ? "ok" : "unreachable") },
+      { name: "objectStorage", required: false, probe: () => this.probeStorage() },
+      // Unconfigured: uploads are accepted as "not scanned" (docs/domains/documents.md); unreachable: uploads are refused.
+      { name: "malwareScanner", required: false, probe: () => this.documents.probeScanner() },
+    ]);
+  }
 
   /** Liveness: the process is up. */
   @Get("live")
@@ -48,17 +59,12 @@ export class HealthController {
    */
   @Get("ready")
   @Public()
-  async ready(@Res({ passthrough: true }) res: Response) {
-    const checks: HealthCheck[] = [
-      { name: "database", required: true, probe: () => asPlatform("readiness check", async () => this.db.execute(sql`SELECT 1`)).then(() => "ok" as const) },
-      { name: "redis", required: false, probe: async () => ((await this.redis.ping()) ? "ok" : "unreachable") },
-      { name: "objectStorage", required: false, probe: () => this.probeStorage() },
-      // Unconfigured: uploads are accepted as "not scanned" (docs/domains/documents.md); unreachable: uploads are refused.
-      { name: "malwareScanner", required: false, probe: () => this.documents.probeScanner() },
-    ];
-    const report = await healthReport(checks);
+  async ready(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    // Checked at most every few seconds (cachedHealthReport): public and unthrottled, so probes cannot be multiplied
+    // into database, Redis and scanner connections. The details go only to monitoring (healthDetailsVisible).
+    const report = await this.report();
     res.status(healthStatusCode(report));
-    return report;
+    return healthAnswer(report, healthDetailsVisible(this.config, req.headers["x-health-token"]));
   }
 
   private async probeStorage(): Promise<DependencyState> {

@@ -98,6 +98,25 @@ describe("blank optional settings", () => {
   });
 });
 
+describe("sample credentials in production", () => {
+  const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+
+  it("refuses the development LiveKit and object-storage values, and a short LiveKit secret", () => {
+    expect(() => loadAppConfig({ ...production, LIVEKIT_API_KEY: "devkey", LIVEKIT_API_SECRET: "secret" })).toThrow(
+      /LIVEKIT_API_KEY.*sample[\s\S]*LIVEKIT_API_SECRET/,
+    );
+    expect(() => loadAppConfig({ ...production, LIVEKIT_API_KEY: "prod-key", LIVEKIT_API_SECRET: "short-but-not-sample" })).toThrow(/at least 32 characters/);
+    expect(() => loadAppConfig({ ...production, S3_ACCESS_KEY_ID: "healthcare", S3_SECRET_ACCESS_KEY: "healthcare-dev-secret" })).toThrow(
+      /S3_SECRET_ACCESS_KEY/,
+    );
+    expect(() => loadAppConfig({ ...production, LIVEKIT_API_KEY: "prod-key", LIVEKIT_API_SECRET: "x".repeat(40) })).not.toThrow();
+  });
+
+  it("keeps the samples working outside production", () => {
+    expect(() => loadAppConfig({ ...base, NODE_ENV: "development", LIVEKIT_API_KEY: "devkey", LIVEKIT_API_SECRET: "secret" })).not.toThrow();
+  });
+});
+
 describe("malware scanning", () => {
   const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
 

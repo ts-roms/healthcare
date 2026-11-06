@@ -26,6 +26,11 @@ export type RotateResult =
  * previously rotated token being presented again means it was stolen, so the
  * whole session is revoked.
  */
+/** Whether a session last used at `lastUsedAt` has been idle past `idleMinutes` (0: never). */
+export function sessionIdle(lastUsedAt: Date, now: Date, idleMinutes: number): boolean {
+  return idleMinutes > 0 && now.getTime() - lastUsedAt.getTime() > idleMinutes * 60_000;
+}
+
 @Injectable()
 export class SessionService {
   constructor(
@@ -64,6 +69,11 @@ export class SessionService {
       const [current] = await tx.select().from(authSession).where(eq(authSession.refreshTokenHash, hash)).for("update");
       if (current) {
         if (current.revokedAt || current.expiresAt <= new Date()) return { kind: "invalid" };
+        // Zero trust for an abandoned browser: a session nobody refreshed within the idle limit is ended, not renewed.
+        if (sessionIdle(current.lastUsedAt, new Date(), this.config.SESSION_IDLE_MINUTES)) {
+          await tx.update(authSession).set({ revokedAt: new Date(), revokedReason: "idle" }).where(eq(authSession.id, current.id));
+          return { kind: "invalid" };
+        }
         const next = randomToken();
         const [rotated] = await tx
           .update(authSession)

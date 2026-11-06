@@ -62,6 +62,20 @@ describe("authentication", () => {
     expect(reuse).toHaveLength(1);
   });
 
+  it("ends a session left idle past the server-side limit at its next refresh", async () => {
+    const session = await login(ctx, "nurse@example.ph");
+    // Not refreshed for 13 hours (the default limit is 12).
+    await ctx.pool.query(
+      "UPDATE auth_session SET last_used_at = now() - interval '13 hours' WHERE refresh_token_hash = encode(sha256(convert_to($1, 'UTF8')), 'hex')",
+      [session.refreshToken],
+    );
+    await ctx.http().post("/api/v1/auth/refresh").send({ refreshToken: session.refreshToken }).expect(401);
+    const ended = await ctx.http().get("/api/v1/auth/me").set(as(session.accessToken)).expect(401);
+    expect(ended.body.error.code).toBe("session_ended");
+    const { rows } = await ctx.pool.query("SELECT 1 FROM auth_session WHERE revoked_reason = 'idle'");
+    expect(rows).toHaveLength(1);
+  });
+
   it("ends access immediately on logout", async () => {
     const { accessToken } = await login(ctx, "nurse@example.ph");
     await ctx.http().post("/api/v1/auth/logout").set(as(accessToken)).expect(204);
@@ -118,6 +132,9 @@ describe("authentication", () => {
       expect(verified.body.status).toBe("authenticated");
       // Replaying it with a new challenge fails too.
       await verify(await signIn(), next).expect(401);
+      // The used challenge opens no second session, even with a code that would otherwise be accepted.
+      const replay = await verify(challenge.body.challengeToken, await freshCode()).expect(401);
+      expect(replay.body.error.code).toBe("invalid_token");
       // A challenge token is not an access token.
       await ctx.http().get("/api/v1/auth/me").set(as(challenge.body.challengeToken)).expect(401);
       const me = await ctx.http().get("/api/v1/auth/me").set(as(verified.body.accessToken)).expect(200);
