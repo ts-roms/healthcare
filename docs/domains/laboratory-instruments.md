@@ -57,7 +57,8 @@ expectations, timeouts): **validate each analyzer against its vendor's interface
 ## Flow
 
 1. **Receive** — `POST /laboratory/instruments/:id/messages` `{ message }` by an account holding
-   **`lab.instrument.message.submit`** (org_admin by default; grant it to the gateway's integration account's role).
+   **`lab.instrument.message.submit`**, held only by the built-in role **Instrument gateway** (`instrument_gateway`,
+   migration `0145`; org_admin no longer holds it).
    Refused while the interface is not enabled (`interface_not_enabled`). A message the reader cannot read is kept as
    `rejected` and refused (`422 instrument_message_unreadable`, `details.reason` = `not_hl7`, `not_astm`,
    `unsupported_message_type` (not ORU), `checksum_mismatch`, `malformed_frame`). Audited `lab.instrument.message.receive`.
@@ -87,12 +88,21 @@ device). One listener per instrument:
   transmission is posted. ASTM has no application-level reply, so a delivery failure is retried after 5 s, 30 s and
   2 min, then logged.
 
-It stores nothing and logs JSON lines without message content. Configuration (environment): `GATEWAY_API_URL`,
-`GATEWAY_EMAIL` / `GATEWAY_PASSWORD` (an integration account without MFA holding `lab.instrument.message.submit`; exempt it under **Administration → Sign-in security** if the organization requires two-step verification),
-`GATEWAY_ORGANIZATION_ID` (only for an account in several organizations), `GATEWAY_INSTRUMENTS`
-(`[{ "instrumentId", "protocol": "hl7v2" | "astm", "port", "host"? }]`). Build `pnpm nx build instrument-gateway`, run
-`node apps/instrument-gateway/dist/main.js`. Run it on the facility's private network only: the analyzer side has no
-authentication (as the protocols have none).
+It stores nothing and logs JSON lines without message content. Configuration (environment): `GATEWAY_API_URL` (https;
+http only for a loopback address), `GATEWAY_EMAIL` / `GATEWAY_PASSWORD` or `GATEWAY_PASSWORD_FILE` (an account holding
+only the **Instrument gateway** role, without MFA; exempt it under **Administration → Sign-in security** if the
+organization requires two-step verification), `GATEWAY_ORGANIZATION_ID` (only for an account in several
+organizations), `GATEWAY_INSTRUMENTS` (`[{ "instrumentId", "protocol": "hl7v2" | "astm", "port", "host"?,
+"allowedPeers": ["<analyzer IP>", …] }]`). Build `pnpm nx build instrument-gateway`, run
+`node apps/instrument-gateway/dist/main.js`.
+
+**Zero trust on the analyzer side** (the protocols have no authentication): each listener accepts connections only from
+its `allowedPeers` (required; anything else is closed before a byte is read and logged `*.peer-refused` with the
+address), at most two at a time; a peer that sends more than 1 MiB without ending a message or transmission is cut off
+(`*.overflow`); ASTM deliveries and their retries run one after another. After signing in, the gateway reads its own
+permissions (`GET /auth/me`) and refuses to send as an account holding anything but `lab.instrument.message.submit`
+(every message then fails, with the reason in the log). Still run it on the facility's private network, on the analyzer
+VLAN where possible (`host` = that interface's address), with a TLS tunnel (e.g. stunnel) where the analyzer supports it.
 
 ## Staff screens
 

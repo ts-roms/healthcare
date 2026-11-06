@@ -8,7 +8,7 @@ import { CarePlanRecallReminders } from "@healthcare/care-plan";
 import { CrmCampaignRuns } from "@healthcare/crm";
 import { AutomaticNoShows, WaitlistOffersService } from "@healthcare/clinic";
 import { telemetryStartupEvent } from "@healthcare/core/telemetry";
-import { levelsFrom, loadAppConfig, OutboxRelay } from "@healthcare/core";
+import { levelsFrom, loadAppConfig, malwareScanRequired, OutboxRelay } from "@healthcare/core";
 import { DocumentIntegrityService } from "@healthcare/documents";
 import { AuditRetentionService } from "./app/audit-retention/audit-retention.service";
 import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
@@ -24,6 +24,15 @@ import { ManagementReportRuns } from "./app/management-dashboard/management-repo
 
 async function bootstrap(): Promise<void> {
   const config = loadAppConfig();
+  // The owner's URL is for the pre-deploy migration only (docs/runbooks/database-roles.md). Railway gives a service's
+  // variables to its running process as well, so drop it before any module or dependency can read it.
+  delete process.env["MIGRATION_DATABASE_URL"];
+  // Fail closed: uploads from patients and other providers reach staff only after a scan (docs/domains/documents.md).
+  if (malwareScanRequired(config) && !config.CLAMAV_HOST) {
+    throw new Error(
+      "CLAMAV_HOST is unset but malware scanning is required (production): configure clamd, or set MALWARE_SCAN_REQUIRED=false to accept uploads as not scanned",
+    );
+  }
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
     // One JSON object per line (docs/architecture/observability.md); plain text in development.
     logger: new ConsoleLogger({ json: config.NODE_ENV === "production", logLevels: levelsFrom(config.LOG_LEVEL) }),
@@ -67,7 +76,10 @@ async function bootstrap(): Promise<void> {
   Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, "Bootstrap");
   if (config.NODE_ENV === "production" && !config.CLAMAV_HOST) {
     Logger.warn(
-      { event: "documents.scanner_unconfigured", message: "CLAMAV_HOST is unset: uploaded documents are recorded as not scanned (docs/domains/documents.md)" },
+      {
+        event: "documents.scanner_unconfigured",
+        message: "CLAMAV_HOST is unset and MALWARE_SCAN_REQUIRED=false: uploaded documents are recorded as not scanned (docs/domains/documents.md)",
+      },
       "Bootstrap",
     );
   }

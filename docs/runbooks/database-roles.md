@@ -15,8 +15,20 @@ are therefore covered without a step to remember. Nothing in the application cha
 withholds.
 
 The login role the processes use is created once, by hand, with its own password, because a password never belongs
-in the repository and Railway's Terraform provider does not manage PostgreSQL roles. Until it exists, everything runs
-as the owner exactly as before.
+in the repository and Railway's Terraform provider does not manage PostgreSQL roles.
+
+**Production refuses the owner.** With `NODE_ENV=production` the API and both workers check the connected role at
+start-up (`libs/core/src/lib/database/database-privileges.ts`) and refuse to start when it is a superuser, has
+`BYPASSRLS` or owns the application's tables, because row-level security and the revoked privileges do not bind such a
+role. Only for the first deploy, before the restricted role exists, set `DATABASE_ALLOW_OWNER=true` (Terraform:
+`allow_owner_database = true`, which also lets the plan proceed without `secrets.app_database_url`); the processes then
+start and log `event: "db.owner_connection"`. Remove it as soon as step 5 below is done.
+
+**The owner's URL at runtime.** Railway gives a service's variables to its pre-deploy command and to the running process
+alike, so `MIGRATION_DATABASE_URL` is in the API's environment. The API deletes it from `process.env` first thing at
+start-up, so no module or dependency can read it later; someone with code execution in the container can still read it
+(for example from `/proc/self/environ`). Closing that needs migrations run by a separate one-off service that alone
+holds the owner's URL (follow-up; not built).
 
 ## Who connects as what
 
@@ -60,8 +72,8 @@ as the owner exactly as before.
 
 ## Roll back
 
-Set `DATABASE_URL` on the three services back to `${{Postgres.DATABASE_URL}}` (Terraform: remove
-`secrets.app_database_url`) and redeploy. The role can stay; to remove it: `DROP ROLE healthcare_api;`.
+Set `DATABASE_URL` on the three services back to `${{Postgres.DATABASE_URL}}` and `DATABASE_ALLOW_OWNER=true`
+(Terraform: remove `secrets.app_database_url`, set `allow_owner_database = true`) and redeploy. The role can stay; to remove it: `DROP ROLE healthcare_api;`.
 
 ## Rotate the password
 

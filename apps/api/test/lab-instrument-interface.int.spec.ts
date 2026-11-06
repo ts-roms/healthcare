@@ -10,6 +10,7 @@ describe("laboratory instrument interface", () => {
   let ctx: TestContext;
   let tenant: Tenant;
   let admin: string;
+  let gateway: string;
   let medtech: string;
   let pathologist: string;
   const ids: Record<string, string> = {};
@@ -19,7 +20,7 @@ describe("laboratory instrument interface", () => {
     return body ? call.send(body) : call;
   };
   // The gateway's integration account sends without a facility.
-  const send = (message: string, token = admin) =>
+  const send = (message: string, token = gateway) =>
     ctx
       .http()
       .post(`/api/v1/laboratory/instruments/${ids.analyzer}/messages`)
@@ -59,9 +60,12 @@ describe("laboratory instrument interface", () => {
     ctx = await createTestApp();
     tenant = await createTenant(ctx.pool, "lab-interface-org");
     await createStaff(ctx.pool, tenant, "admin@interface.ph", ["org_admin"]);
+    // The gateway's own account: the built-in role holding only the submit permission (migration 0145).
+    await createStaff(ctx.pool, tenant, "gateway@interface.ph", ["instrument_gateway"]);
     await createStaff(ctx.pool, tenant, "medtech@interface.ph", [{ role: "medical_technologist", facilityId: tenant.facilityId }]);
     await createStaff(ctx.pool, tenant, "patho@interface.ph", ["pathologist"]);
     admin = (await login(ctx, "admin@interface.ph")).accessToken;
+    gateway = (await login(ctx, "gateway@interface.ph")).accessToken;
     medtech = (await login(ctx, "medtech@interface.ph")).accessToken;
     pathologist = (await login(ctx, "patho@interface.ph")).accessToken;
     ids.patient = (await ctx.http().post("/api/v1/patients").set(as(admin, tenant.facilityId)).send(juan).expect(201)).body.id;
@@ -106,6 +110,8 @@ describe("laboratory instrument interface", () => {
 
   it("receives an HL7 message once, matching what it can and keeping the rest for review", async () => {
     await send(oru("C-1", ids.accession), medtech).expect(403);
+    // Not even an administrator submits analyzer messages: only the gateway's role does.
+    await send(oru("C-1", ids.accession), admin).expect(403);
     const received = await send(oru("C-1", ids.accession)).expect(200);
     expect(received.body).toMatchObject({ duplicate: false, results: 2, matched: 1, controlId: "C-1" });
     expect((await send(oru("C-1", ids.accession)).expect(200)).body).toMatchObject({ duplicate: true, messageId: received.body.messageId });

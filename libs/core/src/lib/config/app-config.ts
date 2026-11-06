@@ -49,6 +49,10 @@ const appConfigSchema = z
     // platform context may do. observe: everything (its call site is logged); enforce: nothing; off: no organization
     // rule at all (rollback). Only effective when DATABASE_URL is the restricted application role.
     DATABASE_RLS_MODE: z.enum(["off", "observe", "enforce"]).default("observe"),
+    // In production the API and workers refuse to start when DATABASE_URL is a role that bypasses row-level security
+    // and the append-only rules (superuser, BYPASSRLS, or the owner of the tables; database-privileges.ts). Set to true
+    // only for the first deploy, before the restricted role exists (docs/runbooks/database-roles.md).
+    DATABASE_ALLOW_OWNER: booleanString.default(false),
     REDIS_URL: z.string().url().default("redis://localhost:6379"),
     JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
@@ -111,6 +115,9 @@ const appConfigSchema = z
     // Malware scanning of uploaded documents through clamd's INSTREAM protocol (docs/domains/documents.md). Unset: files
     // are recorded as not scanned (the readiness probe and a production start-up warning say so).
     CLAMAV_HOST: z.string().min(1).optional(),
+    // Whether the API may run without a malware scanner (fail closed): unset = required in production only. With it
+    // required and CLAMAV_HOST unset, the API refuses to start (malwareScanRequired, apps/api/src/main.ts).
+    MALWARE_SCAN_REQUIRED: booleanString.optional(),
     CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
     CLAMAV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(300_000).default(60_000),
     // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
@@ -209,6 +216,11 @@ export function placeholderSecretProblems(config: Pick<AppConfig, "JWT_ACCESS_SE
 /** Whether credentials (reset links, verification codes) may be written to the log: development with `DEV_LOG_SECRETS` on. */
 export function devSecretsLogged(config: Pick<AppConfig, "NODE_ENV" | "DEV_LOG_SECRETS">): boolean {
   return config.NODE_ENV === "development" && config.DEV_LOG_SECRETS === true;
+}
+
+/** Whether uploads must be scanned: `MALWARE_SCAN_REQUIRED`, else only in production. */
+export function malwareScanRequired(config: Pick<AppConfig, "NODE_ENV" | "MALWARE_SCAN_REQUIRED">): boolean {
+  return config.MALWARE_SCAN_REQUIRED ?? config.NODE_ENV === "production";
 }
 
 /** Whether new passwords are screened against breached passwords: `PASSWORD_BREACH_CHECK`, else only in production. */

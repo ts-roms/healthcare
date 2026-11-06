@@ -93,6 +93,16 @@ variable "optional_settings" {
   default     = {}
 }
 
+variable "allow_owner_database" {
+  description = <<-EOT
+    Lets the API and workers connect as the database owner (Railway's postgres user) when secrets.app_database_url is
+    not set: only for the first deploy, before the restricted role exists (docs/runbooks/database-roles.md). The
+    services then start with DATABASE_ALLOW_OWNER=true and log db.owner_connection; without it they refuse to start.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "api_settings" {
   description = "Non-secret settings of the API only (DATABASE_POOL_MAX, FHIR_BASE_URL, PAYMONGO_PAYMENT_METHODS, ...)."
   type        = map(string)

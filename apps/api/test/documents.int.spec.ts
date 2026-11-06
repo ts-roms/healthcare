@@ -59,6 +59,30 @@ describe("documents", () => {
     expect(archived.body[0].status).toBe("archived");
   });
 
+  it("serves a category a domain guards only with that domain's permission too", async () => {
+    // A nurse holds document.read but not dental.imaging.read: the generic routes never open a radiograph for them.
+    await createStaff(ctx.pool, tenant, "nurse@docs.ph", ["nurse"]);
+    const nurse = (await login(ctx, "nurse@docs.ph")).accessToken;
+    const created = await ctx
+      .http()
+      .post("/api/v1/documents")
+      .set(as(token, tenant.facilityId))
+      .send({ category: "imaging", title: "Periapical radiograph", fileName: "pa-36.jpg", contentType: "image/jpeg", sizeBytes: 4096, patientId })
+      .expect(201);
+    const imageId = created.body.document.id as string;
+    const { rows } = await ctx.pool.query(`SELECT storage_key FROM document WHERE id = $1`, [imageId]);
+    ctx.storage.put(rows[0].storage_key, { sizeBytes: 4096, contentType: "image/jpeg" });
+    await ctx.http().post(`/api/v1/documents/${imageId}/complete`).set(as(token)).expect(200);
+
+    const listed = await ctx.http().get(`/api/v1/documents?patientId=${patientId}`).set(as(nurse)).expect(200);
+    expect(listed.body.map((d: { id: string }) => d.id)).not.toContain(imageId);
+    await ctx.http().get(`/api/v1/documents/${imageId}`).set(as(nurse)).expect(404);
+    await ctx.http().get(`/api/v1/documents/${imageId}/download-url`).set(as(nurse)).expect(404);
+    expect(await auditRows(ctx.pool, `action = 'document.access' AND outcome = 'denied' AND resource_id = $1`, [imageId])).toHaveLength(2);
+    // The records office prepares copies of the whole record: it may open every category.
+    await ctx.http().get(`/api/v1/documents/${imageId}/download-url`).set(as(token)).expect(200);
+  });
+
   it("rejects disallowed file types and patients from other organizations", async () => {
     await ctx
       .http()

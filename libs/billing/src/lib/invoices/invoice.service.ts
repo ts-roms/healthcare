@@ -454,7 +454,7 @@ export class InvoiceService {
   // ---- reads --------------------------------------------------------------------------------
 
   async get(actor: Actor, invoiceId: string) {
-    const view = await this.detail(actor.organizationId, invoiceId);
+    const view = await this.detailAt(actor, invoiceId);
     await this.audit.recordStandalone(actor, {
       action: "billing.invoice.view",
       resourceType: "billing_invoice",
@@ -463,6 +463,16 @@ export class InvoiceService {
     });
     const patients = await this.patients.summaries(actor.organizationId, [view.patientId]);
     return { ...view, patient: patients.get(view.patientId) ?? null };
+  }
+
+  /**
+   * An invoice of the facility the request acts in (as `lock` checks for changes): a grant at one facility never reads
+   * another facility's invoice by id. No audit; callers audit.
+   */
+  async detailAt(actor: Actor, invoiceId: string) {
+    const view = await this.detail(actor.organizationId, invoiceId);
+    if (actor.facilityId && view.facilityId !== actor.facilityId) throw new NotFoundError("Invoice");
+    return view;
   }
 
   /** An invoice with its lines, discounts, payers and ledger (no audit; callers audit). */

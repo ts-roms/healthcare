@@ -182,7 +182,7 @@ export class LabOrderService {
   /** Cancels every item that has no result yet. Items with results are corrected or cancelled individually. */
   async cancel(actor: Actor, orderId: string, reason: string): Promise<OrderView> {
     return this.db.transaction(async (tx) => {
-      const order = await this.lock(tx, actor.organizationId, orderId);
+      const order = await this.lockForChange(tx, actor, orderId);
       if (order.status !== "active") throw new BusinessRuleError(`The order is ${order.status}`, "order_not_active");
       const items = await tx.select().from(labOrderItem).where(eq(labOrderItem.orderId, orderId)).for("update");
       const cancellable = items.filter((i) => ["pending_collection", "collected", "received"].includes(i.status));
@@ -199,7 +199,7 @@ export class LabOrderService {
 
   async cancelItem(actor: Actor, orderId: string, itemId: string, reason: string): Promise<OrderView> {
     return this.db.transaction(async (tx) => {
-      const order = await this.lock(tx, actor.organizationId, orderId);
+      const order = await this.lockForChange(tx, actor, orderId);
       const [item] = await tx
         .select()
         .from(labOrderItem)
@@ -551,6 +551,17 @@ export class LabOrderService {
       .where(and(eq(labOrder.organizationId, organizationId), eq(labOrder.id, orderId)))
       .for("update");
     return found(row, "Laboratory order");
+  }
+
+  /**
+   * An order the request may change: a request acting in a facility (whose grants were resolved for it) changes only
+   * that facility's orders; one naming no facility holds an organization-wide grant. Refused as not found, so another
+   * facility's order is not disclosed.
+   */
+  private async lockForChange(tx: DbExecutor, actor: Actor, orderId: string): Promise<LabOrderRecord> {
+    const order = await this.lock(tx, actor.organizationId, orderId);
+    if (actor.facilityId && order.facilityId !== actor.facilityId) throw new NotFoundError("Laboratory order");
+    return order;
   }
 
   private async lockSpecimen(tx: DbExecutor, organizationId: string, specimenId: string): Promise<LabSpecimenRecord> {

@@ -23,25 +23,26 @@ A role can be granted:
 
 The platform ships these system roles. Organizations can also create their own roles (see below).
 
-| Role                       | Intended for                                                                                                                                                |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Organization administrator | Full administrative access within the organization. Holds every permission.                                                                                 |
-| Physician                  | Clinical access to patient records: document, sign, amend, prescribe, order laboratory tests.                                                               |
-| Dentist                    | A physician's clinical access plus dental examinations, charting, treatment plans, procedures, imaging.                                                     |
-| Nurse                      | Clinical support: triage and vitals, allergies, care plans, specimen collection, dispensing, stock.                                                         |
-| Dental assistant           | Dental chairside support: dental record and imaging; clinical support like a nurse.                                                                         |
-| Receptionist               | Front desk: registration and lookup, appointments, queue, portal invitations, PhilHealth answers.                                                           |
-| Medical records officer    | Maintains patient records and documents; reviews imported records; DOH case reports.                                                                        |
-| Medical technologist       | Laboratory specimen handling, result entry and verification, QC entry.                                                                                      |
-| Pathologist                | Laboratory result approval, release and correction; catalog and quality management.                                                                         |
-| Phlebotomist               | Specimen collection.                                                                                                                                        |
-| Pharmacist                 | Dispensing from prescriptions; pharmacy stock.                                                                                                              |
-| Cashier                    | Billing: charges, invoices, discounts, payments, deposits, PhilHealth claim preparation.                                                                    |
-| Inventory officer          | Stock receiving, issuing, counts and write-offs; inventory catalog; purchase orders.                                                                        |
-| Auditor                    | Read-only access to the audit trail.                                                                                                                        |
-| Waiting-room display       | A screen in the waiting area: called tickets and rooms only (`clinic.queue.display`), nothing else.                                                         |
-| Patient kiosk              | A self-service kiosk in the waiting area: sessions, identification and check-in only (`kiosk.session.use`), no patient records. One account per kiosk.      |
-| Kiosk print agent          | The small program that prints kiosk tickets: claims ticket jobs and reports the printer's state (`kiosk.print.agent`), nothing else. One account per agent. |
+| Role                       | Intended for                                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Organization administrator | Full administrative access within the organization. Holds every permission.                                                                                  |
+| Physician                  | Clinical access to patient records: document, sign, amend, prescribe, order laboratory tests.                                                                |
+| Dentist                    | A physician's clinical access plus dental examinations, charting, treatment plans, procedures, imaging.                                                      |
+| Nurse                      | Clinical support: triage and vitals, allergies, care plans, specimen collection, dispensing, stock.                                                          |
+| Dental assistant           | Dental chairside support: dental record and imaging; clinical support like a nurse.                                                                          |
+| Receptionist               | Front desk: registration and lookup, appointments, queue, portal invitations, PhilHealth answers.                                                            |
+| Medical records officer    | Maintains patient records and documents; reviews imported records; DOH case reports.                                                                         |
+| Medical technologist       | Laboratory specimen handling, result entry and verification, QC entry.                                                                                       |
+| Pathologist                | Laboratory result approval, release and correction; catalog and quality management.                                                                          |
+| Phlebotomist               | Specimen collection.                                                                                                                                         |
+| Pharmacist                 | Dispensing from prescriptions; pharmacy stock.                                                                                                               |
+| Cashier                    | Billing: charges, invoices, discounts, payments, deposits, PhilHealth claim preparation.                                                                     |
+| Inventory officer          | Stock receiving, issuing, counts and write-offs; inventory catalog; purchase orders.                                                                         |
+| Auditor                    | Read-only access to the audit trail.                                                                                                                         |
+| Waiting-room display       | A screen in the waiting area: called tickets and rooms only (`clinic.queue.display`), nothing else.                                                          |
+| Patient kiosk              | A self-service kiosk in the waiting area: sessions, identification and check-in only (`kiosk.session.use`), no patient records. One account per kiosk.       |
+| Kiosk print agent          | The small program that prints kiosk tickets: claims ticket jobs and reports the printer's state (`kiosk.print.agent`), nothing else. One account per agent.  |
+| Instrument gateway         | The on-site program that passes analyzer results to the laboratory for review (`lab.instrument.message.submit`), nothing else; it refuses a broader account. |
 
 Holding a permission is not always enough. Starting or signing an encounter, prescribing and recording dental work also need the user's account to be linked to
 an active **practitioner** of an allowed profession (for example, dental recording needs profession `dentist`). Only the responsible practitioner may sign an
@@ -168,7 +169,7 @@ advises.
 | `lab.catalog.manage`            | Manage the laboratory catalog, reference ranges, panels and facility laboratory policy                       | Pathologist                                                                                                           |
 | `lab.critical.manage`           | Document the communication of critical laboratory results                                                    | Medical technologist, Pathologist                                                                                     |
 | `lab.dashboard.read`            | View the laboratory dashboard                                                                                | Medical technologist, Pathologist                                                                                     |
-| `lab.instrument.message.submit` | Submit analyzer result messages (HL7 v2 / ASTM) for review, for the instrument gateway's integration account | —                                                                                                                     |
+| `lab.instrument.message.submit` | Submit analyzer result messages (HL7 v2 / ASTM) for review, for the instrument gateway's integration account | Instrument gateway                                                                                                    |
 | `lab.order.cancel`              | Cancel laboratory orders and order items                                                                     | Dentist, Physician                                                                                                    |
 | `lab.order.create`              | Order laboratory tests                                                                                       | Dentist, Medical technologist, Physician                                                                              |
 | `lab.order.read`                | View laboratory orders, specimens and worklists                                                              | Dental assistant, Dentist, Medical records officer, Medical technologist, Nurse, Pathologist, Phlebotomist, Physician |

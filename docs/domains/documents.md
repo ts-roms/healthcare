@@ -77,6 +77,17 @@ with a reason as usual. See `docs/architecture/compliance-configuration.md`.
 
 `document.upload`, `document.read`, `document.archive`, `document.retention.manage`, `document.integrity.manage`.
 
+**Categories a domain guards** (`libs/documents/src/lib/document-access.ts`): through the generic routes
+(`GET /documents`, `GET /documents/:id`, `GET /documents/:id/download-url`) `document.read` opens the record's ordinary
+documents (consent forms, identification, certificates, referral letters, prescriptions, clinical attachments, other);
+`laboratory_report` also needs `lab.result.read`, `imaging` `dental.imaging.read`, `outside_result`
+`outside-result.read`, `billing` `billing.charge.read` and `record_copy` `patient.records-request.manage`. The records
+office (`patient.records-request.manage`) may open every category of the record, because it prepares copies of it;
+`management_report` files are never served there (only through `/management/reports`, which re-checks each section).
+The list leaves out what the caller may not open; a single document they may not open answers `404` and is audited
+`document.access` with outcome `denied`. Domain routes (dental imaging, outside results, messages, FHIR `Binary`,
+records requests) check their own permission and are not affected.
+
 ## Ports
 
 `ObjectStorage` (presigned upload/download, head, `putIfAbsent`, `get`) with `S3ObjectStorage` (AWS SDK v3,
@@ -108,8 +119,10 @@ third-party dependency); `UnconfiguredMalwareScanner` is the default when `CLAMA
   `document.archive` (the records office) and the staff uploader (`apps/api/src/app/document-notifications.ts`).
 - **Scanner configured but unreachable** → `422 scan_unavailable`; the document stays `pending_upload` so the client
   can retry. Readiness reports `malwareScanner` `unreachable` (`200 degraded`).
-- **No scanner configured** → `available` with `scan_status = 'not_scanned'`; readiness reports `unconfigured` and the
-  API logs `documents.scanner_unconfigured` at start-up in production. Documents stored before `0098` carry
+- **No scanner configured** → in production the API refuses to start (fail closed; `MALWARE_SCAN_REQUIRED`, unset =
+  required in production only). Only with `MALWARE_SCAN_REQUIRED=false` (and always outside production) is an upload
+  `available` with `scan_status = 'not_scanned'`; readiness then reports `unconfigured` and the API logs
+  `documents.scanner_unconfigured` at start-up in production. Documents stored before `0098` carry
   `not_scanned` (uploads) or `clean` (generated); their `sha256` is null ("not recorded").
 - **Generated documents** (`storeGenerated`) are clean by origin and hashed at storage time.
 - `sha256` (optional, hex) may be declared at `POST /documents`; `declared_sha256` is kept on the row and never

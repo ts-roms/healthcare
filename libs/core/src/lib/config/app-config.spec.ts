@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { devSecretsLogged, integrationPayloadKeyring, loadAppConfig, passwordBreachCheckEnabled } from "./app-config";
+import { devSecretsLogged, integrationPayloadKeyring, loadAppConfig, malwareScanRequired, passwordBreachCheckEnabled } from "./app-config";
 
 const key = () => randomBytes(32).toString("base64");
 const mfa = key();
@@ -95,6 +95,17 @@ describe("blank optional settings", () => {
     expect(() => loadAppConfig({ ...base, REDIS_URL: "" })).toThrow("REDIS_URL");
     expect(() => loadAppConfig({ ...base, NODE_ENV: "" })).toThrow("NODE_ENV");
     expect(() => loadAppConfig({ ...base, S3_ENDPOINT: "not-a-url" })).toThrow("S3_ENDPOINT");
+  });
+});
+
+describe("malware scanning", () => {
+  const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+
+  it("is required in production (fail closed) unless MALWARE_SCAN_REQUIRED=false, and optional elsewhere", () => {
+    expect(malwareScanRequired(loadAppConfig(production))).toBe(true);
+    expect(malwareScanRequired(loadAppConfig({ ...production, MALWARE_SCAN_REQUIRED: "false" }))).toBe(false);
+    expect(malwareScanRequired(loadAppConfig({ ...base, NODE_ENV: "development" }))).toBe(false);
+    expect(malwareScanRequired(loadAppConfig({ ...base, MALWARE_SCAN_REQUIRED: "true" }))).toBe(true);
   });
 });
 

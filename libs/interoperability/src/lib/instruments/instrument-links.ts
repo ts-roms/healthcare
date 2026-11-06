@@ -15,9 +15,21 @@ const LF = 0x0a;
 
 export const ASTM = { ENQ: 0x05, ACK: 0x06, NAK: 0x15, EOT: 0x04, STX: 0x02, ETX: 0x03, ETB: 0x17 } as const;
 
+/** The most a link holds for one message or transmission: the API's own limit for an instrument message. */
+export const MAX_LINK_MESSAGE_BYTES = 1024 * 1024;
+
+/** A peer sent more than one message may hold without ending it: the caller closes the connection. */
+export class LinkOverflowError extends Error {
+  constructor(readonly limit: number) {
+    super(`More than ${limit} bytes without the end of a message`);
+  }
+}
+
 /** Collects bytes from a TCP stream and returns each complete MLLP-framed HL7 message (without its framing). */
 export class MllpDecoder {
   private buffer = Buffer.alloc(0);
+
+  constructor(private readonly maxBytes = MAX_LINK_MESSAGE_BYTES) {}
 
   push(chunk: Buffer): string[] {
     this.buffer = Buffer.concat([this.buffer, chunk]);
@@ -31,6 +43,7 @@ export class MllpDecoder {
       const end = this.buffer.indexOf(Buffer.from([FS, CR]), start + 1);
       if (end < 0) {
         this.buffer = this.buffer.subarray(start);
+        if (this.buffer.length > this.maxBytes + 2) throw new LinkOverflowError(this.maxBytes);
         break;
       }
       messages.push(this.buffer.subarray(start + 1, end).toString("utf8"));
@@ -87,6 +100,9 @@ export class AstmLinkSession {
   private buffer = Buffer.alloc(0);
   private frames: Buffer[] = [];
   private established = false;
+  private frameBytes = 0;
+
+  constructor(private readonly maxBytes = MAX_LINK_MESSAGE_BYTES) {}
 
   push(chunk: Buffer): { replies: number[]; transmissions: string[] } {
     this.buffer = Buffer.concat([this.buffer, chunk]);
@@ -99,6 +115,7 @@ export class AstmLinkSession {
         this.buffer = this.buffer.subarray(1);
         this.established = true;
         this.frames = [];
+        this.frameBytes = 0;
         replies.push(ASTM.ACK);
         continue;
       }
@@ -107,6 +124,7 @@ export class AstmLinkSession {
         if (this.established && this.frames.length) transmissions.push(Buffer.concat(this.frames).toString("latin1"));
         this.established = false;
         this.frames = [];
+        this.frameBytes = 0;
         continue;
       }
       if (byte !== ASTM.STX) {
@@ -115,11 +133,18 @@ export class AstmLinkSession {
         continue;
       }
       const end = this.buffer.indexOf(Buffer.from([CR, LF]), 1);
-      if (end < 0) break;
+      if (end < 0) {
+        if (this.buffer.length > this.maxBytes) throw new LinkOverflowError(this.maxBytes);
+        break;
+      }
       const frame = this.buffer.subarray(0, end + 2);
       this.buffer = this.buffer.subarray(end + 2);
       replies.push(this.established && frameChecksumMatches(frame) ? ASTM.ACK : ASTM.NAK);
-      if (this.established && frameChecksumMatches(frame)) this.frames.push(frame);
+      if (this.established && frameChecksumMatches(frame)) {
+        this.frameBytes += frame.length;
+        if (this.frameBytes > this.maxBytes) throw new LinkOverflowError(this.maxBytes);
+        this.frames.push(frame);
+      }
     }
     return { replies, transmissions };
   }

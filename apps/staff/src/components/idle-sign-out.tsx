@@ -4,6 +4,7 @@ import * as React from "react";
 import { TimerIcon } from "lucide-react";
 import { Button, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@healthcare/ui/primitives";
 import { signOut } from "@/app/(staff)/actions";
+import { clearOfflineSnapshot } from "@/lib/offline/snapshot";
 import { idleState } from "@/lib/idle";
 
 const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "wheel", "touchstart"];
@@ -43,7 +44,7 @@ export function IdleSignOut({ minutes }: { minutes: number }) {
       if (state === "expired") {
         if (!signingOut.current) {
           signingOut.current = true;
-          void signOut();
+          void clearOfflineSnapshot().finally(() => void signOut());
         }
         return;
       }
@@ -79,7 +80,7 @@ export function IdleSignOut({ minutes }: { minutes: number }) {
           >
             Stay signed in
           </Button>
-          <Button variant="outline" onClick={() => void signOut()}>
+          <Button variant="outline" onClick={() => void clearOfflineSnapshot().finally(() => void signOut())}>
             Sign out now
           </Button>
         </div>

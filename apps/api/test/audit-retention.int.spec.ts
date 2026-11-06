@@ -148,6 +148,20 @@ describe("audit trail retention", () => {
     await http(platformAdmin).post("/audit/retention/partitions/audit_event_2025_01/remove", { reason: "no" }).expect(400);
   });
 
+  it("removes nothing until the database owner sets a floor, and never inside it", async () => {
+    // Migration 0144: whatever period the application passes, the owner's floor decides.
+    await http(platformAdmin)
+      .post("/audit/retention/partitions/audit_event_2025_01/remove", { reason: "Retention period reached" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.message).toMatch(/has not set an audit retention floor/));
+    await ctx.pool.query("INSERT INTO audit_retention_floor (minimum_months, note) VALUES (1200, 'Test floor')");
+    await http(platformAdmin)
+      .post("/audit/retention/partitions/audit_event_2025_01/remove", { reason: "Retention period reached" })
+      .expect(422)
+      .expect((r) => expect(r.body.error.message).toMatch(/within the retention period \(at least 1200 months\)/));
+    await ctx.pool.query("UPDATE audit_retention_floor SET minimum_months = 12, set_at = now()");
+  });
+
   it("refuses to remove a month that changed after it was archived", async () => {
     await http(platformAdmin).post("/audit/retention/partitions/audit_event_history/archive").expect(202);
     await runArchives();
@@ -184,11 +198,29 @@ describe("audit trail retention", () => {
     const app = new Pool({ connectionString: TEST_APP_DATABASE_URL, max: 1, options: "-c app.scope=all" });
     try {
       await expect(app.query("UPDATE audit_event_history SET action = 'x.y'")).rejects.toMatchObject({ code: "42501" });
+      // A partition named directly would skip audit_event's row-level security: the role holds nothing on it (0146).
+      await expect(app.query("SELECT count(*) FROM audit_event_default")).rejects.toMatchObject({ code: "42501" });
+      await expect(app.query("SELECT count(*) FROM audit_event_history")).rejects.toMatchObject({ code: "42501" });
+      await expect(app.query("SELECT count(*) FROM audit_event")).resolves.toBeDefined();
       await expect(app.query("TRUNCATE audit_event_history")).rejects.toMatchObject({ code: "42501" });
       await expect(app.query("ALTER TABLE audit_event DETACH PARTITION audit_event_history")).rejects.toMatchObject({ code: "42501" });
       await expect(app.query("DROP TABLE audit_event_history")).rejects.toMatchObject({ code: "42501" });
       // The removal function checks the archive itself: the role cannot remove an unarchived partition through it.
       await expect(app.query("SELECT remove_audit_partition('audit_event_default', 1, NULL, 'Trying it')")).rejects.toThrow(/No such audit partition/);
+      // Nor lower the owner's floor, or forge an archive that is already verified (0144).
+      await expect(app.query("UPDATE audit_retention_floor SET minimum_months = 1")).rejects.toMatchObject({ code: "42501" });
+      await expect(app.query("INSERT INTO audit_retention_floor (singleton, minimum_months) VALUES (true, 1) ON CONFLICT DO NOTHING")).rejects.toMatchObject({
+        code: "42501",
+      });
+      const { rows: requester } = await app.query<{ id: string }>("SELECT id FROM app_user LIMIT 1");
+      await expect(
+        app.query(
+          `INSERT INTO audit_archive (partition_name, range_to, status, row_count, size_bytes, sha256, storage_key, completed_at, requested_by)
+           VALUES ('audit_event_2025_03', '2025-04-01', 'verified', 0, 0, repeat('a', 64), 'forged', now(), $1)`,
+          [requester[0]!.id],
+        ),
+      ).rejects.toThrow(/starts as pending/);
+      await expect(app.query("SELECT apply_app_privileges()")).rejects.toMatchObject({ code: "42501" });
     } finally {
       await app.end();
     }

@@ -179,7 +179,10 @@ export class AuditRetentionService implements OnApplicationShutdown {
         );
         removedEvents = Number(result.rows[0]?.removed ?? 0);
       } catch (error) {
-        throw new BusinessRuleError(`The month was not removed: ${(error as Error).message}`, "audit_removal_refused");
+        // The database function's own reason (the query builder wraps it as the cause).
+        const refused = error as Error & { cause?: unknown };
+        const reason = refused.cause instanceof Error ? refused.cause.message : refused.message;
+        throw new BusinessRuleError(`The month was not removed: ${reason}`, "audit_removal_refused");
       }
       await this.audit.record(tx, actor, {
         action: "audit.partition-remove",

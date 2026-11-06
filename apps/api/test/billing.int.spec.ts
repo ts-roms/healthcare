@@ -323,6 +323,13 @@ describe("billing", () => {
     expect(audit.map((a) => a.action).sort()).toEqual(["billing.invoice.print", "billing.receipt.print"]);
   });
 
+  it("never reads another facility's invoice, invoice PDF or receipt by id", async () => {
+    const annex = (url: string) => ctx.http().get(`/api/v1${url}`).set(as(cashier, tenant.otherFacilityId));
+    await annex(`/billing/invoices/${ids.invoice}`).expect(404);
+    await annex(`/billing/invoices/${ids.invoice}/pdf`).expect(404);
+    await annex(`/billing/payments/${ids.payment}/receipt.pdf`).expect(404);
+  });
+
   it("refunds only with permission and a reason, and not more than was paid", async () => {
     await req(cashier)
       .post(`/billing/payments/${ids.payment}/refund`, { amount: 5_000, method: "cash", reason: "Overcharged", idempotencyKey: "ref-0001" })

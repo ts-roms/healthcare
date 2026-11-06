@@ -28,13 +28,14 @@ export class DocumentsController {
   @Get()
   @RequirePermissions("document.read")
   list(@CurrentActor() actor: Actor, @Query() query: ListDocumentsDto) {
-    return this.documents.listForPatient(actor, query.patientId, query.includeArchived === "true");
+    // Generic routes: a category a domain guards also needs that domain's permission (document-access.ts).
+    return this.documents.listForPatient(actor, query.patientId, query.includeArchived === "true", { byCategory: true });
   }
 
   @Get(":documentId")
   @RequirePermissions("document.read")
   get(@CurrentActor() actor: Actor, @Param("documentId", ParseUUIDPipe) documentId: string) {
-    return this.documents.get(actor, documentId);
+    return this.documents.get(actor, documentId, {}, { byCategory: true });
   }
 
   @Get(":documentId/signatures")
@@ -48,7 +49,7 @@ export class DocumentsController {
   @RequirePermissions("document.read")
   @ApiOperation({ summary: "Short-lived signed download URL (audited)" })
   downloadUrl(@CurrentActor() actor: Actor, @Param("documentId", ParseUUIDPipe) documentId: string) {
-    return this.documents.downloadUrl(actor, documentId);
+    return this.documents.downloadUrl(actor, documentId, {}, { byCategory: true });
   }
 
   @Post(":documentId/archive")

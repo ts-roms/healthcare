@@ -26,7 +26,8 @@ locals {
   }
 
   # With secrets.app_database_url the API and workers connect as the restricted application role and only the API's
-  # pre-deploy migration uses the owner (docs/runbooks/database-roles.md); without it everything uses the owner.
+  # pre-deploy migration uses the owner (docs/runbooks/database-roles.md); without it everything uses the owner, which
+  # needs allow_owner_database (first deploy only) and is logged by every service at start-up.
   restricted_database = nonsensitive(var.secrets.app_database_url != null)
   owner_database_url  = "$${{Postgres.DATABASE_URL}}"
 
@@ -38,6 +39,8 @@ locals {
       PORTAL_BASE_URL = "https://${local.public_host.portal}"
       STAFF_BASE_URL  = "https://${local.public_host.staff}"
     },
+    # The owner connection is never silent: the services refuse it at start-up unless this says so (first deploy only).
+    { for name, value in { DATABASE_ALLOW_OWNER = "true" } : name => value if !local.restricted_database },
     var.optional_settings,
   )
 
@@ -155,6 +158,13 @@ resource "railway_variable" "database_url" {
   value          = local.restricted_database ? var.secrets.app_database_url : local.owner_database_url
   environment_id = railway_project.this.default_environment.id
   service_id     = railway_service.app[each.key].id
+
+  lifecycle {
+    precondition {
+      condition     = local.restricted_database || var.allow_owner_database
+      error_message = "Set secrets.app_database_url to the restricted role's URL (docs/runbooks/database-roles.md); allow_owner_database = true is for the first deploy only."
+    }
+  }
 }
 
 # DATABASE_URL was one of the shared plain variables before the restricted role (0109): keep the existing variables.

@@ -38,6 +38,10 @@ optional_settings = {
   # OTEL_EXPORTER_OTLP_ENDPOINT = "https://otlp.example.net"
 }
 
+# First deploy only, before the restricted database role exists (docs/runbooks/database-roles.md): lets the API and
+# workers connect as the owner. Remove it once secrets.app_database_url is set.
+# allow_owner_database = true
+
 api_settings = {
   # DATABASE_POOL_MAX = "10"
 }
