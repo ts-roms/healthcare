@@ -90,6 +90,10 @@ locals {
     { for name, value in local.api_settings : "api/${name}" => { service = "api", name = name, value = value } },
     { for pair in setproduct(["staff", "portal", "kiosk"], keys(local.web_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.web_settings[pair[1]] } },
     { "staff/REALTIME_URL" = { service = "staff", name = "REALTIME_URL", value = "https://${local.public_host.api}/realtime" } },
+    # MyHealth's live updates too: without it the address defaults to the API's private one, which a browser cannot reach.
+    { "portal/REALTIME_URL" = { service = "portal", name = "REALTIME_URL", value = "https://${local.public_host.api}/realtime" } },
+    # Origins the staff app and MyHealth may connect to besides themselves and the socket (the video service), for their script policy.
+    { for svc in ["staff", "portal"] : "${svc}/CSP_CONNECT_ORIGINS" => { service = svc, name = "CSP_CONNECT_ORIGINS", value = var.csp_connect_origins } if var.csp_connect_origins != "" },
     { "portal/PORTAL_ORGANIZATION_CODE" = { service = "portal", name = "PORTAL_ORGANIZATION_CODE", value = var.portal_organization_code } },
     # The organization's own privacy notice shown to a new patient at the kiosk; without it the kiosk shows a plain statement of what it does.
     local.kiosk_notice_variable,

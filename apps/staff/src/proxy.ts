@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { COOKIES } from "@/lib/api/config";
-import { forwardedHeaders } from "@healthcare/web-session";
+import { COOKIES, REALTIME_URL } from "@/lib/api/config";
+import { buildAppCsp, forwardedHeaders, newNonce, parseOrigins } from "@healthcare/web-session";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api/tokens";
 
 /**
@@ -16,26 +16,26 @@ import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api
 /** Pages anyone may open, signed in or not. They must not call the API. */
 const PUBLIC_PATHS = new Set(["/welcome", "/forgot-password", "/reset-password"]);
 
-export async function proxy(request: NextRequest) {
+async function gate(request: NextRequest, next: () => NextResponse): Promise<NextResponse> {
   const { pathname, search } = request.nextUrl;
   const isLogin = pathname === "/login" || pathname.startsWith("/login/");
   const refreshToken = request.cookies.get(COOKIES.refresh)?.value;
   const accessToken = request.cookies.get(COOKIES.access)?.value;
 
   // Public pages (the landing page) render for everyone and never touch the session.
-  if (PUBLIC_PATHS.has(pathname)) return NextResponse.next();
+  if (PUBLIC_PATHS.has(pathname)) return next();
 
   if (isLogin) {
     // The API ended the session (a call returned 401): drop the stale cookies and show the form,
     // instead of bouncing back to "/" with them and looping.
     if (request.nextUrl.searchParams.get("reason") === "session") {
-      const response = NextResponse.next();
+      const response = next();
       clearSessionCookies(response.cookies);
       return response;
     }
     // Already signed in: skip the form.
     if (refreshToken && accessToken) return NextResponse.redirect(new URL("/", request.url));
-    return NextResponse.next();
+    return next();
   }
 
   const toLogin = () => {
@@ -49,7 +49,7 @@ export async function proxy(request: NextRequest) {
   };
 
   if (!refreshToken) return toLogin();
-  if (accessToken) return NextResponse.next();
+  if (accessToken) return next();
 
   const refreshed = await refreshTokens(refreshToken, fetch, Date.now(), forwardedHeaders(request.headers));
   if (refreshed.status === "rejected") return toLogin();
@@ -59,9 +59,33 @@ export async function proxy(request: NextRequest) {
   // Forward the new tokens to this render (request cookies carry values only)…
   request.cookies.set(COOKIES.access, tokens.accessToken);
   request.cookies.set(COOKIES.refresh, tokens.refreshToken);
-  const response = NextResponse.next({ request: { headers: request.headers } });
+  const response = next();
   // …and persist them in the browser.
   writeTokenCookies(response.cookies, tokens);
+  return response;
+}
+
+/**
+ * Every page gets a Content Security Policy with a fresh nonce (zero-trust audit F2, `buildAppCsp` in
+ * `@healthcare/web-session`): sent to the page as a request header, so Next.js puts the nonce on its own scripts, and
+ * to the browser on the response. The root layout renders per request (`connection()`), as a nonce needs.
+ */
+export async function proxy(request: NextRequest) {
+  const nonce = newNonce();
+  const policy = buildAppCsp(nonce, {
+    development: process.env.NODE_ENV === "development",
+    realtimeUrl: REALTIME_URL,
+    connectOrigins: parseOrigins(process.env.CSP_CONNECT_ORIGINS),
+  });
+  // Built when called: after a refresh the request's cookies (and so its headers) carry the renewed tokens.
+  const next = () => {
+    const headers = new Headers(request.headers);
+    headers.set("x-nonce", nonce);
+    headers.set("content-security-policy", policy);
+    return NextResponse.next({ request: { headers } });
+  };
+  const response = await gate(request, next);
+  response.headers.set("content-security-policy", policy);
   return response;
 }
 

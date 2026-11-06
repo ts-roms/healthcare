@@ -70,6 +70,12 @@ variable "portal_organization_code" {
   default     = "demo"
 }
 
+variable "csp_connect_origins" {
+  description = "Origins the staff app and MyHealth may connect to besides themselves and the live-update socket, for their script policy: the video service's address (e.g. wss://video.example.ph). Empty sets nothing (video calls are then blocked)."
+  type        = string
+  default     = ""
+}
+
 variable "kiosk_privacy_notice" {
   description = "The privacy notice a new patient accepts at the patient kiosk (KIOSK_PRIVACY_NOTICE of the kiosk service). The wording is the organization's own decision; null leaves the kiosk's plain statement of what it does."
   type        = string
