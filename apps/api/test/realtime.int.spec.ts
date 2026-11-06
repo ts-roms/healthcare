@@ -14,6 +14,7 @@ import {
   TEST_REDIS_URL,
   type TestContext,
 } from "./harness";
+import { RealtimeGateway } from "../src/app/realtime/realtime.gateway";
 
 describe("realtime queue and laboratory updates", () => {
   let ctx: TestContext;
@@ -317,6 +318,37 @@ describe("realtime queue and laboratory updates", () => {
       // No queue access, but a permission here: the socket carries this member's own notices and nothing else.
       await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["notices"] });
     });
+  });
+
+  it("checks open sockets again: an ended session or revoked access disconnects, a removed permission leaves its channel", async () => {
+    const gateway = ctx.app.get(RealtimeGateway);
+    const ticket = async (token: string) =>
+      (await ctx.http().post("/api/v1/auth/realtime-tickets").set(as(token, tenant.facilityId)).expect(201)).body.ticket as string;
+
+    // A session that ends after the socket opened (the ticket has long been used).
+    const session = await login(ctx, "desk@example.ph");
+    const open = connect({ ticket: await ticket(session.accessToken) });
+    await next(open, "ready");
+    await ctx.http().post("/api/v1/auth/logout").set(as(session.accessToken)).expect(204);
+    const told = next(open, "unauthorized");
+    expect(await gateway.revalidateAll()).toBeGreaterThanOrEqual(1);
+    await expect(told).resolves.toMatchObject({ message: expect.any(String) });
+
+    // A member whose every role at the facility is revoked.
+    await createStaff(ctx.pool, tenant, "temp@example.ph", [{ role: "receptionist", facilityId: tenant.facilityId }]);
+    const temp = (await login(ctx, "temp@example.ph")).accessToken;
+    const revoked = connect({ ticket: await ticket(temp) });
+    await next(revoked, "ready");
+    await ctx.pool.query("DELETE FROM role_assignment WHERE user_id = (SELECT id FROM app_user WHERE email = 'temp@example.ph')");
+    const revokedTold = next(revoked, "unauthorized");
+    await gateway.revalidateAll();
+    await expect(revokedTold).resolves.toBeDefined();
+
+    // Still allowed: the socket stays open.
+    const kept = connect({ ticket: await ticket(desk) });
+    await next(kept, "ready");
+    await gateway.revalidateAll();
+    expect(kept.connected).toBe(true);
   });
 
   it("reaches a browser connected to another instance (rooms shared through Redis)", async () => {

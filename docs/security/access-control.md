@@ -133,6 +133,12 @@ User ──membership──▶ Organization
 - Nobody can grant a role or create a role containing permissions they do not
   hold themselves (privilege-escalation guard, audited).
 - Platform administrators (`is_platform_admin`) can create organizations.
+  Their routes (`@RequirePlatformAdmin`: organizations, rate limits, audit
+  retention, payload keys) act across every organization, so in production they
+  answer only when the administrator has two-step verification on
+  (`PLATFORM_ADMIN_MFA_REQUIRED`, unset = required in production only);
+  otherwise `403 platform_admin_mfa_required`, audited `access.deny`. Their own
+  account routes still answer, so they can turn it on.
 - Authorization is enforced server-side on every route; tenant isolation is
   enforced again in every query and by composite foreign keys.
 
@@ -285,6 +291,12 @@ sub-records / consent / preferences, document create / upload / list / download
   versa). A ticket is not single-use: replayed within its minute it opens a
   socket for the same user and facility only, and never after the session ends.
   Server-side clients may still connect with an access token and facility id.
+  Every open socket is checked again every minute (`RealtimeGateway.revalidateAll`,
+  `REALTIME_REVALIDATE_MS`) with the identity it was opened with: an ended
+  session, a suspended account, a revoked membership or no permission left at
+  the facility disconnects it (`unauthorized`), and a channel whose permission
+  was removed is left; a MyHealth socket is checked for its session, account
+  and portal consent the same way.
 
 ## Two-step verification policy
 

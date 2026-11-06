@@ -41,6 +41,14 @@ export class ActorResolver {
     return this.fromSession(claims, { facilityId: claims.fac }, request);
   }
 
+  /**
+   * For the realtime gateway's periodic re-check of an open socket (its ticket has long expired): the same session,
+   * account, membership and permissions resolution as a request, from the identity the socket was opened with.
+   */
+  async revalidate(claims: { sub: string; sid: string; org: string }, facilityId: string, request: RequestMetadata): Promise<Actor> {
+    return this.fromSession(claims, { facilityId }, request);
+  }
+
   /** The session, account and membership are re-checked on every resolution, so revocation takes effect immediately. */
   private async fromSession(claims: { sub: string; sid: string; org: string }, context: ActorContextRequest, request: RequestMetadata): Promise<Actor> {
     const session = await this.sessions.findActive(claims.sid);
@@ -64,6 +72,7 @@ export class ActorResolver {
       organizationId: claims.org,
       facilityId,
       isPlatformAdmin: user.isPlatformAdmin,
+      mfaEnabled: user.mfaEnabled,
       passwordChangeRequired: user.passwordChangeRequired,
       permissions,
       mfaEnrollmentRequired,

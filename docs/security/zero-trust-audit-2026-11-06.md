@@ -29,12 +29,15 @@ Medium findings fixed next:
 | S5  | In production the API refuses to start without `CLAMAV_HOST` unless `MALWARE_SCAN_REQUIRED=false` (fail closed).                                                                                                                                                                                                 | Fixed  |
 | D6  | Migration `0146`: the app role holds no privilege on the audit trail's partitions, so they are reached only through `audit_event` and its row-level security.                                                                                                                                                    | Fixed  |
 | A2  | Cancelling a laboratory order or one of its tests is refused (`404`) when the request acts in another facility.                                                                                                                                                                                                  | Fixed  |
+| A5  | In production, platform administrator routes answer only when the administrator has two-step verification on (`PLATFORM_ADMIN_MFA_REQUIRED`); otherwise `403 platform_admin_mfa_required`, audited.                                                                                                              | Fixed  |
+| A4  | Open realtime sockets (staff and MyHealth) are re-checked every minute: an ended session or revoked access disconnects, a removed permission leaves its channel.                                                                                                                                                 | Fixed  |
 
 **Deployment notes:** an existing deployment still on the owner connection must set `DATABASE_ALLOW_OWNER=true` (or
 switch to the restricted role) before this release, or its services will not start. An instrument gateway must be
 moved to an account holding only the **Instrument gateway** role and given `allowedPeers`. Audit months can be removed
 only after the owner sets `audit_retention_floor`. A production API without ClamAV must configure it or set
-`MALWARE_SCAN_REQUIRED=false`, or it will not start.
+`MALWARE_SCAN_REQUIRED=false`, or it will not start. Platform administrators must turn on two-step verification
+before using platform routes in production.
 
 ## Fix first
 

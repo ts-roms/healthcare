@@ -175,4 +175,23 @@ describe("access control", () => {
     const platform = await login(ctx, "platform@example.ph");
     await ctx.http().post("/api/v1/organizations").set(as(platform.accessToken)).send({ code: "new-org", name: "New Org" }).expect(201);
   });
+
+  it("answers platform administrator routes only with two-step verification on, where required", async () => {
+    // Required by default in production; on here for the test (ctx.config is the running app's configuration).
+    const config = ctx.config as { PLATFORM_ADMIN_MFA_REQUIRED?: boolean };
+    config.PLATFORM_ADMIN_MFA_REQUIRED = true;
+    try {
+      const platform = await login(ctx, "platform@example.ph");
+      const refused = await ctx.http().post("/api/v1/organizations").set(as(platform.accessToken)).send({ code: "mfa-org", name: "MFA Org" }).expect(403);
+      expect(refused.body.error.code).toBe("platform_admin_mfa_required");
+      expect(await auditRows(ctx.pool, `action = 'access.deny' AND reason = 'platform_admin_mfa_required'`)).toHaveLength(1);
+      // The person's own routes still answer, so they can turn it on.
+      await ctx.http().get("/api/v1/auth/me").set(as(platform.accessToken)).expect(200);
+      // Re-checked on every request: with two-step verification on, the same session is admitted.
+      await ctx.pool.query(`UPDATE app_user SET mfa_enabled = true, mfa_secret_encrypted = 'test-not-used' WHERE email = 'platform@example.ph'`);
+      await ctx.http().post("/api/v1/organizations").set(as(platform.accessToken)).send({ code: "mfa-org", name: "MFA Org" }).expect(201);
+    } finally {
+      delete config.PLATFORM_ADMIN_MFA_REQUIRED;
+    }
+  });
 });

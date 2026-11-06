@@ -118,6 +118,9 @@ const appConfigSchema = z
     // Whether the API may run without a malware scanner (fail closed): unset = required in production only. With it
     // required and CLAMAV_HOST unset, the API refuses to start (malwareScanRequired, apps/api/src/main.ts).
     MALWARE_SCAN_REQUIRED: booleanString.optional(),
+    // Platform administrator routes act across organizations: they answer only when the administrator has two-step
+    // verification on. Unset = required in production only (platformAdminMfaRequired).
+    PLATFORM_ADMIN_MFA_REQUIRED: booleanString.optional(),
     CLAMAV_PORT: z.coerce.number().int().positive().default(3310),
     CLAMAV_TIMEOUT_MS: z.coerce.number().int().min(1_000).max(300_000).default(60_000),
     // Telemedicine video (LiveKit). Leave unset to run online consultations without video (phone fallback).
@@ -216,6 +219,11 @@ export function placeholderSecretProblems(config: Pick<AppConfig, "JWT_ACCESS_SE
 /** Whether credentials (reset links, verification codes) may be written to the log: development with `DEV_LOG_SECRETS` on. */
 export function devSecretsLogged(config: Pick<AppConfig, "NODE_ENV" | "DEV_LOG_SECRETS">): boolean {
   return config.NODE_ENV === "development" && config.DEV_LOG_SECRETS === true;
+}
+
+/** Whether platform administrator routes require the administrator's two-step verification: the setting, else production. */
+export function platformAdminMfaRequired(config: Pick<AppConfig, "NODE_ENV" | "PLATFORM_ADMIN_MFA_REQUIRED">): boolean {
+  return config.PLATFORM_ADMIN_MFA_REQUIRED ?? config.NODE_ENV === "production";
 }
 
 /** Whether uploads must be scanned: `MALWARE_SCAN_REQUIRED`, else only in production. */

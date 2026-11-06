@@ -566,6 +566,11 @@ export class PortalAccountService {
     return this.principalFor(await this.tokens.verifyRealtimeTicket(ticket), request);
   }
 
+  /** For the realtime gateway's periodic re-check of a patient's open socket: session, account and consent again. */
+  async revalidateRealtime(claims: { sub: string; sid: string; org: string; pat: string }, request: RequestMetadata): Promise<PortalPrincipal> {
+    return this.principalFor(claims, request);
+  }
+
   private async principalFor(claims: { sub: string; sid: string; org: string; pat: string }, request: RequestMetadata): Promise<PortalPrincipal> {
     const [row] = await this.db
       .select({ session: patientPortalSession, account: patientPortalAccount })
