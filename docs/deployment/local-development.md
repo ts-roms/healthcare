@@ -9,7 +9,6 @@ pnpm dev:deps                     # PostgreSQL, Redis, S3 storage (RustFS), Mail
 pnpm db:migrate
 pnpm db:seed                      # first organization, facility and platform admin
 pnpm db:seed:demo                 # demo clinic through the running API: staff per role, patients, today's queue… (docs/demo/walkthrough.md)
-pnpm mobile:apk                   # MyHealth Android app as an APK into apps/portal/public/downloads (docs/deployment/mobile-release.md)
 pnpm dev                          # everything below, in parallel (one terminal)
 ```
 
@@ -22,7 +21,6 @@ pnpm dev:integration-worker       # integration worker (outbound exchanges: Phil
 pnpm dev:instrument-gateway       # analyzer gateway (needs GATEWAY_* variables; docs/domains/laboratory-instruments.md)
 pnpm dev:staff                    # http://localhost:3000 — staff app (needs the API)
 pnpm dev:portal                   # http://localhost:3001 — patient portal (needs the API)
-pnpm dev:mobile                   # Expo dev server for the patient mobile app (see "Mobile app" below)
 pnpm storybook                    # http://localhost:6006 — design system
 ```
 
@@ -47,19 +45,12 @@ pnpm test:e2e                # critical journeys in a browser (below)
 The integration tests drop and recreate the `public` schema of
 `TEST_DATABASE_URL`. Never point it at a database you care about.
 
-### Mobile app (`apps/mobile`)
+### Mobile app (its own project)
 
-The patient app (Expo; sign-in, results and push notifications so far — [mobile-app.md](../architecture/mobile-app.md)) talks to the API over the network, so a
-phone or emulator needs the development machine's address, not `localhost` (the Android emulator reaches the host at `10.0.2.2`):
-
-```bash
-cp apps/mobile/.env.example apps/mobile/.env.local   # set EXPO_PUBLIC_API_BASE_URL and EXPO_PUBLIC_ORGANIZATION_CODE
-pnpm nx start mobile                                # Expo dev server; open in Expo Go or a development build
-pnpm nx run-many -t lint typecheck test -p mobile    # what CI runs for it
-```
-
-Sign in with a MyHealth account activated on the web portal (above). CI does not build store binaries; development, test and store builds go
-through EAS Build per organization — see [mobile-release.md](mobile-release.md).
+The MyHealth patient app (Expo) is the separate `myhealth-mobile` project since v1.1.0 ([mobile-app.md](../architecture/mobile-app.md)). Run
+the API here (`pnpm dev:api`) and the app from that project (`pnpm start` there, with `EXPO_PUBLIC_API_BASE_URL` set to this machine's
+address — a phone or emulator cannot reach `localhost`; the Android emulator reaches the host at `10.0.2.2`). Sign in with a MyHealth
+account activated on the web portal (above).
 
 ### End-to-end journeys (`apps/e2e`)
 

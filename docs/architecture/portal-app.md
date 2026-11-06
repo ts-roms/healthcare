@@ -261,7 +261,7 @@ A person with their own MyHealth account may act for another person's record (a 
 
 An address that matches no screen renders `(portal)/[...slug]` ("Coming soon"); every link in MyHealth resolves to a screen or route
 handler, so it is reached only by typing an address. Not built:
-guardian access and everything but results and notifications in the mobile app (`apps/mobile`: sign-in, results and push — [mobile-app.md](mobile-app.md); browser push is built too).
+guardian access and everything but results and notifications in the mobile app (its own project, `myhealth-mobile`, since v1.1.0: sign-in, results and push — [mobile-app.md](mobile-app.md); browser push is built too).
 
 ## UI redesign (phase 13)
 

@@ -1,7 +1,7 @@
 /**
  * The MyHealth app's links for this deployment (one organization per deployment): `MOBILE_APP_IOS_URL` (App Store)
- * and `MOBILE_APP_ANDROID_URL` (Google Play, or an APK this site serves from its own `public` folder: a path such as
- * `/downloads/myhealth.apk`, resolved against the site's address so the QR code carries a full link). Absolute links
+ * and `MOBILE_APP_ANDROID_URL` (Google Play, or an https link to an APK signed by EAS with the organization's key; a path
+ * is still resolved against the site's address so the QR code carries a full link, but no APK is kept in this repository). Absolute links
  * must be http(s); anything else is ignored.
  */
 export interface StoreLink {
