@@ -26,9 +26,10 @@ import {
   type RequestMetadata,
   sha256Hex,
   UnauthenticatedError,
+  withinOrganization,
 } from "@healthcare/core";
 import { facility, organization } from "@healthcare/organization";
-import { and, count, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull, sql, or } from "drizzle-orm";
 import type { z } from "zod";
 import { patient, patientConsent } from "../patient.schema";
 import { displayName } from "../patient.views";
@@ -41,6 +42,9 @@ import { PortalMfaPolicyService } from "../security/portal-mfa-policy.service";
 import { PortalTrustedDeviceService } from "../security/portal-trusted-device.service";
 
 /** The authenticated patient on a portal request. */
+/** One answer for an unknown email, a wrong password and a locked account (zero trust: nothing about the account leaks). */
+const INVALID_CREDENTIALS = "Invalid email or password. After repeated failures, sign-in pauses for a while.";
+
 export interface PortalPrincipal {
   accountId: string;
   patientId: string;
@@ -246,188 +250,198 @@ export class PortalAccountService {
   /** First sign-in: patient number + birth date + activation code, then the patient's own email and password. */
   async activate(input: z.infer<typeof portalActivateSchema>, request: RequestMetadata): Promise<PortalTokenResponse> {
     const org = await this.organizationByCode(input.organizationCode);
-    const anonymous = { kind: "anonymous" as const, organizationId: org?.id, request };
-    const [row] = org
-      ? await this.db
-          .select({ account: patientPortalAccount, birthDate: patient.birthDate })
-          .from(patientPortalAccount)
-          .innerJoin(patient, and(eq(patient.organizationId, patientPortalAccount.organizationId), eq(patient.id, patientPortalAccount.patientId)))
-          .where(and(eq(patientPortalAccount.organizationId, org.id), eq(patient.patientNumber, input.patientNumber)))
-      : [];
-    const account = row?.account;
-    if (!org || !account || account.status !== "invited" || !account.activationCodeHash || !account.activationExpiresAt) {
-      await this.audit.recordStandalone(anonymous, {
-        action: "portal.activate",
-        resourceType: "patient_portal_account",
-        outcome: "failure",
-        reason: "no_invitation",
-      });
-      this.explainActivationFailure(
-        !org
-          ? `no organization "${input.organizationCode}" (check PORTAL_ORGANIZATION_CODE)`
-          : !account
-            ? `organization "${input.organizationCode}" has no portal invitation for patient number ${input.patientNumber} (wrong number, or invited in another organization?)`
-            : `the portal account is ${account.status}, not waiting for activation`,
-      );
-      throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
-    }
-    // The patient always gets the same message; the specific reason is kept for staff (and the audit trail).
-    const failed = async (reason: PortalActivationFailure) => {
-      // An expired (or exhausted) code is already unusable: don't count further attempts against it.
-      const mismatch = reason !== "expired";
-      const attempts = mismatch ? account.failedAttempts + 1 : account.failedAttempts;
-      const exhausted = mismatch && attempts >= MAX_ACTIVATION_ATTEMPTS;
-      await this.db
-        .update(patientPortalAccount)
-        .set({
-          lastActivationFailure: reason,
-          lastActivationFailureAt: new Date(),
-          // Exhausted: expire the code (the row stays "invited" until staff re-invite).
-          ...(mismatch ? { failedAttempts: attempts } : {}),
-          ...(exhausted ? { activationExpiresAt: new Date() } : {}),
-        })
-        .where(and(eq(patientPortalAccount.id, account.id), eq(patientPortalAccount.status, "invited")));
-      await this.audit.recordStandalone(anonymous, {
-        action: "portal.activate",
-        resourceType: "patient_portal_account",
-        resourceId: account.id,
-        patientId: account.patientId,
-        outcome: "failure",
-        reason: exhausted ? "attempts_exhausted" : reason,
-      });
-      this.explainActivationFailure(
-        `${ACTIVATION_FAILURE_EXPLANATION[reason]}${mismatch ? ` (${attempts} of ${MAX_ACTIVATION_ATTEMPTS} wrong attempts${exhausted ? ", code now unusable" : ""})` : ""}`,
-      );
-      throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
-    };
-    if (account.activationExpiresAt <= new Date()) return failed("expired");
-    if (row.birthDate !== input.birthDate) return failed("birth_date_mismatch");
-    if (hashActivationCode(input.activationCode) !== account.activationCodeHash) return failed("code_mismatch");
-    // The code is right: screen the new password before anything is written (a refusal keeps the code usable and
-    // counts no attempt against it).
-    const screening = await screenPassword(this.breachedPasswords, input.password, this.logger);
-    if (screening !== "accepted") {
-      await this.audit.recordStandalone(anonymous, {
-        action: "portal.activate",
-        resourceType: "patient_portal_account",
-        resourceId: account.id,
-        patientId: account.patientId,
-        outcome: "failure",
-        reason: screening,
-      });
-      throw passwordRefusal(screening);
-    }
+    // Zero trust (D9): the lookup above crosses organizations; the rest runs in the organization it found, so row-level
+    // security applies to this public route (platform scope only when none was found: nothing is read or written then).
+    return withinOrganization(org?.id, async () => {
+      const anonymous = { kind: "anonymous" as const, organizationId: org?.id, request };
+      const [row] = org
+        ? await this.db
+            .select({ account: patientPortalAccount, birthDate: patient.birthDate })
+            .from(patientPortalAccount)
+            .innerJoin(patient, and(eq(patient.organizationId, patientPortalAccount.organizationId), eq(patient.id, patientPortalAccount.patientId)))
+            .where(and(eq(patientPortalAccount.organizationId, org.id), eq(patient.patientNumber, input.patientNumber)))
+        : [];
+      const account = row?.account;
+      if (!org || !account || account.status !== "invited" || !account.activationCodeHash || !account.activationExpiresAt) {
+        await this.audit.recordStandalone(anonymous, {
+          action: "portal.activate",
+          resourceType: "patient_portal_account",
+          outcome: "failure",
+          reason: "no_invitation",
+        });
+        this.explainActivationFailure(
+          !org
+            ? `no organization "${input.organizationCode}" (check PORTAL_ORGANIZATION_CODE)`
+            : !account
+              ? `organization "${input.organizationCode}" has no portal invitation for patient number ${input.patientNumber} (wrong number, or invited in another organization?)`
+              : `the portal account is ${account.status}, not waiting for activation`,
+        );
+        throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
+      }
+      // The patient always gets the same message; the specific reason is kept for staff (and the audit trail).
+      const failed = async (reason: PortalActivationFailure) => {
+        // An expired (or exhausted) code is already unusable: don't count further attempts against it.
+        const mismatch = reason !== "expired";
+        const attempts = mismatch ? account.failedAttempts + 1 : account.failedAttempts;
+        const exhausted = mismatch && attempts >= MAX_ACTIVATION_ATTEMPTS;
+        await this.db
+          .update(patientPortalAccount)
+          .set({
+            lastActivationFailure: reason,
+            lastActivationFailureAt: new Date(),
+            // Exhausted: expire the code (the row stays "invited" until staff re-invite).
+            ...(mismatch ? { failedAttempts: attempts } : {}),
+            ...(exhausted ? { activationExpiresAt: new Date() } : {}),
+          })
+          .where(and(eq(patientPortalAccount.id, account.id), eq(patientPortalAccount.status, "invited")));
+        await this.audit.recordStandalone(anonymous, {
+          action: "portal.activate",
+          resourceType: "patient_portal_account",
+          resourceId: account.id,
+          patientId: account.patientId,
+          outcome: "failure",
+          reason: exhausted ? "attempts_exhausted" : reason,
+        });
+        this.explainActivationFailure(
+          `${ACTIVATION_FAILURE_EXPLANATION[reason]}${mismatch ? ` (${attempts} of ${MAX_ACTIVATION_ATTEMPTS} wrong attempts${exhausted ? ", code now unusable" : ""})` : ""}`,
+        );
+        throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
+      };
+      if (account.activationExpiresAt <= new Date()) return failed("expired");
+      if (row.birthDate !== input.birthDate) return failed("birth_date_mismatch");
+      if (hashActivationCode(input.activationCode) !== account.activationCodeHash) return failed("code_mismatch");
+      // The code is right: screen the new password before anything is written (a refusal keeps the code usable and
+      // counts no attempt against it).
+      const screening = await screenPassword(this.breachedPasswords, input.password, this.logger);
+      if (screening !== "accepted") {
+        await this.audit.recordStandalone(anonymous, {
+          action: "portal.activate",
+          resourceType: "patient_portal_account",
+          resourceId: account.id,
+          patientId: account.patientId,
+          outcome: "failure",
+          reason: screening,
+        });
+        throw passwordRefusal(screening);
+      }
 
-    return this.db.transaction(async (tx) => {
-      if (!(await this.hasPortalConsent(tx, org.id, account.patientId))) {
-        throw new ForbiddenError("Portal access is not currently authorized. Please contact the clinic.");
-      }
-      const [emailTaken] = await tx
-        .select({ id: patientPortalAccount.id })
-        .from(patientPortalAccount)
-        .where(and(eq(patientPortalAccount.organizationId, org.id), eq(patientPortalAccount.email, input.email)));
-      if (emailTaken && emailTaken.id !== account.id) {
-        throw new ConflictError("This email is already used for another portal account", undefined, "email_in_use");
-      }
-      // Guarded by status so two concurrent activations cannot both succeed.
-      const [activated] = await tx
-        .update(patientPortalAccount)
-        .set({
-          status: "active",
-          email: input.email,
-          passwordHash: await hashPassword(input.password),
-          activationCodeHash: null,
-          activationExpiresAt: null,
-          failedAttempts: 0,
-          lastActivationFailure: null,
-          lastActivationFailureAt: null,
-          activatedAt: new Date(),
-          lastLoginAt: new Date(),
-          updatedAt: new Date(),
-          version: sql`${patientPortalAccount.version} + 1`,
-        })
-        .where(and(eq(patientPortalAccount.id, account.id), eq(patientPortalAccount.status, "invited")))
-        .returning();
-      if (!activated) throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
-      const tokens = await this.startSession(tx, activated, request);
-      await this.audit.record(tx, this.patientContext(activated, request), {
-        action: "portal.activate",
-        resourceType: "patient_portal_account",
-        resourceId: activated.id,
+      return this.db.transaction(async (tx) => {
+        if (!(await this.hasPortalConsent(tx, org.id, account.patientId))) {
+          throw new ForbiddenError("Portal access is not currently authorized. Please contact the clinic.");
+        }
+        const [emailTaken] = await tx
+          .select({ id: patientPortalAccount.id })
+          .from(patientPortalAccount)
+          .where(and(eq(patientPortalAccount.organizationId, org.id), eq(patientPortalAccount.email, input.email)));
+        if (emailTaken && emailTaken.id !== account.id) {
+          throw new ConflictError("This email is already used for another portal account", undefined, "email_in_use");
+        }
+        // Guarded by status so two concurrent activations cannot both succeed.
+        const [activated] = await tx
+          .update(patientPortalAccount)
+          .set({
+            status: "active",
+            email: input.email,
+            passwordHash: await hashPassword(input.password),
+            activationCodeHash: null,
+            activationExpiresAt: null,
+            failedAttempts: 0,
+            lastActivationFailure: null,
+            lastActivationFailureAt: null,
+            activatedAt: new Date(),
+            lastLoginAt: new Date(),
+            updatedAt: new Date(),
+            version: sql`${patientPortalAccount.version} + 1`,
+          })
+          .where(and(eq(patientPortalAccount.id, account.id), eq(patientPortalAccount.status, "invited")))
+          .returning();
+        if (!activated) throw new UnauthenticatedError(INVALID_ACTIVATION, "invalid_activation");
+        const tokens = await this.startSession(tx, activated, request);
+        await this.audit.record(tx, this.patientContext(activated, request), {
+          action: "portal.activate",
+          resourceType: "patient_portal_account",
+          resourceId: activated.id,
+        });
+        return tokens;
       });
-      return tokens;
     });
   }
 
   async login(input: z.infer<typeof portalLoginSchema>, request: RequestMetadata): Promise<PortalTokenResponse | PortalMfaRequiredResponse> {
     const org = await this.organizationByCode(input.organizationCode);
-    const [account] = org
-      ? await this.db
-          .select()
-          .from(patientPortalAccount)
-          .where(and(eq(patientPortalAccount.organizationId, org.id), eq(patientPortalAccount.email, input.email)))
-      : [];
-    const anonymous = { kind: "anonymous" as const, organizationId: org?.id, request };
-    if (!org || !account || account.status !== "active" || !account.passwordHash) {
-      await burnPasswordVerification(input.password);
-      await this.audit.recordStandalone(anonymous, {
-        action: "portal.login",
-        resourceType: "patient_portal_account",
-        outcome: "failure",
-        reason: "unknown_account",
-      });
-      throw new UnauthenticatedError("Invalid email or password", "invalid_credentials");
-    }
-    if (account.lockedUntil && account.lockedUntil > new Date()) {
-      await this.audit.recordStandalone(anonymous, {
-        action: "portal.login",
-        resourceType: "patient_portal_account",
-        resourceId: account.id,
-        patientId: account.patientId,
-        outcome: "denied",
-        reason: "locked",
-      });
-      throw new UnauthenticatedError("Too many failed attempts. Try again later.", "account_locked");
-    }
-    if (!(await verifyPassword(account.passwordHash, input.password))) {
-      await this.recordFailedLogin(account, anonymous);
-      throw new UnauthenticatedError("Invalid email or password", "invalid_credentials");
-    }
-    if (!(await this.hasPortalConsent(this.db, account.organizationId, account.patientId))) {
-      await this.audit.recordStandalone(this.patientContext(account, request), {
-        action: "portal.login",
-        resourceType: "patient_portal_account",
-        resourceId: account.id,
-        outcome: "denied",
-        reason: "portal_consent_withdrawn",
-      });
-      throw new ForbiddenError("Portal access is not currently authorized. Please contact the clinic.");
-    }
-    if (account.mfaEnabled && input.deviceToken) {
-      // A browser the patient asked to be remembered on (migration 0100) stands in for the second step, with the right password.
-      const device = await this.devices.recognise(account.id, input.deviceToken);
-      if (device) {
-        return this.db.transaction((tx) => this.completeLogin(tx, account, request, "password+trusted_device", { deviceId: device.id }));
+    // Zero trust (D9): the lookup above crosses organizations; the rest runs in the organization it found, so row-level
+    // security applies to this public route (platform scope only when none was found: nothing is read or written then).
+    return withinOrganization(org?.id, async () => {
+      const [account] = org
+        ? await this.db
+            .select()
+            .from(patientPortalAccount)
+            .where(and(eq(patientPortalAccount.organizationId, org.id), eq(patientPortalAccount.email, input.email)))
+        : [];
+      const anonymous = { kind: "anonymous" as const, organizationId: org?.id, request };
+      if (!org || !account || account.status !== "active" || !account.passwordHash) {
+        await burnPasswordVerification(input.password);
+        await this.audit.recordStandalone(anonymous, {
+          action: "portal.login",
+          resourceType: "patient_portal_account",
+          outcome: "failure",
+          reason: "unknown_account",
+        });
+        throw new UnauthenticatedError(INVALID_CREDENTIALS, "invalid_credentials");
       }
-    }
-    if (account.mfaEnabled) {
-      // The password was right; the second step decides. Nothing is counted or opened yet.
-      await this.audit.recordStandalone(this.patientContext(account, request), {
-        action: "portal.login-mfa-challenge",
-        resourceType: "patient_portal_account",
-        resourceId: account.id,
-      });
-      const [passkeys] = await this.db
-        .select({ n: count() })
-        .from(patientPasskey)
-        .where(and(eq(patientPasskey.accountId, account.id), isNull(patientPasskey.revokedAt)));
-      return {
-        status: "mfa_required",
-        challengeToken: await this.tokens.signMfaChallenge({ sub: account.id, org: account.organizationId }),
-        passkeys: (passkeys?.n ?? 0) > 0,
-      };
-    }
-    return this.db.transaction((tx) => this.completeLogin(tx, account, request, "password"));
+      if (account.lockedUntil && account.lockedUntil > new Date()) {
+        await this.audit.recordStandalone(anonymous, {
+          action: "portal.login",
+          resourceType: "patient_portal_account",
+          resourceId: account.id,
+          patientId: account.patientId,
+          outcome: "denied",
+          reason: "locked",
+        });
+        // The same answer as a wrong password: sign-in never tells that an account exists or is locked (audited as locked).
+        await burnPasswordVerification(input.password);
+        throw new UnauthenticatedError(INVALID_CREDENTIALS, "invalid_credentials");
+      }
+      if (!(await verifyPassword(account.passwordHash, input.password))) {
+        await this.recordFailedLogin(account, anonymous);
+        throw new UnauthenticatedError(INVALID_CREDENTIALS, "invalid_credentials");
+      }
+      if (!(await this.hasPortalConsent(this.db, account.organizationId, account.patientId))) {
+        await this.audit.recordStandalone(this.patientContext(account, request), {
+          action: "portal.login",
+          resourceType: "patient_portal_account",
+          resourceId: account.id,
+          outcome: "denied",
+          reason: "portal_consent_withdrawn",
+        });
+        throw new ForbiddenError("Portal access is not currently authorized. Please contact the clinic.");
+      }
+      if (account.mfaEnabled && input.deviceToken) {
+        // A browser the patient asked to be remembered on (migration 0100) stands in for the second step, with the right password.
+        const device = await this.devices.recognise(account.id, input.deviceToken);
+        if (device) {
+          return this.db.transaction((tx) => this.completeLogin(tx, account, request, "password+trusted_device", { deviceId: device.id }));
+        }
+      }
+      if (account.mfaEnabled) {
+        // The password was right; the second step decides. Nothing is counted or opened yet.
+        await this.audit.recordStandalone(this.patientContext(account, request), {
+          action: "portal.login-mfa-challenge",
+          resourceType: "patient_portal_account",
+          resourceId: account.id,
+        });
+        const [passkeys] = await this.db
+          .select({ n: count() })
+          .from(patientPasskey)
+          .where(and(eq(patientPasskey.accountId, account.id), isNull(patientPasskey.revokedAt)));
+        return {
+          status: "mfa_required",
+          challengeToken: await this.tokens.signMfaChallenge({ sub: account.id, org: account.organizationId }),
+          passkeys: (passkeys?.n ?? 0) > 0,
+        };
+      }
+      return this.db.transaction((tx) => this.completeLogin(tx, account, request, "password"));
+    });
   }
 
   /** Opens a session for an account that passed every check: clears failed attempts, records the sign-in. */
@@ -480,51 +494,62 @@ export class PortalAccountService {
    */
   async refresh(refreshToken: string, request: RequestMetadata): Promise<PortalTokenResponse> {
     const hash = sha256Hex(refreshToken);
-    const outcome = await this.db.transaction(async (tx): Promise<{ kind: "rotated"; tokens: PortalTokenResponse } | { kind: "rejected"; message: string }> => {
-      const [current] = await tx.select().from(patientPortalSession).where(eq(patientPortalSession.refreshTokenHash, hash)).for("update");
-      if (!current) {
-        const [reused] = await tx
-          .select()
-          .from(patientPortalSession)
-          .where(and(eq(patientPortalSession.previousRefreshTokenHash, hash), isNull(patientPortalSession.revokedAt)))
-          .for("update");
-        if (reused) {
+    const [owner] = await this.db
+      .select({ organizationId: patientPortalSession.organizationId })
+      .from(patientPortalSession)
+      .where(or(eq(patientPortalSession.refreshTokenHash, hash), eq(patientPortalSession.previousRefreshTokenHash, hash)))
+      .limit(1);
+    // Zero trust (D9): the lookup above crosses organizations; the rest runs in the organization it found, so row-level
+    // security applies to this public route (platform scope only when none was found: nothing is read or written then).
+    return withinOrganization(owner?.organizationId, async () => {
+      const outcome = await this.db.transaction(
+        async (tx): Promise<{ kind: "rotated"; tokens: PortalTokenResponse } | { kind: "rejected"; message: string }> => {
+          const [current] = await tx.select().from(patientPortalSession).where(eq(patientPortalSession.refreshTokenHash, hash)).for("update");
+          if (!current) {
+            const [reused] = await tx
+              .select()
+              .from(patientPortalSession)
+              .where(and(eq(patientPortalSession.previousRefreshTokenHash, hash), isNull(patientPortalSession.revokedAt)))
+              .for("update");
+            if (reused) {
+              await tx
+                .update(patientPortalSession)
+                .set({ revokedAt: new Date(), revokedReason: "refresh_token_reuse" })
+                .where(eq(patientPortalSession.id, reused.id));
+              await this.audit.record(
+                tx,
+                { kind: "anonymous", organizationId: reused.organizationId, request },
+                {
+                  action: "portal.session-revoke",
+                  resourceType: "patient_portal_session",
+                  resourceId: reused.id,
+                  outcome: "denied",
+                  reason: "refresh_token_reuse",
+                },
+              );
+            }
+            return { kind: "rejected", message: "Invalid or expired token" };
+          }
+          if (current.revokedAt || current.expiresAt <= new Date()) return { kind: "rejected", message: "Invalid or expired token" };
+          const account = await this.activeAccount(tx, current.organizationId, current.accountId);
+          if (!account || !(await this.hasPortalConsent(tx, account.organizationId, account.patientId))) {
+            await tx
+              .update(patientPortalSession)
+              .set({ revokedAt: new Date(), revokedReason: account ? "portal_consent_withdrawn" : "account_inactive" })
+              .where(eq(patientPortalSession.id, current.id));
+            return { kind: "rejected", message: "Portal access has ended" };
+          }
+          const next = randomToken();
           await tx
             .update(patientPortalSession)
-            .set({ revokedAt: new Date(), revokedReason: "refresh_token_reuse" })
-            .where(eq(patientPortalSession.id, reused.id));
-          await this.audit.record(
-            tx,
-            { kind: "anonymous", organizationId: reused.organizationId, request },
-            {
-              action: "portal.session-revoke",
-              resourceType: "patient_portal_session",
-              resourceId: reused.id,
-              outcome: "denied",
-              reason: "refresh_token_reuse",
-            },
-          );
-        }
-        return { kind: "rejected", message: "Invalid or expired token" };
-      }
-      if (current.revokedAt || current.expiresAt <= new Date()) return { kind: "rejected", message: "Invalid or expired token" };
-      const account = await this.activeAccount(tx, current.organizationId, current.accountId);
-      if (!account || !(await this.hasPortalConsent(tx, account.organizationId, account.patientId))) {
-        await tx
-          .update(patientPortalSession)
-          .set({ revokedAt: new Date(), revokedReason: account ? "portal_consent_withdrawn" : "account_inactive" })
-          .where(eq(patientPortalSession.id, current.id));
-        return { kind: "rejected", message: "Portal access has ended" };
-      }
-      const next = randomToken();
-      await tx
-        .update(patientPortalSession)
-        .set({ refreshTokenHash: sha256Hex(next), previousRefreshTokenHash: hash, lastUsedAt: new Date() })
-        .where(eq(patientPortalSession.id, current.id));
-      return { kind: "rotated", tokens: await this.tokenResponse(account, current.id, next, current.expiresAt) };
+            .set({ refreshTokenHash: sha256Hex(next), previousRefreshTokenHash: hash, lastUsedAt: new Date() })
+            .where(eq(patientPortalSession.id, current.id));
+          return { kind: "rotated", tokens: await this.tokenResponse(account, current.id, next, current.expiresAt) };
+        },
+      );
+      if (outcome.kind === "rejected") throw new UnauthenticatedError(outcome.message, "invalid_token");
+      return outcome.tokens;
     });
-    if (outcome.kind === "rejected") throw new UnauthenticatedError(outcome.message, "invalid_token");
-    return outcome.tokens;
   }
 
   async logout(principal: PortalPrincipal): Promise<void> {

@@ -18,6 +18,9 @@ import {
   timelineInstant,
   timelineRange,
   type TimelineWindow,
+  APP_CONFIG,
+  type AppConfig,
+  integrationPayloadKeyring,
 } from "@healthcare/core";
 import { and, count, desc, eq, gte, inArray, isNull, lt, notInArray, type SQL, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -32,7 +35,7 @@ import {
 } from "./notification.schema";
 import { NOTIFICATION_QUEUE, type NotificationQueue, RECIPIENT_DIRECTORY, type RecipientDirectory } from "./ports";
 import { StaffPushPreferenceService } from "./push/staff-push-preference.service";
-import { findTemplate, type NotificationTemplate, templateLabel, withoutSecrets } from "./templates";
+import { findTemplate, type NotificationTemplate, sealVariables, templateLabel, withoutSecrets } from "./templates";
 
 export type SendNotificationInput = z.input<typeof sendNotificationSchema>;
 
@@ -130,6 +133,7 @@ export class NotificationService {
     private readonly audit: AuditService,
     private readonly pushPreferences: StaffPushPreferenceService,
     private readonly events: DomainEventPublisher,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   /**
@@ -190,7 +194,10 @@ export class NotificationService {
           templateVersion: template.version,
           destination: resolution.allowed ? resolution.destination : null,
           // A suppressed message is never sent: its credentials are not kept.
-          variables: status === "suppressed" ? withoutSecrets(template, parsed.data as Record<string, unknown>) : (parsed.data as Record<string, unknown>),
+          variables:
+            status === "suppressed"
+              ? withoutSecrets(template, parsed.data as Record<string, unknown>)
+              : sealVariables(template, parsed.data as Record<string, unknown>, integrationPayloadKeyring(this.config)),
           status,
           suppressionReason: resolution.allowed ? null : resolution.reason,
           idempotencyKey: input.idempotencyKey ?? null,

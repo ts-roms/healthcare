@@ -49,6 +49,15 @@ export function asOrganization<T>(organizationId: string, fn: () => T): T {
 }
 
 /**
+ * Runs `fn` for the organization a public route has just found (sign-in by organization code, a token's owner), or, when
+ * none was found, in the current context unchanged. Zero trust: everything after the lookup is held to that
+ * organization by row-level security instead of keeping the route's platform scope.
+ */
+export function withinOrganization<T>(organizationId: string | undefined | null, fn: () => T): T {
+  return organizationId ? asOrganization(organizationId, fn) : fn();
+}
+
+/**
  * Runs `fn` across organizations on purpose (sign-in lookups, schedulers, workers); `reason` is for the logs.
  * A Drizzle query is lazy: return an `async` function (or call an async method), never the bare builder, or the query
  * runs after the scope has ended. A transaction already open keeps the context it started with.

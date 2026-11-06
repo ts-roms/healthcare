@@ -32,7 +32,12 @@ import { generateTotpSecret, totpUri, verifyTotpStep } from "./totp";
 export const MAX_FAILED_LOGINS = 5;
 export const LOCKOUT_MINUTES = 15;
 
-const invalidCredentials = () => new UnauthenticatedError("Invalid email or password", "invalid_credentials");
+/**
+ * One answer for an unknown email, a wrong password and a locked account (zero trust: sign-in never tells whether an
+ * account exists or is locked; the audit trail keeps the real reason).
+ */
+const invalidCredentials = () =>
+  new UnauthenticatedError("Invalid email or password. After repeated failures, sign-in pauses for a while.", "invalid_credentials");
 
 @Injectable()
 export class AuthService {
@@ -72,7 +77,8 @@ export class AuthService {
         outcome: "denied",
         reason: "account_locked",
       });
-      throw new UnauthenticatedError("Too many failed attempts. Try again later.", "account_locked");
+      await burnPasswordVerification(input.password);
+      throw invalidCredentials();
     }
     if (!(await verifyPassword(user.passwordHash, input.password))) {
       await this.recordFailedAttempt(user, context, "wrong_password");

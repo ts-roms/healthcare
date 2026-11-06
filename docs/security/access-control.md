@@ -6,7 +6,12 @@
   (below).
 - Lockout: 5 consecutive failures lock the account for 15 minutes (MFA failures count too).
 - Login responses do not reveal whether an email exists; unknown emails still
-  run a password verification for similar timing.
+  run a password verification for similar timing. A locked account answers the
+  same (`invalid_credentials`, also after a password verification), staff and
+  MyHealth alike, so sign-in is not a way to learn that an account exists or
+  is locked; the audit trail records the real reason (`account_locked` /
+  `locked`). The second step (an authenticator code, a passkey), reached only
+  after the password, still says `account_locked`.
 - TOTP MFA (RFC 6238), optional unless the organization requires it (below).
   Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
   Enrollment requires confirming a code. Each code works once: the last

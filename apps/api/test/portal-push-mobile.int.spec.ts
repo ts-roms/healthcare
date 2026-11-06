@@ -138,7 +138,7 @@ describe("MyHealth mobile push", () => {
   });
 
   it("registers a token once, names the device plainly, and refuses anything that is not an Expo token", async () => {
-    await registerDevice(1, { token: "https://push.example.test/x" }).expect(400);
+    await registerDevice(1, { token: "https://fcm.googleapis.com/x" }).expect(400);
     await registerDevice(1, { platform: "windows" }).expect(400);
     const created = (await registerDevice(1).expect(201)).body;
     expect(created).toMatchObject({ kind: "expo", label: "MyHealth app on iPhone", lastSuccessAt: null });

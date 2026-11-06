@@ -43,7 +43,10 @@ describe("authentication", () => {
       await ctx.http().post("/api/v1/auth/login").send({ email: "locked@example.ph", password: "wrong-password-123" }).expect(401);
     }
     const response = await ctx.http().post("/api/v1/auth/login").send({ email: "locked@example.ph", password: PASSWORD }).expect(401);
-    expect(response.body.error.code).toBe("account_locked");
+    // The same answer as a wrong password: sign-in never reveals that the account exists or is locked; the audit does.
+    expect(response.body.error.code).toBe("invalid_credentials");
+    const { rows } = await ctx.pool.query("SELECT 1 FROM audit_event WHERE action = 'auth.login' AND reason = 'account_locked'");
+    expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 
   it("rotates refresh tokens and revokes the session when an old token is replayed", async () => {

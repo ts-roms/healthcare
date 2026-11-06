@@ -1,3 +1,4 @@
+import { type Keyring, openWithKeyring, sealWithKeyring } from "@healthcare/core";
 import { z } from "zod";
 import type { NotificationCategory, NotificationChannel, StaffPushKind } from "./notification.schema";
 
@@ -20,6 +21,12 @@ export interface NotificationTemplate<V extends z.ZodType = z.ZodType> {
   internal?: boolean;
   /** Variables that are credentials (e.g. a reset token): blanked in the stored notification once it is sent, suppressed or failed. */
   secretVariables?: readonly string[];
+  /**
+   * Secret variables that are also kept sealed while the message waits to be sent (integration key ring), so a reset
+   * link is never readable in the database, not even while queued or retrying (zero trust, audit L3). Opened only by
+   * the dispatcher to render the message.
+   */
+  sealedVariables?: readonly string[];
   render(variables: z.infer<V>): RenderedMessage;
   /**
    * What a push to a staff browser carries instead of `render` (migration 0101): a push leaves the platform, so a notice
@@ -195,6 +202,7 @@ export const TEMPLATES = [
     channels: ["email"],
     internal: true,
     secretVariables: ["link"],
+    sealedVariables: ["link"],
     variables: z.object({ link: z.url().max(500), validMinutes: z.number().int().min(1).max(240) }),
     render: (v) => ({
       subject: "Reset your staff password",
@@ -245,6 +253,7 @@ export const TEMPLATES = [
     channels: ["email"],
     internal: true,
     secretVariables: ["link"],
+    sealedVariables: ["link"],
     variables: z.object({ organizationName: shortText, link: z.url().max(500), validMinutes: z.number().int().min(1).max(240) }),
     render: (v) => ({
       subject: `Reset your ${v.organizationName} MyHealth password`,
@@ -818,6 +827,30 @@ export const TEMPLATES = [
 
 export type TemplateKey = (typeof TEMPLATES)[number]["key"];
 export const TEMPLATE_KEYS = TEMPLATES.map((t) => t.key) as [TemplateKey, ...TemplateKey[]];
+
+const SEALED_PREFIX = "sealed:";
+
+/** The variables as stored while waiting: the template's sealed ones encrypted with the key ring. */
+export function sealVariables(template: NotificationTemplate, variables: Record<string, unknown>, keyring: Keyring): Record<string, unknown> {
+  if (!template.sealedVariables?.length) return variables;
+  return Object.fromEntries(
+    Object.entries(variables).map(([k, v]) =>
+      template.sealedVariables!.includes(k) && typeof v === "string" && !v.startsWith(SEALED_PREFIX)
+        ? [k, SEALED_PREFIX + sealWithKeyring(v, keyring).sealed]
+        : [k, v],
+    ),
+  );
+}
+
+/** The variables to render with: sealed ones opened (values stored before sealing pass through unchanged). */
+export function openVariables(variables: Record<string, unknown>, keyring: Keyring): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(variables).map(([k, v]) => [
+      k,
+      typeof v === "string" && v.startsWith(SEALED_PREFIX) ? openWithKeyring(v.slice(SEALED_PREFIX.length), keyring) : v,
+    ]),
+  );
+}
 
 /** The variables with the template's secret ones blanked, for storing a notification whose credential has been used. */
 export function withoutSecrets(template: NotificationTemplate, variables: Record<string, unknown>): Record<string, unknown> {

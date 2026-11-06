@@ -13,6 +13,7 @@ import {
   NotFoundError,
   type RequestMetadata,
   VersionConflictError,
+  withinOrganization,
 } from "@healthcare/core";
 import { organization, OrganizationService } from "@healthcare/organization";
 import { CARD_STOCK, renderQrCards } from "@healthcare/pdf";
@@ -356,53 +357,57 @@ export class PatientQrService {
   async activationFromCard(organizationCode: string, payload: string, request: RequestMetadata): Promise<CardActivation> {
     const parsed = parseQrPayload(payload);
     const [org] = await this.db.select({ id: organization.id }).from(organization).where(eq(organization.code, organizationCode));
-    const [hit] =
-      org && parsed?.kind === "token"
-        ? await this.db
-            .select({ code: patientQrCode, patient, account: patientPortalAccount })
-            .from(patientQrCode)
-            .innerJoin(patient, and(eq(patient.organizationId, patientQrCode.organizationId), eq(patient.id, patientQrCode.patientId)))
-            .innerJoin(
-              patientPortalAccount,
-              and(eq(patientPortalAccount.organizationId, patient.organizationId), eq(patientPortalAccount.patientId, patient.id)),
-            )
-            .where(
-              and(
-                eq(patientQrCode.organizationId, org.id),
-                eq(patientQrCode.token, parsed.token),
-                eq(patientQrCode.status, "active"),
-                eq(patientQrCode.content, "portal_link"),
-              ),
-            )
-        : [];
-    const open = !!hit && hit.account.status === "invited" && !!hit.account.activationExpiresAt && hit.account.activationExpiresAt > new Date();
-    await this.audit.recordStandalone(
-      { kind: "anonymous", organizationId: org?.id, request },
-      {
-        action: "portal.activation-card",
-        resourceType: "patient_qr_code",
-        resourceId: hit?.code.id,
-        patientId: open ? hit.patient.id : undefined,
-        outcome: open ? "success" : "denied",
-      },
-    );
-    if (!open) throw new NotFoundError("Card");
-    // The patient's primary email on record, to start the form with; the date of birth too. Only the one-time activation code
-    // (and the patient's own password) are left to enter; activation still checks the date of birth and the code itself.
-    const [contact] = await this.db
-      .select({ value: patientContactPoint.value })
-      .from(patientContactPoint)
-      .where(
-        and(
-          eq(patientContactPoint.organizationId, org!.id),
-          eq(patientContactPoint.patientId, hit.patient.id),
-          eq(patientContactPoint.system, "email"),
-          eq(patientContactPoint.status, "active"),
-        ),
-      )
-      .orderBy(desc(patientContactPoint.isPrimary), desc(patientContactPoint.createdAt))
-      .limit(1);
-    return { patientNumber: hit.patient.patientNumber, givenName: hit.patient.givenName, birthDate: hit.patient.birthDate, email: contact?.value ?? null };
+    // Zero trust (D9): the lookup above crosses organizations; the rest runs in the organization it found, so row-level
+    // security applies to this public route (platform scope only when none was found: nothing is read or written then).
+    return withinOrganization(org?.id, async () => {
+      const [hit] =
+        org && parsed?.kind === "token"
+          ? await this.db
+              .select({ code: patientQrCode, patient, account: patientPortalAccount })
+              .from(patientQrCode)
+              .innerJoin(patient, and(eq(patient.organizationId, patientQrCode.organizationId), eq(patient.id, patientQrCode.patientId)))
+              .innerJoin(
+                patientPortalAccount,
+                and(eq(patientPortalAccount.organizationId, patient.organizationId), eq(patientPortalAccount.patientId, patient.id)),
+              )
+              .where(
+                and(
+                  eq(patientQrCode.organizationId, org.id),
+                  eq(patientQrCode.token, parsed.token),
+                  eq(patientQrCode.status, "active"),
+                  eq(patientQrCode.content, "portal_link"),
+                ),
+              )
+          : [];
+      const open = !!hit && hit.account.status === "invited" && !!hit.account.activationExpiresAt && hit.account.activationExpiresAt > new Date();
+      await this.audit.recordStandalone(
+        { kind: "anonymous", organizationId: org?.id, request },
+        {
+          action: "portal.activation-card",
+          resourceType: "patient_qr_code",
+          resourceId: hit?.code.id,
+          patientId: open ? hit.patient.id : undefined,
+          outcome: open ? "success" : "denied",
+        },
+      );
+      if (!open) throw new NotFoundError("Card");
+      // The patient's primary email on record, to start the form with; the date of birth too. Only the one-time activation code
+      // (and the patient's own password) are left to enter; activation still checks the date of birth and the code itself.
+      const [contact] = await this.db
+        .select({ value: patientContactPoint.value })
+        .from(patientContactPoint)
+        .where(
+          and(
+            eq(patientContactPoint.organizationId, org!.id),
+            eq(patientContactPoint.patientId, hit.patient.id),
+            eq(patientContactPoint.system, "email"),
+            eq(patientContactPoint.status, "active"),
+          ),
+        )
+        .orderBy(desc(patientContactPoint.isPrimary), desc(patientContactPoint.createdAt))
+        .limit(1);
+      return { patientNumber: hit.patient.patientNumber, givenName: hit.patient.givenName, birthDate: hit.patient.birthDate, email: contact?.value ?? null };
+    });
   }
 
   /** The patient card as a PDF (QR code, name, number); printing is audited. */

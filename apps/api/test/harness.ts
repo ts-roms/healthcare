@@ -1,3 +1,5 @@
+import { integrationPayloadKeyring } from "@healthcare/core";
+import { openVariables } from "@healthcare/notification";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 import type { INestApplication } from "@nestjs/common";
@@ -304,3 +306,11 @@ export const binary: Parameters<import("supertest").Test["parse"]>[0] = (res: un
   stream.on("end", () => done(null, Buffer.concat(chunks)));
   stream.on("error", (error: Error) => done(error, Buffer.alloc(0)));
 };
+
+/**
+ * A stored notification variable as the dispatcher reads it: a reset link waits sealed with the integration key ring
+ * (zero trust, audit L3), so a test that follows the link opens it the same way. Other values are returned as stored.
+ */
+export function openedVariable(ctx: TestContext, value: unknown): string {
+  return String(openVariables({ value }, integrationPayloadKeyring(ctx.config))["value"] ?? "");
+}

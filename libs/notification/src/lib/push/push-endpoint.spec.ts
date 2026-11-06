@@ -21,5 +21,9 @@ describe("isPublicPushEndpoint", () => {
     "https://user:pass@fcm.googleapis.com/fcm",
     "https://fcm.googleapis.com:8443/fcm",
     "not a url",
+    // A public host that is not a push service (it could resolve anywhere).
+    "https://attacker-rebind.example/push",
+    "https://fcm.googleapis.com.attacker.example/fcm",
+    "https://push.apple.com/x",
   ])("refuses %s", (endpoint) => expect(isPublicPushEndpoint(endpoint)).toBe(false));
 });

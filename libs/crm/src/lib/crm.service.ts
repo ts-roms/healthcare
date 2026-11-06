@@ -12,6 +12,7 @@ import {
   systemActor,
   todayInPhilippines,
   VersionConflictError,
+  asOrganization,
 } from "@healthcare/core";
 import { AuditService } from "@healthcare/audit";
 import { NotificationService } from "@healthcare/notification";
@@ -844,9 +845,17 @@ export class CrmService {
       .from(crmOptOutToken)
       .where(eq(crmOptOutToken.tokenHash, sha256Hex(token)));
     if (!row || row.usedAt || row.expiresAt.getTime() < Date.now()) return null;
-    await this.preferences.optOut(row.organizationId, row.patientId, row.channel, row.campaignId);
-    await this.db.update(crmOptOutToken).set({ usedAt: new Date() }).where(eq(crmOptOutToken.id, row.id));
-    return { channel: row.channel };
+    // The lookup crosses organizations (the token is all there is); the writes run in the token's organization only
+    // (zero trust, D9). The opt-out is recorded first (a retry works if it fails), then the token is marked used only
+    // if still unused, so two opens at once record the same opt-out, never anything more.
+    return asOrganization(row.organizationId, async () => {
+      await this.preferences.optOut(row.organizationId, row.patientId, row.channel, row.campaignId);
+      await this.db
+        .update(crmOptOutToken)
+        .set({ usedAt: new Date() })
+        .where(and(eq(crmOptOutToken.id, row.id), isNull(crmOptOutToken.usedAt)));
+      return { channel: row.channel };
+    });
   }
 
   // ---- helpers ------------------------------------------------------------------------------------------------------

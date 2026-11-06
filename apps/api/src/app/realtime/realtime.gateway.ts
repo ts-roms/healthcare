@@ -30,7 +30,7 @@ function patientRoom(patientId: string): string {
 /** How often every open socket is checked again (zero trust: access is verified for as long as the socket lives). */
 export const REALTIME_REVALIDATE_MS = 60_000;
 
-type Channel = "queue" | "laboratory" | "messages" | "registrations" | "notices";
+type Channel = "queue" | "display" | "laboratory" | "messages" | "registrations" | "notices";
 
 /** Who a socket was opened for, kept on the socket so it can be checked again after its ticket expired. */
 type SocketBinding =
@@ -40,7 +40,9 @@ type SocketBinding =
 /** The channels a member's permissions at the facility allow (none: the socket is refused). */
 function channelsFor(actor: Actor): Channel[] {
   return [
-    ...(actor.permissions.has("clinic.queue.read") || actor.permissions.has("clinic.queue.display") ? ["queue" as const] : []),
+    ...(actor.permissions.has("clinic.queue.read") ? ["queue" as const] : []),
+    // A waiting-room screen (display only): told that the queue changed, never which visit, its priority or status.
+    ...(!actor.permissions.has("clinic.queue.read") && actor.permissions.has("clinic.queue.display") ? ["display" as const] : []),
     ...(actor.permissions.has("lab.order.read") ? ["laboratory" as const] : []),
     ...(actor.permissions.has("patient.message.read") ? ["messages" as const] : []),
     ...(actor.permissions.has("kiosk.registration.review") ? ["registrations" as const] : []),
@@ -59,8 +61,14 @@ function messagesRoom(facilityId: string): string {
   return `messages:${facilityId}`;
 }
 
+/** The waiting-room screens of a facility: a separate room, so they never receive a visit's details. */
+function displayRoom(facilityId: string): string {
+  return `display:${facilityId}`;
+}
+
 function channelRoom(channel: Exclude<Channel, "notices">, facilityId: string): string {
   if (channel === "queue") return facilityRoom(facilityId);
+  if (channel === "display") return displayRoom(facilityId);
   if (channel === "laboratory") return laboratoryRoom(facilityId);
   if (channel === "messages") return messagesRoom(facilityId);
   return registrationsRoom(facilityId);
@@ -72,7 +80,8 @@ function channelRoom(channel: Exclude<Channel, "notices">, facilityId: string): 
  * POST /auth/realtime-tickets, bound to their session and facility); server
  * clients may use { auth: { token, facilityId } }. Either way the session and
  * account are checked on connect, and the socket joins the channels its permissions at that facility allow:
- * `queue.updated` with clinic.queue.read or clinic.queue.display (the waiting-room display, migration 0112),
+ * `queue.updated` with clinic.queue.read (the visit's id and status) or, for a waiting-room screen holding only
+ * clinic.queue.display (migration 0112), in a room of its own with nothing but the time (it re-reads the display),
  * `lab.updated` with lab.order.read, `messages.updated` with patient.message.read, `registrations.updated` with
  * kiosk.registration.review (a kiosk registration arrived or was decided: the list refetches, nothing is sent about it), and `notices.updated` for every
  * staff member with any permission at the facility (their own in-app notices only, so the top bar's unread count
@@ -222,6 +231,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnModuleInit, OnMod
       occurredAt: event.occurredAt,
       ...event.payload,
     });
+    // Waiting-room screens re-read GET /queue/display (tickets and places only); the message says only that it changed.
+    this.server.to(displayRoom(event.facilityId)).emit("queue.updated", { occurredAt: event.occurredAt });
   }
 
   /** A kiosk registration arrived or was decided: reviewers' sockets refetch the list (no detail travels). */

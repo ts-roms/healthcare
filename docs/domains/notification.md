@@ -19,7 +19,7 @@ Statuses: `queued → sending → sent` (or back to `queued` for retry, then
 Code-defined, versioned, with Zod-validated variables (`templates.ts`).
 External channels must not carry clinical detail. Templates:
 `patient.registered` (SMS/email), `appointment.reminder` (SMS/email), `security.mfa-enabled` (email/in-app),
-`portal.password-reset` and `portal.password-changed` (email only, category `security`, **internal**: sent by the platform to a MyHealth account's sign-in email, never through `POST /notifications`; the reset link is a `secretVariables` entry blanked in the stored row once sent, failed or suppressed),
+`portal.password-reset` and `portal.password-changed` (email only, category `security`, **internal**: sent by the platform to a MyHealth account's sign-in email, never through `POST /notifications`; the reset link is a `secretVariables` entry blanked in the stored row once sent, failed or suppressed, and a `sealedVariables` entry kept sealed with the integration key ring while it waits, opened only by the dispatcher to render the email; the staff reset link likewise),
 `appointment.waitlist-opened` (SMS or email; the clinic and the day only — a patient on the MyHealth waiting list is told a time may have opened), `appointment.waitlist-offer` (SMS or email; the clinic, the day and how long the time is held — the time itself is shown after sign-in; migration `0096`), and `appointment.self-service` (SMS, email and a MyHealth inbox copy),
 `portal.email-verification` (email only, category `security`, internal; the 6-digit code is a secret variable) and `portal.security-alert` (email only, internal; two-step verification turned on/off/reset by the clinic, a recovery code used, recovery codes renewed, sign-in email changed — no health information), both possibly sent to an address other than the account's (`send(actor, input, { securityDestination })`, honoured only for internal security email templates and never passed by the public endpoint),
 `staff.message` (in-app only), `lab.result-notice` (in-app to the ordering practitioner: order and patient numbers only),
@@ -143,7 +143,9 @@ platform's own key pair — `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_S
 - **Devices.** After the patient allows notifications in their browser, MyHealth registers the device against their MyHealth account
   (`POST /portal/push/subscriptions`; up to 5 devices; `PushSubscriptionService`). A browser that another account signs in on moves to
   that account. A device the push service reports gone (404/410) or that fails 5 times in a row is dropped; the patient can remove a
-  device or ask for a test (`portal.push-test`).
+  device or ask for a test (`portal.push-test`). An endpoint must be on one of the browsers' push services
+  (`PUSH_SERVICE_HOSTS` in `push/push-endpoint.ts`: Firebase Cloud Messaging, Mozilla, Apple, Windows), https on the default port;
+  anything else is refused at registration and dropped at sending, so a subscription can never point the API at another host.
 - **Channel.** `push` is a normal notification channel: `destination` is the MyHealth account and the sender delivers to every active
   device of it (`WebPushSender`; accepted by at least one device = sent; every device failing for a reason that may pass is retried;
   none left fails for good). The recipient directory resolves it only for an active account with portal consent and at least one

@@ -79,6 +79,11 @@ describe("realtime queue and laboratory updates", () => {
       .send({ code: "consult", name: "Consultation", defaultDurationMinutes: 15 })
       .expect(201);
     const patient = await ctx.http().post("/api/v1/patients").set(as(desk, tenant.facilityId)).send(juan).expect(201);
+    // A waiting-room screen account (display only) hears that the queue changed, nothing about the visit.
+    await createStaff(ctx.pool, tenant, "screen@example.ph", [{ role: "queue_display", facilityId: tenant.facilityId }]);
+    const screen = connect({ token: (await login(ctx, "screen@example.ph")).accessToken, facilityId: tenant.facilityId });
+    await expect(next(screen, "ready")).resolves.toMatchObject({ channels: ["display", "notices"] });
+    const screenUpdate = next<Record<string, unknown>>(screen, "queue.updated");
     const update = next<Record<string, unknown>>(socket, "queue.updated");
     const visit = await ctx
       .http()
@@ -91,6 +96,7 @@ describe("realtime queue and laboratory updates", () => {
     const message = await update;
     expect(message).toMatchObject({ visitId: visit.body.id, status: "waiting", queueNumber: 1 });
     expect(JSON.stringify(message)).not.toMatch(/Dela Cruz|Juan/);
+    expect(Object.keys(await screenUpdate)).toEqual(["occurredAt"]);
   });
 
   it("pushes a new conversation message to staff who read conversations: ids and the sender, never the text", async () => {

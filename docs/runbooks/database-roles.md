@@ -106,7 +106,10 @@ guard the patient's; a platform administrator route takes the platform scope. A 
 any organization is known declares it with `@PlatformScope("reason")` (`libs/core` access decorators; the access guard
 applies it): staff and MyHealth sign-in, two-step verification and passkey answers at sign-in, session refresh,
 activation, password resets by link, the payment provider's notifications and the outreach opt-out link. Never on a
-route the MyHealth guard protects. Background work declares its scope: every scheduler tick (and the immediate run a
+route the MyHealth guard protects. The platform scope covers only the lookup that finds the organization (by its code,
+or the owner of a token, session or payment reference): MyHealth sign-in, activation, activation from a card, refresh,
+both reset routes, the opt-out and the payment notification then run the rest under that organization with
+`withinOrganization(id, …)` (`libs/core`), so their writes are held by row-level security too (zero trust, D9). Background work declares its scope: every scheduler tick (and the immediate run a
 request asks for), the outbox relay, the three BullMQ workers, start-up checks, readiness probes and the realtime
 socket's session lookup run under `asPlatform(reason, …)` because they act on rows of every organization by id; the
 session lookups in both guards run under it too. `ContextPool` stamps each

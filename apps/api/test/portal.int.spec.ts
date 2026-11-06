@@ -194,7 +194,10 @@ describe("patient portal sign-in", () => {
   it("locks the account after repeated wrong passwords", async () => {
     for (let i = 0; i < 5; i++) await portalLogin("juan@example.ph", `wrong-password-${i}xx`).expect(401);
     const locked = await portalLogin("juan@example.ph").expect(401);
-    expect(locked.body.error.code).toBe("account_locked");
+    // The same answer as a wrong password (no account oracle); the audit trail records the lock.
+    expect(locked.body.error.code).toBe("invalid_credentials");
+    const { rows } = await ctx.pool.query("SELECT 1 FROM audit_event WHERE action = 'portal.login' AND reason = 'locked'");
+    expect(rows.length).toBeGreaterThanOrEqual(1);
     await ctx.pool.query(`UPDATE patient_portal_account SET locked_until = NULL WHERE patient_id = $1`, [patientId]);
   });
 
