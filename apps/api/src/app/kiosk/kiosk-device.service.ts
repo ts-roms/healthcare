@@ -17,7 +17,15 @@ import { OrganizationService } from "@healthcare/organization";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 import type { heartbeatSchema, registerDeviceSchema, updateDeviceSchema } from "./kiosk.dto";
-import { type DeviceHealth, deviceHealth, type PrinterAvailability, printerAvailability, printerHostProblem } from "./kiosk.rules";
+import {
+  type DeviceHealth,
+  deviceHealth,
+  type PrinterAvailability,
+  printerAvailability,
+  printerHostProblem,
+  kioskNetworkAllowed,
+  normalizeKioskNetwork,
+} from "./kiosk.rules";
 import { kioskDevice, type KioskDeviceRecord } from "./kiosk.schema";
 import { assertVersion, found } from "./kiosk-support";
 
@@ -65,6 +73,8 @@ export interface KioskDeviceView {
   /** Whether the printer is known to be working: from its last report and how recent that is (kiosks only). */
   printer: PrinterAvailability;
   printerHeartbeatAt: Date | null;
+  /** Where this kiosk may be used (addresses or ranges); empty = anywhere (migration 0148). */
+  allowedNetworks: string[];
   version: number;
 }
 
@@ -87,6 +97,7 @@ const view = (row: KioskDeviceRecord, now = new Date()): KioskDeviceView => ({
   paperMm: row.paperMm,
   printer: row.kind === "kiosk" ? printerAvailability(row, now) : "none",
   printerHeartbeatAt: row.printerHeartbeatAt,
+  allowedNetworks: row.allowedNetworks,
   version: row.version,
 });
 
@@ -277,6 +288,9 @@ export class KioskDeviceService {
           ...(input.printsTickets !== undefined && current.kind === "kiosk" ? { printsTickets: input.printsTickets } : {}),
           ...(input.printAgentUserId !== undefined ? { printAgentUserId: input.printAgentUserId } : {}),
           ...(printer ?? {}),
+          ...(input.allowedNetworks !== undefined && current.kind === "kiosk"
+            ? { allowedNetworks: [...new Set(input.allowedNetworks.map((n) => normalizeKioskNetwork(n)!))] }
+            : {}),
           updatedAt: new Date(),
           version: sql`${kioskDevice.version} + 1`,
         })
@@ -292,6 +306,9 @@ export class KioskDeviceService {
           ...(current.status !== row.status ? { status: { from: current.status, to: row.status } } : {}),
           ...(current.printsTickets !== row.printsTickets ? { printsTickets: { from: current.printsTickets, to: row.printsTickets } } : {}),
           ...(current.printAgentUserId !== row.printAgentUserId ? { printAgentUserId: { from: current.printAgentUserId, to: row.printAgentUserId } } : {}),
+          ...(current.allowedNetworks.join(",") !== row.allowedNetworks.join(",")
+            ? { allowedNetworks: { from: current.allowedNetworks, to: row.allowedNetworks } }
+            : {}),
           ...(printer
             ? {
                 printer: {
@@ -329,6 +346,18 @@ export class KioskDeviceService {
     if (!row) throw new ForbiddenError("This account is not a registered kiosk", "not_a_kiosk");
     if (row.facilityId !== facilityId) throw new ForbiddenError("This kiosk belongs to another facility", "kiosk_wrong_facility");
     if (row.status === "disabled") throw new ForbiddenError("This kiosk has been disabled", "kiosk_disabled");
+    // Zero trust for the kiosk's credential (F3): used only from the networks staff set for it, when they set any.
+    if (!kioskNetworkAllowed(actor.request.ipAddress, row.allowedNetworks)) {
+      await this.audit.recordStandalone(actor, {
+        action: "kiosk.network-refused",
+        resourceType: "kiosk_device",
+        resourceId: row.id,
+        outcome: "denied",
+        reason: "outside_allowed_networks",
+        metadata: { code: row.code },
+      });
+      throw new ForbiddenError("This kiosk cannot be used from this network. Ask the clinic's administrator.", "kiosk_network_refused");
+    }
     if (options.serving && row.status === "maintenance")
       throw new BusinessRuleError("This kiosk is out of service — please see the desk", "kiosk_in_maintenance");
     return row;

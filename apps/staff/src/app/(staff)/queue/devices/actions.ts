@@ -40,6 +40,7 @@ const updateSchema = z.object({
   printerHost: z.string().trim().min(1).max(253).nullable().optional(),
   printerPort: z.number().int().min(1, "A port is a number from 1 to 65535.").max(65535, "A port is a number from 1 to 65535.").nullable().optional(),
   paperMm: z.union([z.literal(58), z.literal(80)]).optional(),
+  allowedNetworks: z.array(z.string().trim().min(1).max(64)).max(10, "At most 10 addresses or ranges.").optional(),
   version: z.number().int().positive(),
 });
 

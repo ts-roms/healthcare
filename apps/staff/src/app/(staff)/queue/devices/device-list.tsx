@@ -3,7 +3,21 @@
 import * as React from "react";
 import { MonitorIcon, MonitorSmartphoneIcon, PencilIcon, PrinterIcon, TriangleAlertIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, Checkbox, Input, NativeSelect, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  Input,
+  NativeSelect,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Textarea,
+} from "@healthcare/ui/primitives";
 import type { KioskDevice } from "@/lib/api/types";
 import {
   DEVICE_HEALTH_LABEL,
@@ -107,6 +121,12 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
   const [host, setHost] = React.useState(device.printerHost ?? "");
   const [port, setPort] = React.useState(device.printerPort ? String(device.printerPort) : "");
   const [paperMm, setPaperMm] = React.useState<58 | 80>(device.paperMm);
+  const [networks, setNetworks] = React.useState(device.allowedNetworks.join("\n"));
+  const networkList = networks
+    .split(/[\s,]+/)
+    .map((n) => n.trim())
+    .filter(Boolean);
+  const networksChanged = networkList.join(",") !== device.allowedNetworks.join(",");
   const portNumber = port.trim() === "" ? null : Number(port);
   const printerChanged =
     connection !== device.printerConnection ||
@@ -120,7 +140,8 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
     status !== device.status ||
     printsTickets !== device.printsTickets ||
     agentId !== (device.printAgentUserId ?? "") ||
-    printerChanged;
+    printerChanged ||
+    networksChanged;
   return (
     <TableRow>
       <TableCell colSpan={5}>
@@ -142,6 +163,7 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
                       ? { printerConnection: "network" as const, printerHost: host.trim(), printerPort: portNumber, paperMm }
                       : { printerConnection: "agent_local" as const, paperMm }
                     : {}),
+                  ...(networksChanged ? { allowedNetworks: networkList } : {}),
                 }),
               `${device.name} updated`,
               onDone,
@@ -261,6 +283,29 @@ function EditRow({ device, agents, onDone }: { device: KioskDevice; agents: Devi
                   ? "The printer must be on the clinic's own network (an address like 192.168.1.50, or a local name); the port is usually 9100. "
                   : "Which printer that is, is set on the agent's computer, not here. "}
                 The print agent picks up a change within a minute; nothing needs changing on its computer.
+              </p>
+            </fieldset>
+          ) : null}
+          {device.kind === "kiosk" ? (
+            <fieldset className="grid basis-full gap-2 rounded-lg border p-3">
+              <legend className="px-1 text-meta font-medium text-muted-foreground">Where this kiosk may be used</legend>
+              <label htmlFor={`networks-${device.id}`} className="text-meta text-muted-foreground">
+                Allowed networks (optional)
+              </label>
+              <Textarea
+                id={`networks-${device.id}`}
+                value={networks}
+                rows={3}
+                spellCheck={false}
+                autoCapitalize="none"
+                placeholder={"203.0.113.7\n203.0.113.0/24"}
+                onChange={(e) => setNetworks(e.target.value)}
+                className="max-w-md font-mono"
+              />
+              <p className="text-meta text-muted-foreground">
+                The clinic&apos;s own internet addresses, one per line (an address, or a range such as 203.0.113.0/24), up to 10. Leave empty to allow the kiosk
+                anywhere. Requests from any other network are refused and recorded in the audit trail. Ask your internet provider for the clinic&apos;s fixed
+                address.
               </p>
             </fieldset>
           ) : null}

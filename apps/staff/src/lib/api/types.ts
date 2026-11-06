@@ -5713,6 +5713,8 @@ export interface KioskDevice {
   /** Whether the printer is known to be working: its last report and how recent it is (kiosks only). */
   printer: "available" | "attention" | "unavailable" | "unknown" | "none";
   printerHeartbeatAt: string | null;
+  /** Where this kiosk may be used: addresses or CIDR ranges; empty = anywhere (migration 0148). */
+  allowedNetworks: string[];
   version: number;
 }
 

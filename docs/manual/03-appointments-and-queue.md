@@ -252,6 +252,11 @@ version and, for a kiosk, whether its **printer is working** (it also says when 
 **Maintenance** serves nobody; **Disabled** is refused. An administrator can **Register a device** (create its account first in Administration → Users
 with the **Patient kiosk** or **Waiting-room display** role) and **Edit** a name or status.
 
+**Where a kiosk may be used.** If the clinic has a fixed internet address (ask your internet provider), choose **Edit** on the kiosk and enter it under
+**Allowed networks**, one per line: an address such as `203.0.113.7`, or a range such as `203.0.113.0/24`, up to 10. The kiosk then works only from
+there: if its sign-in were copied and used elsewhere, it is refused and recorded in the audit trail. Leave it empty to allow the kiosk anywhere (the
+default). If a kiosk suddenly says it cannot be used from this network, the clinic's address has probably changed: update the list.
+
 Below are the kiosk tickets of the last 24 hours and how each print went. If a patient lost a ticket or it did not print, choose **Print again…** on its
 row, say why and confirm. A ticket can be printed again twice, only after the earlier print has finished, and only while the patient is still in the queue.
 The kiosk always shows the number on its screen, so a printer problem never stops a check-in. A kiosk without a printer keeps **Prints tickets** off (Edit on the device); turn it on only after the printer has been set up and checked.
