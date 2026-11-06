@@ -69,6 +69,8 @@ export const staffPushPreference = pgTable(
 
 export const notificationAttempt = pgTable("notification_attempt", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** The parent's organization (migration 0149): row-level security and a composite foreign key keep them equal. */
+  organizationId: uuid("organization_id").notNull(),
   notificationId: uuid("notification_id").notNull(),
   attemptNumber: integer("attempt_number").notNull(),
   startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),

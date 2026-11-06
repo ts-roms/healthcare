@@ -40,6 +40,8 @@ export const carePlan = pgTable("care_plan", {
 
 export const carePlanProblem = pgTable("care_plan_problem", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** The parent's organization (migration 0149): row-level security and a composite foreign key keep them equal. */
+  organizationId: uuid("organization_id").notNull(),
   carePlanId: uuid("care_plan_id").notNull(),
   patientId: uuid("patient_id").notNull(),
   diagnosisId: uuid("diagnosis_id"),
@@ -49,6 +51,8 @@ export const carePlanProblem = pgTable("care_plan_problem", {
 
 export const carePlanGoal = pgTable("care_plan_goal", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** The parent's organization (migration 0149): row-level security and a composite foreign key keep them equal. */
+  organizationId: uuid("organization_id").notNull(),
   carePlanId: uuid("care_plan_id").notNull(),
   description: text("description").notNull(),
   targetMeasure: text("target_measure"),
@@ -84,6 +88,8 @@ export const carePlanActivity = pgTable("care_plan_activity", {
 
 export const carePlanProgressNote = pgTable("care_plan_progress_note", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** The parent's organization (migration 0149): row-level security and a composite foreign key keep them equal. */
+  organizationId: uuid("organization_id").notNull(),
   carePlanId: uuid("care_plan_id").notNull(),
   note: text("note").notNull(),
   recordedBy: uuid("recorded_by").notNull(),

@@ -87,6 +87,7 @@ export class CarePlanService {
         if (input.problems.length) {
           await tx.insert(carePlanProblem).values(
             input.problems.map((p) => ({
+              organizationId: created.organizationId,
               carePlanId: created.id,
               patientId: created.patientId,
               diagnosisId: p.diagnosisId ?? null,
@@ -97,7 +98,7 @@ export class CarePlanService {
         const goals = input.goals.length
           ? await tx
               .insert(carePlanGoal)
-              .values(input.goals.map((g) => ({ ...g, carePlanId: created.id, createdBy: actor.userId })))
+              .values(input.goals.map((g) => ({ ...g, organizationId: created.organizationId, carePlanId: created.id, createdBy: actor.userId })))
               .returning({ id: carePlanGoal.id })
           : [];
         for (const activity of input.activities) {
@@ -320,7 +321,7 @@ export class CarePlanService {
       const plan = await this.lockOpen(tx, actor.organizationId, carePlanId);
       const [goal] = await tx
         .insert(carePlanGoal)
-        .values({ ...input, carePlanId, createdBy: actor.userId })
+        .values({ ...input, organizationId: plan.organizationId, carePlanId, createdBy: actor.userId })
         .returning();
       await this.touch(tx, actor, plan);
       await this.audit.record(tx, actor, { action: "care-plan.goal-add", resourceType: "care_plan_goal", resourceId: goal?.id, patientId: plan.patientId });
@@ -433,7 +434,10 @@ export class CarePlanService {
   async addProgressNote(actor: Actor, carePlanId: string, note: string) {
     await this.db.transaction(async (tx) => {
       const plan = await this.lock(tx, actor.organizationId, carePlanId);
-      const [created] = await tx.insert(carePlanProgressNote).values({ carePlanId, note, recordedBy: actor.userId }).returning({ id: carePlanProgressNote.id });
+      const [created] = await tx
+        .insert(carePlanProgressNote)
+        .values({ organizationId: actor.organizationId, carePlanId, note, recordedBy: actor.userId })
+        .returning({ id: carePlanProgressNote.id });
       await this.audit.record(tx, actor, {
         action: "care-plan.progress-note",
         resourceType: "care_plan",

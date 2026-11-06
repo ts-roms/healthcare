@@ -372,3 +372,12 @@ Details in [portal-app.md](../architecture/portal-app.md#two-step-verification).
 
 Nothing here constitutes a claim of Data Privacy Act compliance; compliance
 must be assessed against current official requirements (CLAUDE.md §36).
+
+## Browser script policy (staff app and MyHealth)
+
+Both apps send a Content Security Policy with a fresh nonce on every page (`buildAppCsp` in `libs/web-session`, applied
+in each app's `proxy.ts`; zero-trust audit F2): scripts run only when they carry the request's nonce (`'strict-dynamic'`),
+so markup that got through cannot run script; connections go only to the app itself, the live-update socket
+(`REALTIME_URL`) and `CSP_CONNECT_ORIGINS` (the video service); signed document links may be shown as images or in a
+frame (`https:`), never run; no plugins, no other site may frame the apps. A nonce needs a page rendered per request, so
+each root layout calls `connection()`. The kiosk has its own, stricter policy (`apps/kiosk/src/lib/csp.ts`).

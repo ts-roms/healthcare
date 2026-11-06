@@ -42,7 +42,7 @@ export class NotificationDispatcher {
 
     const [attempt] = await this.db
       .insert(notificationAttempt)
-      .values({ notificationId, attemptNumber: claimed.attemptCount })
+      .values({ organizationId: claimed.organizationId, notificationId, attemptNumber: claimed.attemptCount })
       .returning({ id: notificationAttempt.id });
 
     try {

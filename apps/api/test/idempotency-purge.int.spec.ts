@@ -1,20 +1,22 @@
 import { IdempotencyPurge } from "../src/app/idempotency-purge";
-import { createTestApp, type TestContext, underPlatform } from "./harness";
+import { createTenant, createTestApp, type Tenant, type TestContext, underPlatform } from "./harness";
 
 /** Expired idempotency records (they hold stored responses) are removed after a grace period (docs/security-audit, VR-15). */
 describe("idempotency record purge", () => {
   let ctx: TestContext;
+  let tenant: Tenant;
 
   beforeAll(async () => {
     ctx = await createTestApp();
+    tenant = await createTenant(ctx.pool, "idempotency-purge");
   });
   afterAll(() => ctx.close());
 
   const insert = (key: string, expiresInHours: number) =>
     ctx.pool.query(
-      `INSERT INTO idempotency_record (user_id, idempotency_key, method, path, request_hash, state, response_status, response_body, expires_at)
-       VALUES (gen_random_uuid(), $1, 'POST', '/api/v1/x', 'hash', 'completed', 201, '{"name":"synthetic"}', now() + make_interval(hours => $2::int))`,
-      [key, expiresInHours],
+      `INSERT INTO idempotency_record (organization_id, user_id, idempotency_key, method, path, request_hash, state, response_status, response_body, expires_at)
+       VALUES ($3, gen_random_uuid(), $1, 'POST', '/api/v1/x', 'hash', 'completed', 201, '{"name":"synthetic"}', now() + make_interval(hours => $2::int))`,
+      [key, expiresInHours, tenant.organizationId],
     );
 
   it("removes records expired for more than a day and keeps the rest", async () => {

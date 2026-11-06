@@ -362,6 +362,7 @@ export class PrescriptionService {
     await tx.insert(prescriptionItem).values(
       values.items.map((item, index) => ({
         ...item,
+        organizationId: created.organizationId,
         prescriptionId: created.id,
         lineNumber: index + 1,
         brandName: item.brandName ?? null,

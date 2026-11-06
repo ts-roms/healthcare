@@ -21,7 +21,8 @@ type Begin = { kind: "proceed" } | { kind: "replay"; status: number; body: unkno
  * - a retry with the same key and body replays the stored response;
  * - the same key with a different body is rejected;
  * - a retry while the first is still running gets 409.
- * Keys are scoped per authenticated user.
+ * Keys are scoped per organization and authenticated user (migration 0149): a member of two organizations
+ * reusing a key in the second is never answered with the first one's response.
  */
 @Injectable()
 export class IdempotencyInterceptor implements NestInterceptor {
@@ -39,30 +40,31 @@ export class IdempotencyInterceptor implements NestInterceptor {
       return throwError(() => new BusinessRuleError("Idempotency-Key must be 8-128 characters of [A-Za-z0-9._:-]", "invalid_idempotency_key"));
     }
     const userId = request.actor.userId;
+    const organizationId = request.actor.organizationId;
     const path = request.originalUrl.split("?")[0] ?? request.originalUrl;
     const requestHash = sha256Hex(`${request.method} ${path}\n${stableStringify(request.body ?? null)}`);
 
-    return from(this.begin(userId, key, request.method, path, requestHash)).pipe(
+    return from(this.begin(organizationId, userId, key, request.method, path, requestHash)).pipe(
       switchMap((begin) => {
         if (begin.kind === "replay") {
           response.status(begin.status).setHeader("Idempotent-Replayed", "true");
           return of(begin.body);
         }
         return next.handle().pipe(
-          switchMap((body) => from(this.complete(userId, key, response.statusCode, body)).pipe(switchMap(() => of(body)))),
-          catchError((error: unknown) => from(this.release(userId, key)).pipe(switchMap(() => throwError(() => error)))),
+          switchMap((body) => from(this.complete(organizationId, userId, key, response.statusCode, body)).pipe(switchMap(() => of(body)))),
+          catchError((error: unknown) => from(this.release(organizationId, userId, key)).pipe(switchMap(() => throwError(() => error)))),
         );
       }),
     );
   }
 
-  private async begin(userId: string, key: string, method: string, path: string, requestHash: string): Promise<Begin> {
+  private async begin(organizationId: string, userId: string, key: string, method: string, path: string, requestHash: string): Promise<Begin> {
     await this.db.execute(sql`
       DELETE FROM idempotency_record
-      WHERE user_id = ${userId} AND idempotency_key = ${key} AND expires_at < now()`);
+      WHERE organization_id = ${organizationId} AND user_id = ${userId} AND idempotency_key = ${key} AND expires_at < now()`);
     const inserted = await this.db.execute(sql`
-      INSERT INTO idempotency_record (user_id, idempotency_key, method, path, request_hash, expires_at)
-      VALUES (${userId}, ${key}, ${method}, ${path}, ${requestHash}, now() + make_interval(hours => ${RETENTION_HOURS}))
+      INSERT INTO idempotency_record (organization_id, user_id, idempotency_key, method, path, request_hash, expires_at)
+      VALUES (${organizationId}, ${userId}, ${key}, ${method}, ${path}, ${requestHash}, now() + make_interval(hours => ${RETENTION_HOURS}))
       ON CONFLICT DO NOTHING
       RETURNING user_id`);
     if (inserted.rows.length > 0) return { kind: "proceed" };
@@ -74,9 +76,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
       response_body: unknown;
     }>(sql`
       SELECT request_hash, state, response_status, response_body
-      FROM idempotency_record WHERE user_id = ${userId} AND idempotency_key = ${key}`);
+      FROM idempotency_record WHERE organization_id = ${organizationId} AND user_id = ${userId} AND idempotency_key = ${key}`);
     const record = existing.rows[0];
-    if (!record) return this.begin(userId, key, method, path, requestHash);
+    if (!record) return this.begin(organizationId, userId, key, method, path, requestHash);
     if (record.request_hash !== requestHash) {
       throw new BusinessRuleError("Idempotency-Key was already used for a different request", "idempotency_key_reused");
     }
@@ -86,18 +88,18 @@ export class IdempotencyInterceptor implements NestInterceptor {
     return { kind: "replay", status: record.response_status, body: record.response_body };
   }
 
-  private async complete(userId: string, key: string, status: number, body: unknown): Promise<void> {
+  private async complete(organizationId: string, userId: string, key: string, status: number, body: unknown): Promise<void> {
     await this.db.execute(sql`
       UPDATE idempotency_record
       SET state = 'completed', response_status = ${status}, response_body = ${JSON.stringify(body ?? null)}::jsonb
-      WHERE user_id = ${userId} AND idempotency_key = ${key}`);
+      WHERE organization_id = ${organizationId} AND user_id = ${userId} AND idempotency_key = ${key}`);
   }
 
   /** A failed request does not consume the key, so the client may retry. */
-  private async release(userId: string, key: string): Promise<void> {
+  private async release(organizationId: string, userId: string, key: string): Promise<void> {
     await this.db.execute(sql`
       DELETE FROM idempotency_record
-      WHERE user_id = ${userId} AND idempotency_key = ${key} AND state = 'in_progress'`);
+      WHERE organization_id = ${organizationId} AND user_id = ${userId} AND idempotency_key = ${key} AND state = 'in_progress'`);
   }
 }
 
