@@ -102,6 +102,21 @@ unset, so a variable left empty in the dashboard does not stop start-up. Require
 | `PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`, `PAYMONGO_PAYMENT_METHODS`   | Optional: online payment in MyHealth through PayMongo (see `docs/domains/billing.md`). Test keys first.                                                                                                                                           |
 | `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`, `SEED_ORG_CODE`, `SEED_ORG_NAME`, … | Only for the one-time seed (below). Remove the password afterwards.                                                                                                                                                                               |
 
+### Check `X-Forwarded-For` behind Railway (once per environment)
+
+Rate limits and the audit trail use the client address Express derives with `TRUST_PROXY=true` (one trusted hop).
+That is right only if Railway's edge appends the client's address to `X-Forwarded-For` and nothing else sits in front.
+Check it on staging before relying on per-address limits:
+
+1. Send a request with a forged header from a known address:
+   `curl -s -H "X-Forwarded-For: 203.0.113.7" https://<staging-api>/api/v1/auth/login -H "content-type: application/json" -d '{"email":"nobody@example.invalid","password":"x"}'`
+2. In the audit trail (`/admin/audit`, action `auth.login`, outcome failure) the newest row's IP must be **your own
+   public address**, not `203.0.113.7` (forged header ignored) and not a Railway internal address (one hop too few).
+3. Repeat through the staff app's sign-in page: the row must show your address too (the staff server forwards it).
+
+If the forged address appears, the edge passes the header through: set `TRUST_PROXY` to the number of proxies actually
+in front, or key credential limits on the account as well. If an internal address appears, raise the hop count.
+
 ### staff
 
 | Variable                                                          | Value                                                                                                                                                                                                                                                                                                                         |

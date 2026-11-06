@@ -330,3 +330,51 @@ screen to confirm (an enumeration oracle).
 department grouping, counters, and "requeue" of a closed visit (reopening a closed visit is a clinical-record
 decision). Hardware is verified only on the target devices. The privacy notice text and what a kiosk may collect are
 the organization's (compliance register).
+
+## ADR-0016 Migrations run by a one-off service that alone holds the owner's database URL
+
+**Status:** proposed (2026-11-07; zero-trust audit D2, `docs/security/zero-trust-audit-2026-11-06.md`). **Context:** the
+API's Railway service runs `pnpm db:migrate` as its pre-deploy command, so the owner's URL (`MIGRATION_DATABASE_URL`)
+is one of the API service's variables. Railway gives a service's variables to its pre-deploy command and to the running
+process alike: code execution in the API container can read the owner's credentials (the API deletes the variable from
+`process.env` at start-up, but `/proc/self/environ` still holds it) and with them alter or drop tables, disable the
+append-only triggers and row-level security, and rewrite the audit trail.
+
+**Decision (proposed).** A seventh Railway service, `migrate`, built from the same repository with its own
+`railway.json`: start command `pnpm db:migrate`, restart policy `NEVER`, no public or private domain, and the only
+service holding `MIGRATION_DATABASE_URL`. The API and both workers hold only the restricted role's `DATABASE_URL`.
+Order is kept by the code, not the platform: on start the API reads `schema_migration` and refuses to serve (readiness
+`503`, `db.schema_behind`) while a migration file it ships is not yet applied, so a deploy that races ahead of
+`migrate` waits instead of running against the old schema. Terraform declares `migrate` with `railway.json`; deploy
+order in the runbook becomes `migrate`, then the API and workers.
+
+**Alternatives rejected.** Keeping the pre-deploy step and scrubbing the environment (the container's environment
+cannot be scrubbed); a CI job that migrates over a public TCP proxy (exposes the database and puts the owner's URL in
+CI, which holds no Railway credential today); migrating on API start as the owner (the same exposure, plus every
+replica racing).
+
+**Consequences.** One more service to deploy; a deploy is two steps; the API needs the schema check. Until this is
+built the exposure is documented in `docs/runbooks/database-roles.md` ("The owner's URL at runtime").
+
+## ADR-0017 Platform scope that SQL running as the application role cannot claim
+
+**Status:** proposed (2026-11-07; zero-trust audit D5). **Context:** row-level security (migration 0111) trusts
+`current_setting('app.scope') = 'all'`. Any session of the application role may set a custom setting, so SQL that runs
+as that role (an injection, a compromised dependency) can call `set_config('app.scope', 'all', false)` and read every
+organization. The policies stop mistakes in the application's own filters; they do not stop SQL-level compromise.
+
+**Decision (proposed).** Make the platform scope a role, not a setting: a second group role `healthcare_platform`
+(member of `healthcare_app`, plus a policy clause `pg_has_role(current_user, 'healthcare_platform', 'MEMBER')`), and the
+login role `healthcare_api` a member of `healthcare_app` only, with `healthcare_platform` granted `WITH SET` to it (PG 16
+role options) so `ContextPool` takes it by `SET ROLE healthcare_platform` for `asPlatform(…)` work and `RESET ROLE`
+after. The organization stays a setting (`app.organization_id`), but `rls_organization_visible` checks it only for a
+connection that is not in the platform role, and a new trigger-free check refuses `app.scope` altogether. SQL that runs
+as `healthcare_api` can still `SET ROLE healthcare_platform`; to close that, `asPlatform` work moves to a separate pool
+whose login role is the platform one (`DATABASE_PLATFORM_URL`), and the request pool's role holds no path to it.
+
+**Alternatives rejected.** Signing the setting with an HMAC checked in a `SECURITY DEFINER` function (the key would sit
+in the same process that is assumed compromised); dropping the platform scope (schedulers, the outbox relay and the
+workers act across organizations by design).
+
+**Consequences.** Two pools and two login roles (the platform pool small); every `asPlatform` call site keeps working
+unchanged; integration tests run both roles. Built only after ADR-0016 (it changes the same deployment variables).

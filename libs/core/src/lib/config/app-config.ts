@@ -45,6 +45,8 @@ const appConfigSchema = z
     // Readiness details (which dependency is down, whether malware scanning is off) go only to a caller sending this
     // value as `X-Health-Token` (monitoring). Unset: details outside production only; production answers the status
     // alone. At least 32 characters (healthDetailsVisible).
+    // How long a readiness answer is reused (cachedHealthReport), in milliseconds; 0 checks on every probe (tests).
+    HEALTH_CACHE_MS: z.coerce.number().int().min(0).max(60_000).default(5_000),
     HEALTH_DETAILS_TOKEN: z.string().min(32, "HEALTH_DETAILS_TOKEN must be at least 32 characters").optional(),
     LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),
     DATABASE_URL: z.string().url(),

@@ -42,7 +42,7 @@ export class HealthController {
       { name: "objectStorage", required: false, probe: () => this.probeStorage() },
       // Unconfigured: uploads are accepted as "not scanned" (docs/domains/documents.md); unreachable: uploads are refused.
       { name: "malwareScanner", required: false, probe: () => this.documents.probeScanner() },
-    ]);
+    ], this.config.HEALTH_CACHE_MS);
   }
 
   /** Liveness: the process is up. */

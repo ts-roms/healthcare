@@ -40,7 +40,7 @@ export function cachedHealthReport(checks: HealthCheck[], cacheMs = HEALTH_REPOR
   let last: { at: number; report: Promise<HealthReport> } | undefined;
   return () => {
     const now = Date.now();
-    if (!last || now - last.at >= cacheMs) last = { at: now, report: healthReport(checks) };
+    if (!last || cacheMs === 0 || now - last.at >= cacheMs) last = { at: now, report: healthReport(checks) };
     return last.report;
   };
 }
