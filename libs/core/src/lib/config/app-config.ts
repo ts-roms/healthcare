@@ -60,6 +60,10 @@ const appConfigSchema = z
     // only for the first deploy, before the restricted role exists (docs/runbooks/database-roles.md).
     DATABASE_ALLOW_OWNER: booleanString.default(false),
     REDIS_URL: z.string().url().default("redis://localhost:6379"),
+    // Production requires TLS to PostgreSQL, Redis, SMTP and object storage (transportSecurityProblems). `true` exempts
+    // hosts on a private network only (*.railway.internal, private addresses, single-label service names), where the
+    // platform encrypts nothing itself: an explicit, documented choice (docs/deployment/railway.md). LiveKit is always wss.
+    ALLOW_PLAINTEXT_PRIVATE_NETWORK: booleanString.default(false),
     JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
@@ -193,6 +197,7 @@ const appConfigSchema = z
     }
     if (config.NODE_ENV === "production") {
       for (const problem of placeholderSecretProblems(config)) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
+      for (const problem of transportSecurityProblems(config)) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
     }
     const problem = integrationKeyringProblem(config);
     if (problem) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
@@ -247,6 +252,67 @@ export function placeholderSecretProblems(
       path: "LIVEKIT_API_SECRET",
       message: `must be at least ${MIN_LIVEKIT_SECRET_LENGTH} characters in production: it signs the tokens that open consultation rooms`,
     });
+  }
+  return problems;
+}
+
+/** A host on a private network: Railway's private domains, other internal suffixes, private and loopback addresses, a bare service name. */
+export function isPrivateNetworkHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!host) return false;
+  if (host === "localhost" || /\.(railway\.internal|internal|local|localhost)$/.test(host)) return true;
+  if (!host.includes(".") && !host.includes(":")) return true;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  return host === "::1" || /^f[cd][0-9a-f]{2}:/.test(host);
+}
+
+/**
+ * Zero trust for the network (audit D8): in production every connection that carries patient data or credentials is
+ * encrypted. PostgreSQL needs `sslmode=require|verify-ca|verify-full`, Redis `rediss://`, SMTP `smtps://` or
+ * `requireTLS=true`, object storage `https`, LiveKit `wss`. ALLOW_PLAINTEXT_PRIVATE_NETWORK exempts private-network
+ * hosts of the first four only.
+ */
+export function transportSecurityProblems(
+  config: Pick<AppConfig, "DATABASE_URL" | "REDIS_URL" | "ALLOW_PLAINTEXT_PRIVATE_NETWORK"> &
+    Partial<Pick<AppConfig, "SMTP_URL" | "S3_ENDPOINT" | "LIVEKIT_URL">>,
+): Array<{ path: string; message: string }> {
+  const problems: Array<{ path: string; message: string }> = [];
+  const parse = (value: string): URL | undefined => {
+    try {
+      return new URL(value);
+    } catch {
+      return undefined;
+    }
+  };
+  const exempt = (url: URL) => config.ALLOW_PLAINTEXT_PRIVATE_NETWORK && isPrivateNetworkHost(url.hostname);
+  const hint = "or, for a host on a private network only, set ALLOW_PLAINTEXT_PRIVATE_NETWORK=true (docs/deployment/railway.md)";
+
+  const db = parse(config.DATABASE_URL);
+  if (db && !["require", "verify-ca", "verify-full"].includes(db.searchParams.get("sslmode") ?? "") && !exempt(db)) {
+    problems.push({ path: "DATABASE_URL", message: `must use TLS in production: add ?sslmode=verify-full (or require), ${hint}` });
+  }
+  const redis = parse(config.REDIS_URL);
+  if (redis && redis.protocol !== "rediss:" && !exempt(redis)) {
+    problems.push({ path: "REDIS_URL", message: `must use TLS in production (rediss://), ${hint}` });
+  }
+  const smtp = config.SMTP_URL ? parse(config.SMTP_URL) : undefined;
+  if (smtp && smtp.protocol !== "smtps:" && smtp.searchParams.get("requireTLS") !== "true" && !exempt(smtp)) {
+    problems.push({
+      path: "SMTP_URL",
+      message: `must use TLS in production (smtps://, or smtp:// with ?requireTLS=true): reset links travel in these emails, ${hint}`,
+    });
+  }
+  const s3 = config.S3_ENDPOINT ? parse(config.S3_ENDPOINT) : undefined;
+  if (s3 && s3.protocol !== "https:" && !exempt(s3)) {
+    problems.push({ path: "S3_ENDPOINT", message: `must use https in production, ${hint}` });
+  }
+  const livekit = config.LIVEKIT_URL ? parse(config.LIVEKIT_URL) : undefined;
+  if (livekit && livekit.protocol !== "wss:") {
+    problems.push({ path: "LIVEKIT_URL", message: "must use wss:// in production: browsers connect to it for consultations" });
   }
   return problems;
 }

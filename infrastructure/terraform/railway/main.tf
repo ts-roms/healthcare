@@ -39,6 +39,9 @@ locals {
       PORTAL_BASE_URL = "https://${local.public_host.portal}"
       STAFF_BASE_URL  = "https://${local.public_host.staff}"
     },
+    # Railway's Postgres and Redis are reached over its private network without TLS: production refuses plain-text
+    # connections unless this exempts private-network hosts (zero-trust audit D8). Public hosts still need TLS.
+    { ALLOW_PLAINTEXT_PRIVATE_NETWORK = var.allow_plaintext_private_network ? "true" : "false" },
     # The owner connection is never silent: the services refuse it at start-up unless this says so (first deploy only).
     { for name, value in { DATABASE_ALLOW_OWNER = "true" } : name => value if !local.restricted_database },
     var.optional_settings,

@@ -93,6 +93,16 @@ variable "optional_settings" {
   default     = {}
 }
 
+variable "allow_plaintext_private_network" {
+  description = <<-EOT
+    Lets the API and workers reach PostgreSQL, Redis, SMTP and object storage without TLS when the host is on Railway's
+    private network (*.railway.internal) — Railway's database templates offer no TLS there. Public hosts always need
+    TLS, and LiveKit always wss. Set false once every connection is encrypted (docs/deployment/railway.md).
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "allow_owner_database" {
   description = <<-EOT
     Lets the API and workers connect as the database owner (Railway's postgres user) when secrets.app_database_url is

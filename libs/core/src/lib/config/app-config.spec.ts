@@ -1,9 +1,21 @@
 import { randomBytes } from "node:crypto";
-import { devSecretsLogged, integrationPayloadKeyring, loadAppConfig, malwareScanRequired, passwordBreachCheckEnabled } from "./app-config";
+import {
+  devSecretsLogged,
+  integrationPayloadKeyring,
+  isPrivateNetworkHost,
+  loadAppConfig,
+  malwareScanRequired,
+  passwordBreachCheckEnabled,
+} from "./app-config";
 
 const key = () => randomBytes(32).toString("base64");
 const mfa = key();
-const base = { DATABASE_URL: "postgres://u:p@localhost:5432/db", JWT_ACCESS_SECRET: randomBytes(32).toString("hex"), MFA_ENCRYPTION_KEY: mfa };
+const base = {
+  DATABASE_URL: "postgres://u:p@db.example.ph:5432/db?sslmode=verify-full",
+  REDIS_URL: "rediss://cache.example.ph:6380",
+  JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
+  MFA_ENCRYPTION_KEY: mfa,
+};
 
 describe("integration payload keys", () => {
   it("falls back to MFA_ENCRYPTION_KEY outside production only", () => {
@@ -98,6 +110,47 @@ describe("blank optional settings", () => {
   });
 });
 
+describe("transport security in production", () => {
+  const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+
+  it("refuses plain-text database, Redis, SMTP and object storage connections, and LiveKit without wss", () => {
+    expect(() => loadAppConfig({ ...production, DATABASE_URL: "postgres://u:p@db.example.ph:5432/db" })).toThrow(/DATABASE_URL: must use TLS/);
+    expect(() => loadAppConfig({ ...production, REDIS_URL: "redis://cache.example.ph:6379" })).toThrow(/REDIS_URL: must use TLS/);
+    expect(() => loadAppConfig({ ...production, SMTP_URL: "smtp://u:p@mail.example.ph:587" })).toThrow(/SMTP_URL: must use TLS/);
+    expect(() => loadAppConfig({ ...production, S3_ENDPOINT: "http://storage.example.ph" })).toThrow(/S3_ENDPOINT: must use https/);
+    expect(() => loadAppConfig({ ...production, LIVEKIT_URL: "ws://video.example.ph" })).toThrow(/LIVEKIT_URL: must use wss/);
+    expect(() =>
+      loadAppConfig({ ...production, SMTP_URL: "smtp://u:p@mail.example.ph:587?requireTLS=true", S3_ENDPOINT: "https://s3.example.ph" }),
+    ).not.toThrow();
+  });
+
+  it("exempts private-network hosts only when told to, and never a public one", () => {
+    const railway = {
+      ...production,
+      DATABASE_URL: "postgresql://u:p@postgres.railway.internal:5432/railway",
+      REDIS_URL: "redis://default:p@redis.railway.internal:6379?family=0",
+    };
+    expect(() => loadAppConfig(railway)).toThrow(/DATABASE_URL/);
+    expect(() => loadAppConfig({ ...railway, ALLOW_PLAINTEXT_PRIVATE_NETWORK: "true" })).not.toThrow();
+    expect(() => loadAppConfig({ ...railway, ALLOW_PLAINTEXT_PRIVATE_NETWORK: "true", SMTP_URL: "smtp://u:p@smtp.mailprovider.com:587" })).toThrow(/SMTP_URL/);
+    expect(() => loadAppConfig({ ...railway, ALLOW_PLAINTEXT_PRIVATE_NETWORK: "true", LIVEKIT_URL: "ws://livekit.railway.internal:7880" })).toThrow(
+      /LIVEKIT_URL/,
+    );
+  });
+
+  it("knows a private-network host", () => {
+    for (const host of ["postgres.railway.internal", "10.1.2.3", "172.20.0.5", "192.168.1.9", "127.0.0.1", "redis", "[fd12:3456::1]"])
+      expect(isPrivateNetworkHost(host)).toBe(true);
+    for (const host of ["db.example.ph", "8.8.8.8", "172.32.0.1", "smtp.mailprovider.com"]) expect(isPrivateNetworkHost(host)).toBe(false);
+  });
+
+  it("does not apply outside production", () => {
+    expect(() =>
+      loadAppConfig({ ...base, NODE_ENV: "development", DATABASE_URL: "postgres://u:p@localhost:5432/db", REDIS_URL: "redis://localhost:6379" }),
+    ).not.toThrow();
+  });
+});
+
 describe("sample credentials in production", () => {
   const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
 
@@ -146,7 +199,7 @@ describe("breached-password screening", () => {
 });
 
 describe("placeholder secrets", () => {
-  const production = { DATABASE_URL: "postgres://u:p@localhost:5432/db", NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+  const production = { DATABASE_URL: base.DATABASE_URL, REDIS_URL: base.REDIS_URL, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
   const strong = { JWT_ACCESS_SECRET: randomBytes(32).toString("hex"), MFA_ENCRYPTION_KEY: key() };
 
   it("refuses the examples from .env.example and guessable secrets in production", () => {

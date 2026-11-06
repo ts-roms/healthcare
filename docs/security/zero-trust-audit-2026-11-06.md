@@ -42,6 +42,7 @@ Medium findings fixed next:
 | Low | A staff session not refreshed for `SESSION_IDLE_MINUTES` (default 12 hours) ends at its next refresh.                                                                                                                                                                                                            | Fixed  |
 | Low | Sign-in challenges (staff and MyHealth) and live-update tickets are single-use (migration `0147`); every token carries a random id.                                                                                                                                                                              | Fixed  |
 | Low | HSTS on the staff, portal and kiosk apps includes subdomains.                                                                                                                                                                                                                                                    | Fixed  |
+| D8  | Production requires TLS to PostgreSQL, Redis, SMTP and object storage and `wss` to LiveKit (`transportSecurityProblems`); `ALLOW_PLAINTEXT_PRIVATE_NETWORK` exempts private-network hosts only (Terraform sets it for Railway).                                                                                  | Fixed  |
 
 **Deployment notes:** an existing deployment still on the owner connection must set `DATABASE_ALLOW_OWNER=true` (or
 switch to the restricted role) before this release, or its services will not start. An instrument gateway must be
