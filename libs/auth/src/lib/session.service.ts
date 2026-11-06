@@ -9,6 +9,7 @@ import {
   type RequestMetadata,
   sha256Hex,
   UnauthenticatedError,
+  sessionIdle,
 } from "@healthcare/core";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { authSession, type AuthSessionRecord } from "./auth.schema";
@@ -26,11 +27,6 @@ export type RotateResult =
  * previously rotated token being presented again means it was stolen, so the
  * whole session is revoked.
  */
-/** Whether a session last used at `lastUsedAt` has been idle past `idleMinutes` (0: never). */
-export function sessionIdle(lastUsedAt: Date, now: Date, idleMinutes: number): boolean {
-  return idleMinutes > 0 && now.getTime() - lastUsedAt.getTime() > idleMinutes * 60_000;
-}
-
 @Injectable()
 export class SessionService {
   constructor(

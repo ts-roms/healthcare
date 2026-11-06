@@ -29,6 +29,7 @@ import {
   withinOrganization,
   ConsumedTokens,
   tokenExpiry,
+  sessionIdle,
 } from "@healthcare/core";
 import { facility, organization } from "@healthcare/organization";
 import { and, count, desc, eq, gt, isNull, sql, or } from "drizzle-orm";
@@ -534,6 +535,11 @@ export class PortalAccountService {
             return { kind: "rejected", message: "Invalid or expired token" };
           }
           if (current.revokedAt || current.expiresAt <= new Date()) return { kind: "rejected", message: "Invalid or expired token" };
+          // Zero trust for an abandoned device: a session nobody refreshed within the idle limit is ended, not renewed.
+          if (sessionIdle(current.lastUsedAt, new Date(), this.config.PORTAL_SESSION_IDLE_MINUTES)) {
+            await tx.update(patientPortalSession).set({ revokedAt: new Date(), revokedReason: "idle" }).where(eq(patientPortalSession.id, current.id));
+            return { kind: "rejected", message: "Your session ended after a period without use. Sign in again." };
+          }
           const account = await this.activeAccount(tx, current.organizationId, current.accountId);
           if (!account || !(await this.hasPortalConsent(tx, account.organizationId, account.patientId))) {
             await tx

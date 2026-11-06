@@ -70,6 +70,9 @@ const appConfigSchema = z
     // A staff session not refreshed for this long ends at its next refresh (server-side idle limit, behind the staff
     // app's own STAFF_IDLE_MINUTES in the browser). 0 turns it off. Default 12 hours: a browser left open overnight.
     SESSION_IDLE_MINUTES: z.coerce.number().int().min(0).max(43_200).default(720),
+    // The same for MyHealth sessions (browser and phone): not refreshed for this long, the next refresh ends the session
+    // and the patient signs in again. 0 turns it off. Default 12 hours, as for staff; a longer window suits a phone app.
+    PORTAL_SESSION_IDLE_MINUTES: z.coerce.number().int().min(0).max(43_200).default(720),
     MFA_ENCRYPTION_KEY: z.string().refine((value) => Buffer.from(value, "base64").length === 32, "MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
     CORS_ORIGINS: z
       .string()

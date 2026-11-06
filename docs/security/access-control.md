@@ -68,6 +68,9 @@ proxy refuses every new password until that is arranged.
 is ended at its next refresh (`revoked_reason = 'idle'`; `sessionIdle` in `libs/auth/src/lib/session.service.ts`), so
 a browser closed or abandoned without signing out does not keep a live session for the full refresh lifetime. A tab
 left open and polling still refreshes, which is what the browser's own idle sign-out below is for.
+MyHealth sessions (browser and phone) follow the same rule with their own setting, `PORTAL_SESSION_IDLE_MINUTES`
+(default 720; `0` off): a patient whose app or browser has not refreshed for that long signs in again (with a remembered
+browser and two-step verification as before). A longer window suits a phone app opened once a day.
 
 A staff browser left alone is signed out after `STAFF_IDLE_MINUTES` without keyboard, pointer or touch activity
 (default 20; `0` turns it off; `apps/staff/src/components/idle-sign-out.tsx`, rules in `apps/staff/src/lib/idle.ts`):

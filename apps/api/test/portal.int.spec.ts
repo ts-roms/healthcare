@@ -160,6 +160,19 @@ describe("patient portal sign-in", () => {
     expect((await auditRows(ctx.pool, `action = 'portal.session-revoke' AND reason = 'refresh_token_reuse'`)).length).toBe(1);
   });
 
+  it("ends a MyHealth session left idle past the server-side limit at its next refresh", async () => {
+    const session = await portalLogin("juan@example.ph").expect(200);
+    // Not refreshed for 13 hours (the default limit is 12).
+    await ctx.pool.query(
+      "UPDATE patient_portal_session SET last_used_at = now() - interval '13 hours' WHERE refresh_token_hash = encode(sha256(convert_to($1, 'UTF8')), 'hex')",
+      [session.body.refreshToken],
+    );
+    await ctx.http().post("/api/v1/portal/auth/refresh").send({ refreshToken: session.body.refreshToken }).expect(401);
+    await ctx.http().get("/api/v1/portal/me").set(as(session.body.accessToken)).expect(401);
+    const { rows } = await ctx.pool.query("SELECT 1 FROM patient_portal_session WHERE revoked_reason = 'idle'");
+    expect(rows).toHaveLength(1);
+  });
+
   it("signs in with email and password, and signs out", async () => {
     await portalLogin("juan@example.ph", "wrong-password-123").expect(401);
     const session = await portalLogin("JUAN@example.ph").expect(200);
