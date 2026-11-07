@@ -13,7 +13,9 @@
   `locked`). The second step (an authenticator code, a passkey), reached only
   after the password, still says `account_locked`.
 - TOTP MFA (RFC 6238), optional unless the organization requires it (below).
-  Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
+  Secrets are encrypted at rest with AES-256-GCM, bound to their account's row and sealed with a key ring
+  (`MFA_ENCRYPTION_KEY`, `MFA_ENCRYPTION_KEYS`, `MFA_ENCRYPTION_KEY_ID`; older values re-sealed on use;
+  `docs/runbooks/mfa-key-rotation.md`).
   Enrollment requires confirming a code. Each code works once: the last
   accepted time step is kept (`app_user.mfa_last_used_step`, migration
   `0092`) and a code for that step or an earlier one is refused, checked with

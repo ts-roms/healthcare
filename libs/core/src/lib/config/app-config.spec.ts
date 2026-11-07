@@ -5,6 +5,7 @@ import {
   isPrivateNetworkHost,
   loadAppConfig,
   malwareScanRequired,
+  mfaKeyring,
   passwordBreachCheckEnabled,
 } from "./app-config";
 
@@ -229,5 +230,26 @@ describe("devSecretsLogged", () => {
     expect(devSecretsLogged(load({}))).toBe(false);
     expect(devSecretsLogged(load({ DEV_LOG_SECRETS: "true" }))).toBe(true);
     expect(devSecretsLogged(load({ DEV_LOG_SECRETS: "true", NODE_ENV: "test" }))).toBe(false);
+  });
+});
+
+describe("two-step verification key ring", () => {
+  it("is MFA_ENCRYPTION_KEY alone by default, under the id default", () => {
+    const ring = mfaKeyring(loadAppConfig(base));
+    expect(ring.currentKeyId).toBe("default");
+    expect([...ring.keys.keys()]).toEqual(["default"]);
+  });
+
+  it("adds keys for rotation and makes the named one current", () => {
+    const next = key();
+    const ring = mfaKeyring(loadAppConfig({ ...base, MFA_ENCRYPTION_KEYS: JSON.stringify({ "2026-11": next }), MFA_ENCRYPTION_KEY_ID: "2026-11" }));
+    expect(ring.currentKeyId).toBe("2026-11");
+    expect(ring.keys.get("2026-11")).toBe(next);
+    expect(ring.keys.get("default")).toBe(base.MFA_ENCRYPTION_KEY);
+  });
+
+  it("refuses a current key that is not configured, or a default that is not MFA_ENCRYPTION_KEY", () => {
+    expect(() => loadAppConfig({ ...base, MFA_ENCRYPTION_KEY_ID: "missing" })).toThrow("MFA_ENCRYPTION_KEY_ID");
+    expect(() => loadAppConfig({ ...base, MFA_ENCRYPTION_KEYS: JSON.stringify({ default: key() }) })).toThrow("MFA_ENCRYPTION_KEYS");
   });
 });

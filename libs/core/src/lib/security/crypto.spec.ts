@@ -4,8 +4,10 @@ import {
   EncryptionKeyUnavailableError,
   encryptSecret,
   type Keyring,
+  openBound,
   openWithKeyring,
   randomToken,
+  sealBound,
   sealedKeyId,
   sealWithKeyring,
   sha256Hex,
@@ -108,5 +110,51 @@ describe("key rings (sealWithKeyring / openWithKeyring)", () => {
     expect(() => openWithKeyring(`v9.${sealed.slice(3)}`, during)).toThrow("Unsupported encrypted secret format");
     expect(() => decryptSecret(sealed, newKey)).toThrow("Unsupported encrypted secret format");
     expect(() => sealWithKeyring("x", { currentKeyId: "gone", keys: new Map() })).toThrow(EncryptionKeyUnavailableError);
+  });
+});
+
+describe("bound secrets (sealBound / openBound)", () => {
+  const oldKey = randomBytes(32).toString("base64");
+  const newKey = randomBytes(32).toString("base64");
+  const before: Keyring = { currentKeyId: "default", keys: new Map([["default", oldKey]]) };
+  const after: Keyring = {
+    currentKeyId: "2026-11",
+    keys: new Map([
+      ["default", oldKey],
+      ["2026-11", newKey],
+    ]),
+  };
+
+  it("opens only for the row it was sealed for", () => {
+    const sealed = sealBound("JBSWY3DPEHPK3PXP", before, "app_user:a");
+    expect(sealed).toMatch(/^v3\.default\./);
+    expect(openBound(sealed, before, "app_user:a")).toEqual({ plaintext: "JBSWY3DPEHPK3PXP", current: true });
+    // Copied onto another account, it no longer opens.
+    expect(() => openBound(sealed, before, "app_user:b")).toThrow();
+    expect(() => openBound(sealed, before, "patient_portal_account:a")).toThrow();
+  });
+
+  it("refuses a value relabelled with another key id", () => {
+    const sealed = sealBound("secret", after, "app_user:a");
+    const relabelled = sealed.replace(/^v3\.2026-11\./, "v3.default.");
+    expect(() => openBound(relabelled, after, "app_user:a")).toThrow();
+  });
+
+  it("still opens secrets sealed before binding, and says they should be sealed again", () => {
+    expect(openBound(encryptSecret("legacy", oldKey), before, "app_user:a")).toEqual({ plaintext: "legacy", current: false });
+    const keyed = sealWithKeyring("keyed", before).sealed;
+    expect(openBound(keyed, before, "app_user:a")).toEqual({ plaintext: "keyed", current: false });
+  });
+
+  it("rotates: a secret sealed with the old key opens after the new one is current, and is reported for re-sealing", () => {
+    const sealedWithOld = sealBound("rotate-me", before, "app_user:a");
+    expect(openBound(sealedWithOld, after, "app_user:a")).toEqual({ plaintext: "rotate-me", current: false });
+    const resealed = sealBound("rotate-me", after, "app_user:a");
+    expect(resealed).toMatch(/^v3\.2026-11\./);
+    expect(openBound(resealed, after, "app_user:a").current).toBe(true);
+    // Once the old key is removed, a value nobody re-sealed names a key that is gone.
+    expect(() => openBound(sealedWithOld, { currentKeyId: "2026-11", keys: new Map([["2026-11", newKey]]) }, "app_user:a")).toThrow(
+      EncryptionKeyUnavailableError,
+    );
   });
 });

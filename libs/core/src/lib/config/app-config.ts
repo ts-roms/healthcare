@@ -74,6 +74,11 @@ const appConfigSchema = z
     // and the patient signs in again. 0 turns it off. Default 12 hours, as for staff; a longer window suits a phone app.
     PORTAL_SESSION_IDLE_MINUTES: z.coerce.number().int().min(0).max(43_200).default(720),
     MFA_ENCRYPTION_KEY: z.string().refine((value) => Buffer.from(value, "base64").length === 32, "MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
+    // Further keys for two-step verification secrets, by id, for rotation (mfaKeyring): new secrets are sealed with
+    // MFA_ENCRYPTION_KEY_ID (default: MFA_ENCRYPTION_KEY, id "default"); older ones still open and are sealed again with
+    // the current key the next time they are used (docs/runbooks/mfa-key-rotation.md).
+    MFA_ENCRYPTION_KEYS: jsonKeyMap.optional(),
+    MFA_ENCRYPTION_KEY_ID: z.string().regex(ENCRYPTION_KEY_ID_PATTERN, "a key id from MFA_ENCRYPTION_KEYS").optional(),
     CORS_ORIGINS: z
       .string()
       .default("")
@@ -202,6 +207,8 @@ const appConfigSchema = z
       for (const problem of placeholderSecretProblems(config)) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
       for (const problem of transportSecurityProblems(config)) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
     }
+    const mfaProblem = mfaKeyringProblem(config);
+    if (mfaProblem) ctx.addIssue({ code: "custom", path: [mfaProblem.path], message: mfaProblem.message });
     const problem = integrationKeyringProblem(config);
     if (problem) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
     if (config.PAYMONGO_SECRET_KEY && (!config.PAYMONGO_WEBHOOK_SECRET || !config.PAYMONGO_PAYMENT_METHODS)) {
@@ -349,6 +356,37 @@ type IntegrationKeyConfig = Pick<
 
 /** Key id of INTEGRATION_PAYLOAD_KEY (the single-key configuration). */
 export const DEFAULT_INTEGRATION_KEY_ID = "default";
+/** Key id of MFA_ENCRYPTION_KEY in the two-step verification key ring. */
+export const DEFAULT_MFA_KEY_ID = "default";
+
+type MfaKeyConfig = Pick<AppConfig, "MFA_ENCRYPTION_KEY" | "MFA_ENCRYPTION_KEYS" | "MFA_ENCRYPTION_KEY_ID">;
+
+function mfaKeys(config: MfaKeyConfig): Map<string, string> {
+  const keys = new Map(Object.entries(config.MFA_ENCRYPTION_KEYS ?? {}));
+  if (!keys.has(DEFAULT_MFA_KEY_ID)) keys.set(DEFAULT_MFA_KEY_ID, config.MFA_ENCRYPTION_KEY);
+  return keys;
+}
+
+function mfaKeyringProblem(config: MfaKeyConfig): { path: string; message: string } | undefined {
+  const listed = config.MFA_ENCRYPTION_KEYS?.[DEFAULT_MFA_KEY_ID];
+  if (listed && listed !== config.MFA_ENCRYPTION_KEY) {
+    return { path: "MFA_ENCRYPTION_KEYS", message: `key id "${DEFAULT_MFA_KEY_ID}" is MFA_ENCRYPTION_KEY's; list it with the same key or use another id` };
+  }
+  if (config.MFA_ENCRYPTION_KEY_ID && !mfaKeys(config).has(config.MFA_ENCRYPTION_KEY_ID)) {
+    return { path: "MFA_ENCRYPTION_KEY_ID", message: "names a key that is neither MFA_ENCRYPTION_KEY nor in MFA_ENCRYPTION_KEYS" };
+  }
+  return undefined;
+}
+
+/**
+ * The key ring of two-step verification secrets (configuration already validated): sealed with the current key and
+ * bound to their row (sealBound); any listed key opens what it sealed, so a key is rotated by adding the new one and
+ * making it current, then removing the old once nothing needs it.
+ */
+export function mfaKeyring(config: MfaKeyConfig): Keyring {
+  return { currentKeyId: config.MFA_ENCRYPTION_KEY_ID ?? DEFAULT_MFA_KEY_ID, keys: mfaKeys(config) };
+}
+
 /** Key id of the MFA_ENCRYPTION_KEY fallback (development and tests only). */
 export const DEVELOPMENT_INTEGRATION_KEY_ID = "development";
 
