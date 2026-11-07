@@ -26,7 +26,9 @@ env:
 jobs:
   ci:
     name: Lint, typecheck, test, build
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, which Playwright 1.56 cannot install Chromium for (`playwright install
+    # --with-deps` fails). Move to a newer image together with a Playwright release that supports it.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     # PostgreSQL for the API integration tests (apps/api `integration` target) and the E2E journeys (apps/e2e, which
     # create their own `healthcare_e2e` database); Redis for the API's shared rate-limit counters in the integration tests
