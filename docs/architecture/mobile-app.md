@@ -1,5 +1,14 @@
 # Mobile app — requirements and status
 
+> **Where the app lives (since v1.1.0):** the MyHealth mobile app is no longer in this repository. It is its own project, `myhealth-mobile`
+> (kept next to this repository; the history of `apps/mobile` was carried over with `git subtree split`), with its own CI, its own copies of
+> `@healthcare/domain` `portal-results`, `proxy-access` and `signature` under `src/domain`, and the store release runbook (`docs/mobile-release.md`
+> there; release builds and APKs signed by EAS with each organization's key, never committed — zero-trust finding F4). This note stays here as the
+> record of requirements and decisions (D1–D14) and of the API side, which is unchanged: `/api/v1/portal/*`, Expo push (`EXPO_PUSH_ENABLED`,
+> `push_subscription` rows of kind `expo`, `ExpoPushReceipts`). Below, `apps/mobile/…` paths and `pnpm nx … mobile` / `pnpm mobile:apk` commands
+> describe the app as it was when it moved: read them as paths from that project's root and its own scripts (`pnpm check`, `pnpm build:apk`).
+> A change here to a `/portal/*` route the app uses, or to one of those `@healthcare/domain` files, must be mirrored in that project.
+
 **Status: first slice built** — patients sign in, read their released results and can receive push notifications on the phone (`apps/mobile`, [§7](#7-first-slice-apps-mobile); push through the Expo push service, D6, [§8](#8-push-to-the-app-d6)). Only
 what the decisions in [§4](#4-decisions-needed-before-implementation) cover may be built; the rest waits for its decision. This note separates
 what the repository already establishes from what still has to be decided; it does not add requirements of its own.

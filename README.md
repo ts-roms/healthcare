@@ -18,7 +18,7 @@ Expo ─ React Native ─ expo-router ──────────────
 - **Backend — implemented (Phase 1 Foundation, Phase 2 Clinic, Phase 3 Laboratory, Phase 4a portal records, Phase 4b online booking, Phase 4c outreach, Phase 5 Telemedicine, Phase 6 Dental, Phase 7 Billing, Phase 8 FHIR R4 read and interoperability adapter stubs, Phase 9 inventory, dispensing and laboratory quality; [`CLAUDE.md`](./CLAUDE.md) §0 has the details), including:** authentication with MFA, RBAC, Patient Master, audit, documents, notifications; scheduling, queue, triage, encounters, diagnoses, prescriptions, care plans; laboratory catalog, orders, specimens, versioned results with verification/approval/release, critical values, worklists and trends ([docs](docs/domains/laboratory.md)). See [docs/architecture/overview.md](docs/architecture/overview.md).
 - **Staff app — connected for sign-in and patients:** sign-in with MFA, permission-based navigation, facility selection, patient lookup, the patient record (with allergies and clinical summary) and registration with duplicate review, the queue (walk-in check-in, call, move), triage and vital signs, the doctor's encounter workspace (SOAP note, diagnoses, prescriptions, follow-up booking, care plans, sign, amend), and appointments (day schedule, booking from open slots, confirm, check in, cancel, no-show) run against the API ([how](docs/architecture/staff-app.md)). The laboratory runs against the API too: workbench, critical results, catalog, ordering from the encounter, and results with trends on the patient record. Online consultations run end to end: MyHealth questionnaire and waiting room, LiveKit video, the telemedicine encounter, and escalation to in-person care. Billing runs against the API: charges captured from signed consultations and laboratory orders, invoices with statutory discounts (with evidence) and HMO/PhilHealth coverage, payments, refunds and a daily report. Dental runs against the API too: the day's dental visits (`/dental`), the patient's dental record with the odontogram (`/dental/patients/[id]`) and dental settings (`/dental/settings`).
 - **Patient portal — connected for sign-in:** staff invite a patient from their record (one-time activation code, requires portal-access consent); the patient activates and signs in to MyHealth and sees their visits, released lab results in plain language with trends, active medicines and care plan, and gets an SMS/email (no clinical detail) when results are ready, books, moves or cancels visits online within the clinic's published schedules, and sees their bills ([how](docs/architecture/portal-app.md)). MyHealth also has a messages inbox (notices and messages from the clinic), and patients get follow-up reminders from their care plan and a "we missed you" message after a no-show — all subject to consent and communication preferences. The Healthcare Design System (`libs/ui`) is documented in Storybook.
-- **Patient mobile app — first slice:** MyHealth on iPhone and Android (`apps/mobile`, Expo): sign-in with two-step verification, released lab results with their history, and push notifications, against the same `/api/v1/portal` API as the web portal. Not yet tried on a device; store release is set up per organization but no build has been made. See [Mobile app](#mobile-app).
+- **Patient mobile app — first slice:** MyHealth on iPhone and Android (Expo; its own project, `myhealth-mobile`, since v1.1.0): sign-in with two-step verification, released lab results with their history, and push notifications, against the same `/api/v1/portal` API as the web portal. Not yet tried on a device; store release is set up per organization but no build has been made. See [Mobile app](#mobile-app).
 
 ## Getting started
 
@@ -36,7 +36,6 @@ pnpm dev:integration-worker  # integration worker
 # Frontend (both need the API; staff sign-in: SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD)
 pnpm dev:staff        # http://localhost:3000  — staff workstation
 pnpm dev:portal       # http://localhost:3001  — patient portal (MyHealth)
-pnpm dev:mobile       # Expo dev server — patient mobile app (see "Mobile app" below)
 pnpm storybook        # http://localhost:6006  — design system
 pnpm lint && pnpm typecheck && pnpm test && pnpm build
 pnpm test:integration # API integration tests (wipes TEST_DATABASE_URL)
@@ -80,47 +79,12 @@ facility / department, TOTP MFA, a transactional event outbox, and API integrati
 
 ## Mobile app
 
-`apps/mobile` is the patient app (MyHealth) for iPhone and Android, built with Expo and React Native. It is a client of the same
-patient API as the web portal (`/api/v1/portal/*`) and holds no business rules: which results a patient may see, sign-in rules and
-notifications are all decided by the API. Requirements, decisions and what is verified: [mobile-app.md](docs/architecture/mobile-app.md).
-
-### What patients can do
-
-| Screen        | What it does                                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| Sign-in       | Email and password, then the authenticator or recovery code if two-step verification is on. Accounts are activated on the web portal. |
-| Your results  | Latest released result per test in plain language (same wording as the web portal), in the clinic's time zone.                        |
-| Result        | A test's history, each value with the range it had at the time.                                                                       |
-| Notifications | Turn notifications on or off for this phone, send a test, remove other devices. Notices never contain a result, name or reason.       |
-
-Activation, password reset, visits, booking, medicines, bills, messages and everything else stay in MyHealth on the web for now.
-
-### Develop
-
-```bash
-# 1. The API must run (see Getting started) and have a patient with MyHealth activated on the web portal.
-# 2. Point the app at it — a phone or emulator cannot reach "localhost"; use the computer's network address
-#    (the Android emulator reaches the host at 10.0.2.2).
-cp apps/mobile/.env.example apps/mobile/.env.local   # EXPO_PUBLIC_API_BASE_URL, EXPO_PUBLIC_ORGANIZATION_CODE (seeded: demo)
-pnpm dev:mobile                                      # scan the QR code with Expo Go, or open in a development build
-
-pnpm nx run-many -t lint typecheck test -p mobile    # what CI runs for the app
-```
-
-- **Expo Go** runs sign-in and results; notifications are switched off there (the Notifications screen says a development build is
-  needed), because Expo Go cannot receive remote notifications. **Push** needs a development build (`eas build --profile development`)
-  linked to an Expo project, and `EXPO_PUSH_ENABLED=true` for the API and notification worker.
-- **Code layout:** screens in `src/app` (expo-router), the session and API client in `src/lib` (platform-neutral, unit-tested with
-  Vitest). The refresh token lives only in the phone's secure storage; the access token in memory.
-- **Shared code:** only platform-neutral `type:domain` libraries — today `@healthcare/domain/portal-results` (result types and wording,
-  shared with the web portal). Lint refuses backend and web-only imports.
-- **Settings** (`apps/mobile/.env.example`) are built into the app and readable in it — never a secret.
-
-### Release
-
-One store app per organization, published under the organization's own Apple and Google accounts and built with EAS Build
-(`apps/mobile/app.config.ts`, `apps/mobile/eas.json`). Each organization sets its own identifiers — none is in the repository, and builds
-refuse to run without them. Steps, store listing inputs and the release checklist: [mobile-release.md](docs/deployment/mobile-release.md).
+The MyHealth patient app for iPhone and Android (Expo, React Native) is its own project, `myhealth-mobile`, kept next to this
+repository since release v1.1.0 (it was `apps/mobile`; its history went with it). It is a client of the same patient API as the web
+portal (`/api/v1/portal/*`) and holds no business rules; the API side — those routes and Expo push (`EXPO_PUSH_ENABLED`,
+`push_subscription` rows of kind `expo`, push receipts) — stays here. Development, CI and store release (builds signed by EAS with
+each organization's key; no APK in either repository) are documented in that project. Requirements and decisions:
+[mobile-app.md](docs/architecture/mobile-app.md).
 
 ## Releases
 
