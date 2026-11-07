@@ -42,7 +42,10 @@ export function SettingsFrame({ groups, pathname, children }: { groups: Settings
           ))}
         </NativeSelect>
       </div>
-      <nav aria-label="Settings" className="sticky top-0 hidden h-[calc(100dvh-3.5rem)] w-56 shrink-0 self-start overflow-y-auto border-r bg-card px-3 py-4 lg:block">
+      <nav
+        aria-label="Settings"
+        className="sticky top-0 hidden h-[calc(100dvh-3.5rem)] w-56 shrink-0 self-start overflow-y-auto border-r bg-card px-3 py-4 lg:block"
+      >
         <Link
           href={SETTINGS_HOME}
           aria-current={current === SETTINGS_HOME ? "page" : undefined}

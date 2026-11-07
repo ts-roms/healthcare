@@ -7,6 +7,7 @@ Implement the complete touchscreen kiosk interface using the existing React + Ty
 Create a professional hospital kiosk experience.
 
 The design must be:
+
 - Modern.
 - Clean.
 - Accessible.
@@ -31,6 +32,7 @@ Use the existing UI component library and design tokens.
 ## Full Registration Form
 
 Implement:
+
 - Personal information.
 - Date of birth.
 - Sex according to the existing patient model.
@@ -61,6 +63,7 @@ Use React Hook Form and Zod if compatible with the existing project.
 ## Ticket Screen
 
 Display:
+
 - Queue number.
 - Department.
 - Date and time.

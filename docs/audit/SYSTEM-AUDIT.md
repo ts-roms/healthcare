@@ -29,12 +29,14 @@ Do not assume a function, file, or package is unused merely because it has no ob
 Identify and classify the following:
 
 ### A. Unused imports
+
 - Imported functions, types, classes, constants, and modules that are never referenced.
 - Imports that became redundant after previous refactoring.
 - Duplicate imports from the same module.
 - Imports that exist only for required side effects, ensuring these are preserved.
 
 ### B. Unused functions and methods
+
 - Exported and non-exported functions with no verified callers.
 - Unused class methods and service methods.
 - Unused React hooks, custom hooks, callbacks, and event handlers.
@@ -42,12 +44,14 @@ Identify and classify the following:
 - Obsolete functions superseded by newer implementations.
 
 ### C. Unused variables and constants
+
 - Unreferenced variables, constants, parameters, and state declarations.
 - Unnecessary state and derived values that can be calculated directly.
 - Dead assignments and values that are overwritten before being read.
 - Unused types, interfaces, enums, schemas, and constants.
 
 ### D. Unused files and modules
+
 - Source files with no verified importers or runtime references.
 - Obsolete components, services, API clients, and utilities.
 - Unused tests, fixtures, mock files, and outdated implementations.
@@ -155,6 +159,7 @@ Do not classify code as confirmed unused based solely on the absence of text-sea
 Before modifying source files, produce a structured report with the following sections:
 
 ### 1. Executive Summary
+
 - Overall codebase health observations.
 - Total findings by category.
 - High-risk issues requiring investigation.
@@ -162,18 +167,23 @@ Before modifying source files, produce a structured report with the following se
 - Main limitations of the audit.
 
 ### 2. Unused Code Inventory
+
 A table containing the file, symbol, category, evidence, confidence, risk, and recommended action.
 
 ### 3. Dependency Audit
+
 A table listing each potentially unused or redundant package, its purpose, evidence of usage, removal risk, and recommendation.
 
 ### 4. Duplicate Implementation Inventory
+
 A table identifying the duplicated implementations, their locations, behavioral differences, and proposed canonical implementation.
 
 ### 5. Dead Code and Redundant Logic
+
 List obsolete branches, redundant conditions, unused configurations, and other simplification opportunities.
 
 ### 6. Prioritized Cleanup Plan
+
 Group findings into:
 
 - **Priority 1:** Safe, high-confidence cleanup.
@@ -182,6 +192,7 @@ Group findings into:
 - **Priority 4:** Risky or uncertain items requiring manual review.
 
 ### 7. Validation Plan
+
 Define the checks required to demonstrate that the cleanup has not introduced regressions.
 
 Include a baseline comparison against the current codebase.

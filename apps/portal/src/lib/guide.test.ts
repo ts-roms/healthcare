@@ -21,7 +21,9 @@ describe("patient guide", () => {
   });
 
   it("ends the guide with the manual's questions for patients, and only those", () => {
-    const faq = patientFaq("# 14. FAQ\n\n## FAQ\n\n### For staff\n\n**1. Staff?**\nAnswer.\n\n### For patients\n\n**2. Patients?**\nAnswer for patients.\n\n## Related chapters\n\n- x\n");
+    const faq = patientFaq(
+      "# 14. FAQ\n\n## FAQ\n\n### For staff\n\n**1. Staff?**\nAnswer.\n\n### For patients\n\n**2. Patients?**\nAnswer for patients.\n\n## Related chapters\n\n- x\n",
+    );
     expect(faq).toBe("## Frequently asked questions\n\n**2. Patients?**\nAnswer for patients.");
     expect(patientFaq("# Nothing\n\n## FAQ\n\n### For staff\n\nOnly staff\n")).toBe("");
     const guide = patientGuideWithFaq(CHAPTER, FAQ);

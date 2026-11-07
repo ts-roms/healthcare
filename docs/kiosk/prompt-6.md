@@ -29,6 +29,7 @@ Use safe, controlled testing. Do not perform destructive testing against product
 ## Queue Integrity Audit
 
 Test:
+
 - Duplicate ticket generation.
 - Concurrent ticket generation.
 - Concurrent Call Next.
@@ -67,6 +68,7 @@ Test complete journeys:
 First generate a comprehensive audit report.
 
 Classify findings:
+
 - Critical.
 - High.
 - Medium.
@@ -74,6 +76,7 @@ Classify findings:
 - Informational.
 
 Provide:
+
 - Evidence.
 - Affected files.
 - Reproduction steps.

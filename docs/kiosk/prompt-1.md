@@ -1,4 +1,5 @@
 # MASTER IMPLEMENTATION PROMPT
+
 # Healthcare Platform — Patient Self-Service Kiosk & Digital Queue Management
 
 Act as a Principal Software Architect, Senior NestJS Engineer, Senior Next.js Engineer, PostgreSQL Database Architect, and Healthcare Systems Security Engineer.
@@ -12,8 +13,9 @@ Your task is to design and implement a production-quality Patient Self-Service K
 IMPORTANT: This is an extension of an existing healthcare platform, NOT a new standalone hospital management system.
 
 ==================================================
+
 1. EXISTING ARCHITECTURE — MUST BE PRESERVED
-==================================================
+   \==================================================
 
 This repository uses:
 
@@ -50,13 +52,13 @@ Follow the repository's CLAUDE.md, Nx dependency boundaries, architecture docume
 
 Do not introduce Prisma, TypeORM, a second ORM, a second database, or another independent queue engine.
 
-==================================================
-2. EXISTING FUNCTIONALITY TO REUSE
+================================================== 2. EXISTING FUNCTIONALITY TO REUSE
 ==================================================
 
 Inspect and reuse the following existing functionality:
 
 PATIENT:
+
 - Patient Master.
 - Patient registration.
 - Patient lookup.
@@ -68,6 +70,7 @@ PATIENT:
 - Consent management.
 
 CLINIC:
+
 - Walk-in check-in.
 - Queue management.
 - Queue calling.
@@ -81,6 +84,7 @@ CLINIC:
 - Facility and department configuration.
 
 PLATFORM:
+
 - RBAC.
 - MFA.
 - Facility authorization.
@@ -93,8 +97,7 @@ PLATFORM:
 
 Do not duplicate existing business logic or create parallel implementations.
 
-==================================================
-3. REQUIRED NEW APPLICATIONS
+================================================== 3. REQUIRED NEW APPLICATIONS
 ==================================================
 
 Create a new isolated Next.js application:
@@ -128,8 +131,7 @@ C. KIOSK DEVICE MANAGEMENT
 
 Device configuration and monitoring must be managed through the existing authorized staff application.
 
-==================================================
-4. PATIENT KIOSK FUNCTIONAL REQUIREMENTS
+================================================== 4. PATIENT KIOSK FUNCTIONAL REQUIREMENTS
 ==================================================
 
 Support three patient journeys:
@@ -173,8 +175,7 @@ All three journeys must integrate with existing domain services.
 
 Do not create duplicate patient or appointment entities.
 
-==================================================
-5. RECEPTIONIST QUEUE MANAGEMENT
+================================================== 5. RECEPTIONIST QUEUE MANAGEMENT
 ==================================================
 
 Extend the existing staff application at:
@@ -204,8 +205,7 @@ Preserve existing queue operations and clinical workflow.
 
 Use the existing authorization and audit systems.
 
-==================================================
-6. PUBLIC QUEUE DISPLAY
+================================================== 6. PUBLIC QUEUE DISPLAY
 ==================================================
 
 Implement:
@@ -229,19 +229,20 @@ Never display:
 - Contact information.
 - Sensitive personal information.
 
-==================================================
-7. HARDWARE INTEGRATION
+================================================== 7. HARDWARE INTEGRATION
 ==================================================
 
 Implement support for:
 
 A. Touchscreen kiosk
+
 - Full-screen browser mode.
 - Automatic session reset.
 - Device authentication.
 - Device health monitoring.
 
 B. Thermal printer
+
 - 80mm support.
 - Optional 58mm support.
 - Local authenticated print agent.
@@ -251,6 +252,7 @@ B. Thermal printer
 - Authorized reprinting.
 
 C. Waiting-area TV
+
 - Full-screen display.
 - WebSocket updates.
 - Voice announcements.
@@ -262,8 +264,7 @@ tools/kiosk-print-agent
 
 Do not expose an unrestricted printer service to the network.
 
-==================================================
-8. DATABASE REQUIREMENTS
+================================================== 8. DATABASE REQUIREMENTS
 ==================================================
 
 Before adding migrations, inspect the existing PostgreSQL schema.
@@ -296,8 +297,7 @@ All migrations must:
 - Be reversible operationally through a documented recovery strategy.
 - Pass schema consistency tests.
 
-==================================================
-9. REAL-TIME IMPLEMENTATION
+================================================== 9. REAL-TIME IMPLEMENTATION
 ==================================================
 
 Reuse the existing Socket.IO infrastructure and transactional domain event outbox.
@@ -316,6 +316,7 @@ Implement events as appropriate:
 Do not create a second event publishing system.
 
 Ensure:
+
 - Event authorization.
 - Duplicate event handling.
 - Reconnection.
@@ -323,8 +324,7 @@ Ensure:
 - Event ordering where required.
 - Reliable publication after database commits.
 
-==================================================
-10. SECURITY REQUIREMENTS
+================================================== 10. SECURITY REQUIREMENTS
 ==================================================
 
 Implement:
@@ -352,8 +352,7 @@ Do not bypass AccessGuard or existing authorization policies.
 
 The kiosk must never be granted general patient.read or administrative privileges simply to complete registration.
 
-==================================================
-11. TESTING REQUIREMENTS
+================================================== 11. TESTING REQUIREMENTS
 ==================================================
 
 Implement unit, integration and E2E tests.
@@ -389,13 +388,13 @@ Run:
 
 Use the repository's actual Nx targets and project names where commands differ.
 
-==================================================
-12. EXECUTION STRATEGY
+================================================== 12. EXECUTION STRATEGY
 ==================================================
 
 PHASE 1 — REPOSITORY AUDIT ONLY
 
 Inspect:
+
 - CLAUDE.md.
 - Architecture documentation.
 - Nx project configuration.
@@ -446,8 +445,7 @@ PHASE 6 — SECURITY AND TESTING
 
 Perform comprehensive audit and regression testing.
 
-==================================================
-13. STRICT ENGINEERING RULES
+================================================== 13. STRICT ENGINEERING RULES
 ==================================================
 
 - Do not rewrite the existing platform.

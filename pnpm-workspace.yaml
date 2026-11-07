@@ -28,6 +28,6 @@ overrides:
   "body-parser@>=2.0.0 <2.4.0": ^2.4.0
   "qs@<6.16.1": ^6.16.1
   # @storybook/addon-docs takes `react` and `react-dom` as its own dependencies; keep them on the React the web projects use
-  # so the pair never splits in libs/ui's Storybook (it did while the mobile app, now its own project, pinned an older React).
+  # so the pair never splits in libs/ui's Storybook.
   "@storybook/addon-docs>react": ^19.3.0
   "@storybook/addon-docs>react-dom": ^19.3.0

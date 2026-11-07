@@ -66,8 +66,8 @@ export function AppointmentCard({
       <ModeIcon className="mt-1 size-3.5 shrink-0 self-start text-muted-foreground" aria-hidden />
       <div className="min-w-0 flex-1">
         {/* Both lines wrap in full: the reason is what tells the desk what the visit is about. */}
-        <p className="break-words font-medium">{who}</p>
-        <p className="break-words text-meta text-muted-foreground">{details}</p>
+        <p className="font-medium break-words">{who}</p>
+        <p className="text-meta break-words text-muted-foreground">{details}</p>
       </div>
       <AppointmentStatusBadge status={appointment.status} />
       {action}

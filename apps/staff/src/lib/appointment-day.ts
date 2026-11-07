@@ -65,7 +65,13 @@ export function workingBlocks(rows: readonly PractitionerScheduleRow[], practiti
  * Closures that touch the practitioner on `date` (their own and the whole facility's), clipped to the day.
  * `dayStart` is the instant the date begins in the facility's zone.
  */
-export function closuresOn(exceptions: readonly ScheduleExceptionRow[], practitionerId: string, dayStartIso: string, dayEndIso: string, timeZone: string): Closure[] {
+export function closuresOn(
+  exceptions: readonly ScheduleExceptionRow[],
+  practitionerId: string,
+  dayStartIso: string,
+  dayEndIso: string,
+  timeZone: string,
+): Closure[] {
   const from = Date.parse(dayStartIso);
   const to = Date.parse(dayEndIso);
   return exceptions

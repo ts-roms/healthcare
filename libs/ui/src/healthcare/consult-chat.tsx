@@ -67,13 +67,21 @@ export function ConsultChat({ messages, mine, open, onSend, className }: Consult
       <div ref={logRef} role="log" aria-live="polite" aria-relevant="additions" tabIndex={0} className="flex max-h-64 min-h-24 flex-col gap-2 overflow-y-auto">
         {messages.length === 0 ? (
           <p className="text-meta text-muted-foreground">
-            {open ? "No messages yet. Use the chat if the video does not work, or to share a number or a spelling." : "The chat opens when the patient is in the waiting room."}
+            {open
+              ? "No messages yet. Use the chat if the video does not work, or to share a number or a spelling."
+              : "The chat opens when the patient is in the waiting room."}
           </p>
         ) : (
           messages.map((m) => {
             const own = m.sender === mine;
             return (
-              <div key={m.id} className={cn("flex max-w-[85%] flex-col gap-0.5 rounded-lg px-3 py-1.5", own ? "self-end bg-primary text-primary-foreground" : "self-start bg-muted")}>
+              <div
+                key={m.id}
+                className={cn(
+                  "flex max-w-[85%] flex-col gap-0.5 rounded-lg px-3 py-1.5",
+                  own ? "self-end bg-primary text-primary-foreground" : "self-start bg-muted",
+                )}
+              >
                 <span className={cn("text-meta", own ? "text-primary-foreground/80" : "text-muted-foreground")}>
                   {own ? "You" : m.name} · {clinicalTime(m.sentAt)}
                 </span>
@@ -102,7 +110,9 @@ export function ConsultChat({ messages, mine, open, onSend, className }: Consult
           <SendIcon aria-hidden />
         </Button>
       </form>
-      {open ? null : <p className="text-meta text-muted-foreground">The chat is open from the waiting room until the call ends. Earlier messages stay readable.</p>}
+      {open ? null : (
+        <p className="text-meta text-muted-foreground">The chat is open from the waiting room until the call ends. Earlier messages stay readable.</p>
+      )}
     </section>
   );
 }

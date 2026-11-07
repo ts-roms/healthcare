@@ -106,9 +106,26 @@ describe("staff credential resets by an administrator", () => {
     );
     const manager = (await login(ctx, "manager@reset.ph")).accessToken;
     const denied = (res: { body: { error: { code: string } } }) => expect(res.body.error.code).toBe("target_outranks_actor");
-    await ctx.http().post(`/api/v1/users/${targetAdminId}/password-reset`).set(as(manager)).send({ temporaryPassword: TEMPORARY, reason: "Takeover" }).expect(403).expect(denied);
-    await ctx.http().patch(`/api/v1/users/${targetAdminId}/membership`).set(as(manager)).send({ status: "suspended", reason: "Lock out" }).expect(403).expect(denied);
+    await ctx
+      .http()
+      .post(`/api/v1/users/${targetAdminId}/password-reset`)
+      .set(as(manager))
+      .send({ temporaryPassword: TEMPORARY, reason: "Takeover" })
+      .expect(403)
+      .expect(denied);
+    await ctx
+      .http()
+      .patch(`/api/v1/users/${targetAdminId}/membership`)
+      .set(as(manager))
+      .send({ status: "suspended", reason: "Lock out" })
+      .expect(403)
+      .expect(denied);
     // Someone with nothing the manager lacks can still be reset.
-    await ctx.http().post(`/api/v1/users/${plainId}/password-reset`).set(as(manager)).send({ temporaryPassword: TEMPORARY, reason: "Forgot password" }).expect(200);
+    await ctx
+      .http()
+      .post(`/api/v1/users/${plainId}/password-reset`)
+      .set(as(manager))
+      .send({ temporaryPassword: TEMPORARY, reason: "Forgot password" })
+      .expect(200);
   });
 });

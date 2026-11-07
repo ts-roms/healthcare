@@ -1,4 +1,5 @@
 # HEALTHCARE MANAGEMENT PLATFORM
+
 # MASTER SECURITY, VULNERABILITY, FUNCTIONAL AUDIT & REMEDIATION DIRECTIVE
 
 ## 1. PROJECT CONTEXT
@@ -6,6 +7,7 @@
 Project: Healthcare Management Platform
 
 Technology Stack:
+
 - Frontend: React
 - Language: TypeScript
 - Backend: NestJS
@@ -45,6 +47,7 @@ The audit must follow two separate stages.
 First inspect and evaluate the existing implementation.
 
 You MUST NOT:
+
 - Modify existing application source code.
 - Modify database schemas or migrations.
 - Change production configurations.
@@ -55,6 +58,7 @@ You MUST NOT:
 - Automatically fix vulnerabilities.
 
 You MAY:
+
 - Inspect source code.
 - Review configurations.
 - Run existing safe tests.
@@ -75,6 +79,7 @@ At the end of Stage A, STOP and request approval.
 Only start after explicit user approval.
 
 You may then:
+
 - Fix confirmed vulnerabilities.
 - Improve security implementations.
 - Correct validation and business logic defects.
@@ -94,7 +99,9 @@ Preserve existing functionality and architecture unless a change is justified.
 Inspect the entire repository before starting the audit.
 
 ## Frontend Discovery
+
 Inspect:
+
 - React architecture.
 - TypeScript configuration.
 - Pages and routes.
@@ -111,7 +118,9 @@ Inspect:
 - Error boundaries.
 
 ## Backend Discovery
+
 Inspect:
+
 - NestJS modules.
 - Controllers.
 - Services.
@@ -129,7 +138,9 @@ Inspect:
 - External integrations.
 
 ## Database Discovery
+
 Inspect:
+
 - PostgreSQL schemas.
 - Tables and relationships.
 - ORM configuration.
@@ -143,7 +154,9 @@ Inspect:
 - Backup mechanisms.
 
 ## Infrastructure Discovery
+
 Inspect:
+
 - Environment variables.
 - Docker configuration, if applicable.
 - Deployment configuration.
@@ -155,6 +168,7 @@ Inspect:
 - Secrets management.
 
 Deliverables:
+
 - SYSTEM_INVENTORY.md
 - ARCHITECTURE_ASSESSMENT.md
 - MODULE_COVERAGE.md
@@ -171,6 +185,7 @@ Do not assume modules or features exist without verifying the implementation.
 Treat patient records and healthcare information as highly confidential.
 
 Identify:
+
 - Patient personal information.
 - Demographic information.
 - Medical history.
@@ -215,6 +230,7 @@ HEALTHCARE_DATA_PRIVACY_AUDIT.md
 Audit every authentication and authorization mechanism.
 
 Test:
+
 - Registration.
 - Login.
 - Logout.
@@ -234,6 +250,7 @@ Test:
 Inspect all existing roles and permissions.
 
 Evaluate:
+
 - Administrator access.
 - Doctor access.
 - Nurse access.
@@ -243,6 +260,7 @@ Evaluate:
 - Facility-specific permissions.
 
 Test:
+
 - Horizontal privilege escalation.
 - Vertical privilege escalation.
 - IDOR.
@@ -292,6 +310,7 @@ Inspect:
 Inspect raw SQL queries, ORM query builders, search functionality, filtering, sorting, report generation, file processing, and external URL handling.
 
 For every finding:
+
 1. Locate the implementation.
 2. Identify the affected execution path.
 3. Determine exploitability.
@@ -313,6 +332,7 @@ APPLICATION_SECURITY_AUDIT.md
 Audit all cryptographic implementations.
 
 ## Password Security
+
 - Argon2id or appropriately configured bcrypt.
 - Password hashing and verification.
 - Password reset token security.
@@ -320,6 +340,7 @@ Audit all cryptographic implementations.
 - No plaintext password storage.
 
 ## Encryption
+
 - HTTPS enforcement.
 - TLS 1.2 or later, preferably TLS 1.3.
 - Encryption at rest.
@@ -329,6 +350,7 @@ Audit all cryptographic implementations.
 - Data integrity verification.
 
 ## Key Management
+
 - No hardcoded encryption keys.
 - Secure secrets management.
 - Key rotation.
@@ -337,6 +359,7 @@ Audit all cryptographic implementations.
 - No secrets in source control.
 
 ## Token Security
+
 - JWT signature validation.
 - Algorithm restrictions.
 - Issuer and audience validation where applicable.
@@ -354,6 +377,7 @@ ENCRYPTION_CRYPTOGRAPHY_AUDIT.md
 # 8. PHASE 6 — NESTJS BACKEND SECURITY
 
 Inspect:
+
 - Global validation pipes.
 - DTO validation.
 - Whitelisting.
@@ -385,6 +409,7 @@ NESTJS_BACKEND_SECURITY_AUDIT.md
 # 9. PHASE 7 — REACT FRONTEND SECURITY
 
 Inspect:
+
 - Route protection.
 - Authentication state.
 - Token storage.
@@ -413,6 +438,7 @@ REACT_FRONTEND_SECURITY_AUDIT.md
 Inspect:
 
 ## Access and Permissions
+
 - Least-privilege database accounts.
 - Superuser exposure.
 - Network restrictions.
@@ -421,6 +447,7 @@ Inspect:
 - Migration permissions.
 
 ## Query Security
+
 - Parameterized queries.
 - Raw SQL queries.
 - Unsafe query construction.
@@ -428,6 +455,7 @@ Inspect:
 - User-controlled filters and sorting.
 
 ## Data Integrity
+
 - Foreign keys.
 - Unique constraints.
 - Check constraints.
@@ -438,6 +466,7 @@ Inspect:
 - Soft deletion.
 
 ## Data Isolation
+
 - Patient ownership.
 - Facility ownership.
 - Tenant boundaries.
@@ -445,6 +474,7 @@ Inspect:
 - Row-Level Security, if appropriate.
 
 ## Reliability
+
 - Concurrent transactions.
 - Race conditions.
 - Duplicate operations.
@@ -501,6 +531,7 @@ For each feature, validate:
 14. Error handling.
 
 Test:
+
 - Create.
 - Read.
 - Update.
@@ -530,6 +561,7 @@ END_TO_END_FUNCTIONAL_AUDIT.md
 Build a complete API endpoint inventory.
 
 For every endpoint document:
+
 - Method.
 - Path.
 - Purpose.
@@ -544,6 +576,7 @@ For every endpoint document:
 - Error handling.
 
 Test:
+
 - Missing authentication.
 - Invalid tokens.
 - Expired tokens.
@@ -566,6 +599,7 @@ API_SECURITY_TEST_REPORT.md
 # 13. PHASE 11 — PERFORMANCE AND RELIABILITY
 
 Inspect:
+
 - Slow database queries.
 - Missing indexes.
 - N+1 queries.
@@ -591,16 +625,16 @@ PERFORMANCE_RELIABILITY_AUDIT.md
 
 Use the following recommended tools where compatible with the existing stack.
 
-| Tool | Purpose |
-|---|---|
-| OWASP ZAP | Dynamic application security testing |
-| Semgrep | Static security analysis |
-| Gitleaks | Secrets detection |
-| npm audit | Dependency scanning |
-| Playwright | Browser E2E testing |
-| Jest / Vitest | Unit and integration testing |
-| Trivy | Container and dependency scanning |
-| Burp Suite | Manual security testing |
+| Tool          | Purpose                              |
+| ------------- | ------------------------------------ |
+| OWASP ZAP     | Dynamic application security testing |
+| Semgrep       | Static security analysis             |
+| Gitleaks      | Secrets detection                    |
+| npm audit     | Dependency scanning                  |
+| Playwright    | Browser E2E testing                  |
+| Jest / Vitest | Unit and integration testing         |
+| Trivy         | Container and dependency scanning    |
+| Burp Suite    | Manual security testing              |
 
 Additional requirements:
 
@@ -620,6 +654,7 @@ AUTOMATED_SECURITY_SCAN_REPORT.md
 # 15. PHASE 13 — CODE QUALITY AND ARCHITECTURE AUDIT
 
 Inspect:
+
 - Unused functions.
 - Unused imports.
 - Unused packages.
@@ -703,6 +738,7 @@ Batch 4: Medium-severity vulnerabilities and functional defects.
 Batch 5: Low-severity issues, performance, architecture, and technical debt.
 
 For each item include:
+
 - Finding ID.
 - Root cause.
 - Proposed solution.
@@ -726,28 +762,28 @@ Store all audit documentation separately from application source code.
 Create:
 
 docs/security-audit/
-  README.md
-  SYSTEM_INVENTORY.md
-  ARCHITECTURE_ASSESSMENT.md
-  MODULE_COVERAGE.md
-  API_INVENTORY.md
-  DATABASE_INVENTORY.md
-  DEPENDENCY_INVENTORY.md
-  HEALTHCARE_DATA_PRIVACY_AUDIT.md
-  AUTHENTICATION_AUTHORIZATION_AUDIT.md
-  APPLICATION_SECURITY_AUDIT.md
-  ENCRYPTION_CRYPTOGRAPHY_AUDIT.md
-  NESTJS_BACKEND_SECURITY_AUDIT.md
-  REACT_FRONTEND_SECURITY_AUDIT.md
-  POSTGRESQL_DATABASE_SECURITY_AUDIT.md
-  END_TO_END_FUNCTIONAL_AUDIT.md
-  API_SECURITY_TEST_REPORT.md
-  PERFORMANCE_RELIABILITY_AUDIT.md
-  AUTOMATED_SECURITY_SCAN_REPORT.md
-  CODE_QUALITY_ARCHITECTURE_AUDIT.md
-  VULNERABILITY_REGISTER.md
-  REMEDIATION_ROADMAP.md
-  AUDIT_EXECUTIVE_SUMMARY.md
+README.md
+SYSTEM_INVENTORY.md
+ARCHITECTURE_ASSESSMENT.md
+MODULE_COVERAGE.md
+API_INVENTORY.md
+DATABASE_INVENTORY.md
+DEPENDENCY_INVENTORY.md
+HEALTHCARE_DATA_PRIVACY_AUDIT.md
+AUTHENTICATION_AUTHORIZATION_AUDIT.md
+APPLICATION_SECURITY_AUDIT.md
+ENCRYPTION_CRYPTOGRAPHY_AUDIT.md
+NESTJS_BACKEND_SECURITY_AUDIT.md
+REACT_FRONTEND_SECURITY_AUDIT.md
+POSTGRESQL_DATABASE_SECURITY_AUDIT.md
+END_TO_END_FUNCTIONAL_AUDIT.md
+API_SECURITY_TEST_REPORT.md
+PERFORMANCE_RELIABILITY_AUDIT.md
+AUTOMATED_SECURITY_SCAN_REPORT.md
+CODE_QUALITY_ARCHITECTURE_AUDIT.md
+VULNERABILITY_REGISTER.md
+REMEDIATION_ROADMAP.md
+AUDIT_EXECUTIVE_SUMMARY.md
 
 Do not overwrite existing project documentation.
 
@@ -768,6 +804,7 @@ At the end of Stage A, produce an executive summary containing:
 13. Production readiness assessment.
 
 Clearly distinguish:
+
 - Verified secure.
 - Tested with no issue identified.
 - Not tested.

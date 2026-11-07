@@ -8,6 +8,7 @@ React + TypeScript + NestJS + PostgreSQL.
 ## Dashboard Features
 
 ### Queue Overview
+
 - Total waiting.
 - Currently serving.
 - Completed.
@@ -15,6 +16,7 @@ React + TypeScript + NestJS + PostgreSQL.
 - No-show.
 
 ### Queue Operations
+
 - Call Next.
 - Recall.
 - Skip.
@@ -25,6 +27,7 @@ React + TypeScript + NestJS + PostgreSQL.
 - Manual Walk-in.
 
 ### Patient Registration Review
+
 - View submitted patient registration.
 - Verify identity.
 - Check for duplicates.
@@ -34,6 +37,7 @@ React + TypeScript + NestJS + PostgreSQL.
 - Link existing patient records.
 
 ### Counter Management
+
 - Multiple counters.
 - Counter assignment.
 - Department assignment.
@@ -45,6 +49,7 @@ React + TypeScript + NestJS + PostgreSQL.
 Integrate Socket.IO.
 
 Listen for:
+
 - queue.ticket.created
 - queue.ticket.called
 - queue.ticket.recalled
@@ -60,6 +65,7 @@ Implement reconnection and authoritative state synchronization.
 Create a professional hospital operations interface.
 
 Include:
+
 - Queue statistics.
 - Waiting queue table.
 - Now Serving card.

@@ -8,6 +8,7 @@ Create:
 PublicQueueDisplayPage
 
 Features:
+
 - Full-screen TV interface.
 - Now Serving section.
 - Multiple department queues.
@@ -24,6 +25,7 @@ Never expose patient names, patient IDs, or sensitive personal information.
 ## B. Voice Announcement
 
 Implement:
+
 - Text-to-speech announcements.
 - Queue number announcement.
 - Counter announcement.
@@ -39,6 +41,7 @@ Example:
 ## C. Thermal Printer
 
 Implement support for:
+
 - 80mm thermal printers.
 - Optional 58mm printers.
 - USB/network printer configurations.
@@ -54,6 +57,7 @@ The print agent must authenticate requests, validate print jobs, restrict networ
 ## D. Device Monitoring
 
 Implement:
+
 - Device registration.
 - Device heartbeat.
 - Online/offline status.
@@ -65,6 +69,7 @@ Implement:
 ## E. Testing
 
 Test:
+
 - Display updates.
 - Voice announcements.
 - WebSocket recovery.

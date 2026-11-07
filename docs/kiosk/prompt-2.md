@@ -3,6 +3,7 @@
 Implement the backend foundation for the Healthcare Management Platform's Patient Self-Service Kiosk and Queue Management module.
 
 Technology:
+
 - NestJS
 - TypeScript
 - PostgreSQL
@@ -89,6 +90,7 @@ Do not create duplicate patient records.
 ## Testing
 
 Implement unit and integration tests for:
+
 - Patient matching.
 - Registration.
 - Appointment check-in.
