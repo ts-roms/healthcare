@@ -1,3 +1,4 @@
+import { MAX_KIOSK_NETWORKS, normalizeKioskNetwork } from "./kiosk.rules";
 import { addressInput, contactPointInput, identifierInput, RELATIONSHIPS, registerPatientSchema } from "@healthcare/patient";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
@@ -40,6 +41,17 @@ export const updateDeviceSchema = z
     printerHost: z.string().trim().min(1).max(253).nullable().optional(),
     printerPort: z.number().int().min(1).max(65535).nullable().optional(),
     paperMm: z.union([z.literal(58), z.literal(80)]).optional(),
+    /** Where the kiosk may be used: addresses or CIDR ranges (migration 0148); [] removes the restriction. */
+    allowedNetworks: z
+      .array(
+        z
+          .string()
+          .trim()
+          .max(64)
+          .refine((v) => normalizeKioskNetwork(v) !== null, "Each entry is an address (203.0.113.7) or a range (203.0.113.0/24)"),
+      )
+      .max(MAX_KIOSK_NETWORKS, `At most ${MAX_KIOSK_NETWORKS} addresses or ranges`)
+      .optional(),
     version: z.number().int().positive(),
   })
   .refine(
@@ -51,7 +63,8 @@ export const updateDeviceSchema = z
       v.printerConnection !== undefined ||
       v.printerHost !== undefined ||
       v.printerPort !== undefined ||
-      v.paperMm !== undefined,
+      v.paperMm !== undefined ||
+      v.allowedNetworks !== undefined,
     "Nothing to change",
   );
 export class UpdateDeviceDto extends createZodDto(updateDeviceSchema) {}

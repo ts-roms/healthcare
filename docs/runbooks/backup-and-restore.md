@@ -73,7 +73,7 @@ repository sets them, and a bucket restore has **not** been tested.
    organization's retention decision). An earlier bucket leaves rows whose files are missing — the screens then fail to
    open those documents.
 5. **Point the services at the restored database** (`DATABASE_URL`) with the same keys as before. Deploy `api` first:
-   its pre-deploy `pnpm db:migrate` applies only migrations newer than the dump, and fails if an applied migration file
+   the `migrate` service's `pnpm db:migrate` applies only migrations newer than the dump, and fails if an applied migration file
    has changed.
 6. **Review outgoing work before starting the workers** — see [After a restore](#after-a-restore). Then start the
    notification and integration workers, `staff` and `portal`.

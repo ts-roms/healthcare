@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { isIP } from "node:net";
+import { BlockList, isIP } from "node:net";
 
 /** A person who stops touching the screen is signed out after this long. */
 export const SESSION_IDLE_MS = 2 * 60_000;
@@ -103,4 +103,53 @@ export type DeviceHealth = "online" | "offline" | "maintenance" | "disabled";
 export function deviceHealth(device: { status: "active" | "maintenance" | "disabled"; heartbeatAt: Date | null }, now = new Date()): DeviceHealth {
   if (device.status !== "active") return device.status;
   return device.heartbeatAt && now.getTime() - device.heartbeatAt.getTime() <= DEVICE_ONLINE_MS ? "online" : "offline";
+}
+
+/** At most this many addresses or ranges per kiosk (the database checks it too). */
+export const MAX_KIOSK_NETWORKS = 10;
+
+/** "::ffff:203.0.113.7" → "203.0.113.7"; other addresses as given. */
+function plainAddress(address: string): string {
+  const lower = address.trim().toLowerCase();
+  return lower.startsWith("::ffff:") && isIP(lower.slice(7)) === 4 ? lower.slice(7) : lower;
+}
+
+/**
+ * A kiosk network entry, normalized: an address ("203.0.113.7") or a CIDR range ("203.0.113.0/24", "2001:db8::/48").
+ * Null when it is neither. A single address is stored as written; a range keeps its prefix.
+ */
+export function normalizeKioskNetwork(value: string): string | null {
+  const text = value.trim();
+  const [address, prefix, extra] = text.split("/");
+  if (!address || extra !== undefined) return null;
+  const plain = plainAddress(address);
+  const family = isIP(plain);
+  if (family === 0) return null;
+  if (prefix === undefined) return plain;
+  if (!/^\d{1,3}$/.test(prefix)) return null;
+  const bits = Number(prefix);
+  if (bits > (family === 4 ? 32 : 128)) return null;
+  return `${plain}/${bits}`;
+}
+
+/**
+ * Zero trust for a kiosk's credential (audit F3): whether `address` (the client the request came from) is inside the
+ * kiosk's allowed networks. An empty list allows any address; an unknown address is refused when a list is set.
+ */
+export function kioskNetworkAllowed(address: string | undefined, networks: readonly string[]): boolean {
+  if (networks.length === 0) return true;
+  if (!address) return false;
+  const plain = plainAddress(address);
+  const family = isIP(plain);
+  if (family === 0) return false;
+  const list = new BlockList();
+  for (const entry of networks) {
+    const normalized = normalizeKioskNetwork(entry);
+    if (!normalized) continue;
+    const [network, prefix] = normalized.split("/");
+    const type = isIP(network!) === 4 ? "ipv4" : "ipv6";
+    if (prefix === undefined) list.addAddress(network!, type);
+    else list.addSubnet(network!, Number(prefix), type);
+  }
+  return list.check(plain, family === 4 ? "ipv4" : "ipv6");
 }

@@ -15,6 +15,8 @@ locals {
     "integration-worker"  = { config_path = "apps/integration-worker/railway.json" }
     # The patient self-service kiosk's web app (docs/domains/kiosk.md): a public address a kiosk device opens; it calls the API from its server.
     kiosk = { config_path = "apps/kiosk/railway.json" }
+    # Migrations run once per deploy, here and nowhere else: the only service holding the owner's URL (ADR-0016). No domain.
+    migrate = { config_path = "tools/db/railway.json" }
   }
   public_services  = ["api", "staff", "portal", "kiosk"]
   backend_services = ["api", "notification-worker", "integration-worker"]
@@ -25,8 +27,8 @@ locals {
     name => try(railway_custom_domain.public[name].domain, railway_service_domain.public[name].domain)
   }
 
-  # With secrets.app_database_url the API and workers connect as the restricted application role and only the API's
-  # pre-deploy migration uses the owner (docs/runbooks/database-roles.md); without it everything uses the owner, which
+  # With secrets.app_database_url the API and workers connect as the restricted application role and only the migrate
+  # service uses the owner (docs/runbooks/database-roles.md, ADR-0016); without it everything uses the owner, which
   # needs allow_owner_database (first deploy only) and is logged by every service at start-up.
   restricted_database = nonsensitive(var.secrets.app_database_url != null)
   owner_database_url  = "$${{Postgres.DATABASE_URL}}"
@@ -39,6 +41,9 @@ locals {
       PORTAL_BASE_URL = "https://${local.public_host.portal}"
       STAFF_BASE_URL  = "https://${local.public_host.staff}"
     },
+    # Railway's Postgres and Redis are reached over its private network without TLS: production refuses plain-text
+    # connections unless this exempts private-network hosts (zero-trust audit D8). Public hosts still need TLS.
+    { ALLOW_PLAINTEXT_PRIVATE_NETWORK = var.allow_plaintext_private_network ? "true" : "false" },
     # The owner connection is never silent: the services refuse it at start-up unless this says so (first deploy only).
     { for name, value in { DATABASE_ALLOW_OWNER = "true" } : name => value if !local.restricted_database },
     var.optional_settings,
@@ -50,7 +55,6 @@ locals {
       TRUST_PROXY  = "true"
       CORS_ORIGINS = "https://${local.public_host.staff},https://${local.public_host.portal}"
     },
-    { for name, value in { MIGRATION_DATABASE_URL = local.owner_database_url } : name => value if local.restricted_database },
     var.api_settings,
   )
 
@@ -87,7 +91,13 @@ locals {
     { for name, value in local.api_settings : "api/${name}" => { service = "api", name = name, value = value } },
     { for pair in setproduct(["staff", "portal", "kiosk"], keys(local.web_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.web_settings[pair[1]] } },
     { "staff/REALTIME_URL" = { service = "staff", name = "REALTIME_URL", value = "https://${local.public_host.api}/realtime" } },
+    # MyHealth's live updates too: without it the address defaults to the API's private one, which a browser cannot reach.
+    { "portal/REALTIME_URL" = { service = "portal", name = "REALTIME_URL", value = "https://${local.public_host.api}/realtime" } },
+    # Origins the staff app and MyHealth may connect to besides themselves and the socket (the video service), for their script policy.
+    { for svc in ["staff", "portal"] : "${svc}/CSP_CONNECT_ORIGINS" => { service = svc, name = "CSP_CONNECT_ORIGINS", value = var.csp_connect_origins } if var.csp_connect_origins != "" },
     { "portal/PORTAL_ORGANIZATION_CODE" = { service = "portal", name = "PORTAL_ORGANIZATION_CODE", value = var.portal_organization_code } },
+    # The owner's URL, for the migrate service only: the API and workers never hold it (ADR-0016).
+    { "migrate/MIGRATION_DATABASE_URL" = { service = "migrate", name = "MIGRATION_DATABASE_URL", value = local.owner_database_url } },
     # The organization's own privacy notice shown to a new patient at the kiosk; without it the kiosk shows a plain statement of what it does.
     local.kiosk_notice_variable,
   )

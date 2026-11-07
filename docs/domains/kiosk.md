@@ -134,6 +134,15 @@ a reprint is refused (`kiosk_not_printing`). Staff turn it on (register form or 
 bought: the agent, the job queue, the reprint and the status reporting already exist and are tested only against simulated
 printers. A different printer protocol would be a new `PRINTER_TYPE` in the agent, not an API change.
 
+**Where a kiosk may be used (migration `0148`; zero-trust audit F3).** A kiosk's credential is a password that stays signed
+in, so it works from anywhere it is copied to. A clinic with fixed outgoing addresses can list them per kiosk
+(`kiosk_device.allowed_networks`: up to 10 addresses or CIDR ranges, IPv4 or IPv6; staff **Queue → Devices → Edit →
+Allowed networks**, audited as a change): every kiosk request is then checked against the client address
+(`kioskNetworkAllowed`, `kiosk.rules.ts`, in `requireDevice`) and refused from anywhere else (`403
+kiosk_network_refused`, audited `kiosk.network-refused`, denied). Empty, the default, allows any network, so nothing
+changes until staff set it. The address is the one the API derives behind its proxy (`TRUST_PROXY`; check it once per
+environment, `docs/deployment/railway.md`).
+
 **Print agent per kiosk and limits per device (migrations `0142`; audit KA-04, KA-07).** A kiosk may name the account of its
 print agent (`print_agent_user_id`, an account holding the `kiosk_print_agent` role at the facility; staff **Queue → Devices →
 Edit → Print agent**, audited): only that account may claim its tickets, report on them or send its printer heartbeat — any

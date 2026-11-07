@@ -60,6 +60,8 @@ export const prescription = pgTable("prescription", {
 
 export const prescriptionItem = pgTable("prescription_item", {
   id: uuid("id").primaryKey().defaultRandom(),
+  /** The parent's organization (migration 0149): row-level security and a composite foreign key keep them equal. */
+  organizationId: uuid("organization_id").notNull(),
   prescriptionId: uuid("prescription_id").notNull(),
   lineNumber: smallint("line_number").notNull(),
   genericName: text("generic_name").notNull(),

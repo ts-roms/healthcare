@@ -24,25 +24,25 @@ role. Only for the first deploy, before the restricted role exists, set `DATABAS
 `allow_owner_database = true`, which also lets the plan proceed without `secrets.app_database_url`); the processes then
 start and log `event: "db.owner_connection"`. Remove it as soon as step 5 below is done.
 
-**The owner's URL at runtime.** Railway gives a service's variables to its pre-deploy command and to the running process
-alike, so `MIGRATION_DATABASE_URL` is in the API's environment. The API deletes it from `process.env` first thing at
-start-up, so no module or dependency can read it later; someone with code execution in the container can still read it
-(for example from `/proc/self/environ`). Closing that needs migrations run by a separate one-off service that alone
-holds the owner's URL (follow-up; not built).
+**The owner's URL is in one service only.** Migrations run in the one-off `migrate` service (ADR-0016,
+`tools/db/railway.json`), the only service holding `MIGRATION_DATABASE_URL`; the API and both workers hold only the
+restricted role's `DATABASE_URL`, so code execution in them cannot reach the owner. (The API still deletes the variable
+from `process.env` at start-up, should it ever be set there by hand.) The API's readiness answers `503` (`schema:
+behind`) while a migration it ships is not applied, so it never serves against an older schema.
 
 ## Who connects as what
 
 | Process                                      | Variable                 | Role                                          |
 | -------------------------------------------- | ------------------------ | --------------------------------------------- |
 | API, notification worker, integration worker | `DATABASE_URL`           | `healthcare_api` (member of `healthcare_app`) |
-| API pre-deploy migration (`pnpm db:migrate`) | `MIGRATION_DATABASE_URL` | the owner (`${{Postgres.DATABASE_URL}}`)      |
+| `migrate` service (`pnpm db:migrate`)        | `MIGRATION_DATABASE_URL` | the owner (`${{Postgres.DATABASE_URL}}`)      |
 | `pnpm db:seed`, restores, manual repairs     | given explicitly         | the owner                                     |
 
 `pnpm db:migrate` uses the URL given as its argument, else `MIGRATION_DATABASE_URL`, else `DATABASE_URL`.
 
 ## Set it up (once per environment)
 
-1. Deploy a release that contains migration `0109` (its pre-deploy migration creates `healthcare_app` and grants it).
+1. Deploy a release that contains migration `0109` (the `migrate` service creates `healthcare_app` and grants it).
 2. Generate a password: `openssl rand -base64 32 | tr -d '/+=' | cut -c1-32`.
 3. As the owner (Railway: the Postgres service's **Data** tab or `psql "$DATABASE_URL"` from a shell with the owner's
    URL), create the login role:
@@ -63,11 +63,12 @@ holds the owner's URL (follow-up; not built).
 5. Switch the variables, then redeploy the three services:
    - **Terraform** (`infrastructure/terraform/railway/`): set `secrets.app_database_url` to
      `postgresql://healthcare_api:<password>@<private host>:<port>/<database>` (the owner's URL with the user and
-     password replaced). The module then sets it as `DATABASE_URL` on the API and both workers, and
-     `MIGRATION_DATABASE_URL = ${{Postgres.DATABASE_URL}}` on the API only. Apply.
-   - **By hand** (Railway dashboard): on `api`, add `MIGRATION_DATABASE_URL = ${{Postgres.DATABASE_URL}}`; on `api`,
-     `notification-worker` and `integration-worker`, set `DATABASE_URL` to the `healthcare_api` URL.
-6. Verify: the API's deploy log shows the migration ran ("0 applied"), `GET /api/v1/health/ready` answers `200`, a
+     password replaced). The module then sets it as `DATABASE_URL` on the API and both workers; `MIGRATION_DATABASE_URL =
+${{Postgres.DATABASE_URL}}` is on the `migrate` service only. Apply.
+   - **By hand** (Railway dashboard): on `migrate`, set `MIGRATION_DATABASE_URL = ${{Postgres.DATABASE_URL}}`; on `api`,
+     `notification-worker` and `integration-worker`, set `DATABASE_URL` to the `healthcare_api` URL (and remove any
+     `MIGRATION_DATABASE_URL` from `api`).
+6. Verify: the `migrate` service's log shows the migration ran ("0 applied"), `GET /api/v1/health/ready` answers `200`, a
    sign-in works and appears on `/admin/audit`.
 
 ## Roll back

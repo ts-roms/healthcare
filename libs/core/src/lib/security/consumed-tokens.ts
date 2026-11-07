@@ -43,3 +43,8 @@ export function tokenExpiry(claims: object): Date {
   const exp = (claims as { exp?: unknown }).exp;
   return typeof exp === "number" ? new Date(exp * 1000) : new Date(Date.now() + 3_600_000);
 }
+
+/** Whether a session last used at `lastUsedAt` has been idle past `idleMinutes` (0: never). Staff and MyHealth alike. */
+export function sessionIdle(lastUsedAt: Date, now: Date, idleMinutes: number): boolean {
+  return idleMinutes > 0 && now.getTime() - lastUsedAt.getTime() > idleMinutes * 60_000;
+}

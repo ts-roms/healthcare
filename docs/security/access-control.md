@@ -13,7 +13,9 @@
   `locked`). The second step (an authenticator code, a passkey), reached only
   after the password, still says `account_locked`.
 - TOTP MFA (RFC 6238), optional unless the organization requires it (below).
-  Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
+  Secrets are encrypted at rest with AES-256-GCM, bound to their account's row and sealed with a key ring
+  (`MFA_ENCRYPTION_KEY`, `MFA_ENCRYPTION_KEYS`, `MFA_ENCRYPTION_KEY_ID`; older values re-sealed on use;
+  `docs/runbooks/mfa-key-rotation.md`).
   Enrollment requires confirming a code. Each code works once: the last
   accepted time step is kept (`app_user.mfa_last_used_step`, migration
   `0092`) and a code for that step or an earlier one is refused, checked with
@@ -68,6 +70,9 @@ proxy refuses every new password until that is arranged.
 is ended at its next refresh (`revoked_reason = 'idle'`; `sessionIdle` in `libs/auth/src/lib/session.service.ts`), so
 a browser closed or abandoned without signing out does not keep a live session for the full refresh lifetime. A tab
 left open and polling still refreshes, which is what the browser's own idle sign-out below is for.
+MyHealth sessions (browser and phone) follow the same rule with their own setting, `PORTAL_SESSION_IDLE_MINUTES`
+(default 720; `0` off): a patient whose app or browser has not refreshed for that long signs in again (with a remembered
+browser and two-step verification as before). A longer window suits a phone app opened once a day.
 
 A staff browser left alone is signed out after `STAFF_IDLE_MINUTES` without keyboard, pointer or touch activity
 (default 20; `0` turns it off; `apps/staff/src/components/idle-sign-out.tsx`, rules in `apps/staff/src/lib/idle.ts`):
@@ -369,3 +374,12 @@ Details in [portal-app.md](../architecture/portal-app.md#two-step-verification).
 
 Nothing here constitutes a claim of Data Privacy Act compliance; compliance
 must be assessed against current official requirements (CLAUDE.md §36).
+
+## Browser script policy (staff app and MyHealth)
+
+Both apps send a Content Security Policy with a fresh nonce on every page (`buildAppCsp` in `libs/web-session`, applied
+in each app's `proxy.ts`; zero-trust audit F2): scripts run only when they carry the request's nonce (`'strict-dynamic'`),
+so markup that got through cannot run script; connections go only to the app itself, the live-update socket
+(`REALTIME_URL`) and `CSP_CONNECT_ORIGINS` (the video service); signed document links may be shown as images or in a
+frame (`https:`), never run; no plugins, no other site may frame the apps. A nonce needs a page rendered per request, so
+each root layout calls `connection()`. The kiosk has its own, stricter policy (`apps/kiosk/src/lib/csp.ts`).

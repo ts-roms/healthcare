@@ -8,7 +8,7 @@ deploy and the seed) is listed in `docs/deployment/railway.md`, "What is codifie
 
 Nothing here holds a secret: secrets are sensitive variables supplied at apply time, and the state backend is declared
 in an ignored `backend.tf` (see `backend.tf.example`). With `secrets.app_database_url` (the restricted login role's URL,
-`docs/runbooks/database-roles.md`) the API and workers connect as that role and only the API's pre-deploy migration
-uses the owner (`MIGRATION_DATABASE_URL`); without it every process would use the owner, which the plan refuses unless
+`docs/runbooks/database-roles.md`) the API and workers connect as that role and only the `migrate` service
+(ADR-0016) uses the owner (`MIGRATION_DATABASE_URL`); without it every process would use the owner, which the plan refuses unless
 `allow_owner_database = true` (first deploy only) and every process then logs `db.owner_connection` at start-up. CI runs `terraform fmt -check` and `terraform validate`; it
 never plans or applies.

@@ -34,7 +34,7 @@ What is set: every variable of `docs/deployment/railway.md` for a demo — gener
 dashboard), database, Redis and bucket references, the public addresses, `CORS_ORIGINS`, `TRUST_PROXY`, the seed
 variables (`SEED_ORG_CODE=demo`, administrator `admin@demo.healthcare.ph` with a generated password held in the `api`
 service's variables), `PORTAL_ORGANIZATION_CODE=demo`, `STAFF_IDLE_MINUTES=20`; and each service's build, start,
-health check, pre-deploy (`pnpm db:migrate` on `api`) and restart settings, applied directly because Railway now
+health check and restart settings (migrations in the one-off `migrate` service, `tools/db/railway.json`), applied directly because Railway now
 refuses the config-as-code path for new services (the `railway.json` files stay the reference).
 
 Not set: SMTP (no email: password resets and notices by email do not go out), LiveKit (no video), ClamAV
@@ -54,7 +54,7 @@ with its `SEED_*` values, change `DEMO_PASSWORD`, and turn deploy-on-push off pe
 3. **Secrets.** Generate `JWT_ACCESS_SECRET`, `MFA_ENCRYPTION_KEY`, `INTEGRATION_PAYLOAD_KEY`, VAPID keys; set `DATABASE_URL`,
    `REDIS_URL`, the `S3_*` variables, `PORTAL_BASE_URL`, `STAFF_BASE_URL`, `PORTAL_ORGANIZATION_CODE`; leave the provider
    keys (SMTP, LiveKit, PayMongo, ClamAV) unset for a demo unless the tour needs them (video consultations need LiveKit).
-4. **Database.** The pre-deploy command runs the migrations; create the restricted login role as
+4. **Database.** The `migrate` service runs the migrations (deploy it before `api`); create the restricted login role as
    `docs/runbooks/database-roles.md` describes, then run `pnpm db:seed` against the deployed database (`SEED_*`) and
    `pnpm db:seed:demo` with `API_BASE_URL` set to the deployed API.
 5. **Accounts.** Change `DEMO_PASSWORD` for a public demo, turn on staff two-step verification for the administrator,

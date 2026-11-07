@@ -17,7 +17,7 @@ describe("patient self-service kiosk", () => {
   let visitTypeId: string;
   let hiddenTypeId: string;
   let practitionerId: string;
-  let deviceOne: { id: string; version: number };
+  let deviceOne: { id: string; version: number; allowedNetworks?: string[] };
   let n = 0;
 
   const staff = (token: string, facilityId = tenant.facilityId) => ({
@@ -159,6 +159,23 @@ describe("patient self-service kiosk", () => {
       const back = await set("active", disabled.body.version).expect(200);
       deviceOne = back.body;
       await set("active", 1).expect(409);
+      await k(kiosk.one).post("/sessions").expect(201);
+    });
+
+    it("is refused from outside the networks staff set for it, and audited; an empty list allows it anywhere", async () => {
+      const patch = (body: object) => staff(admin).patch(`/kiosk/admin/devices/${deviceOne.id}`, { ...body, version: deviceOne.version });
+      await patch({ allowedNetworks: ["clinic.example.ph"] }).expect(400);
+      // The test client connects from loopback: a range that does not include it.
+      deviceOne = (await patch({ allowedNetworks: ["203.0.113.0/24"] }).expect(200)).body;
+      expect(deviceOne).toMatchObject({ allowedNetworks: ["203.0.113.0/24"] });
+      expect((await k(kiosk.one).post("/sessions").expect(403)).body.error.code).toBe("kiosk_network_refused");
+      const refused = await ctx.pool.query("SELECT 1 FROM audit_event WHERE action = 'kiosk.network-refused' AND outcome = 'denied'");
+      expect(refused.rows.length).toBeGreaterThanOrEqual(1);
+      // Its own network (loopback, as IPv4 and IPv6) lets it work again.
+      deviceOne = (await patch({ allowedNetworks: ["127.0.0.0/8", "::1"] }).expect(200)).body;
+      await k(kiosk.one).post("/sessions").expect(201);
+      deviceOne = (await patch({ allowedNetworks: [] }).expect(200)).body;
+      expect(deviceOne.allowedNetworks).toEqual([]);
       await k(kiosk.one).post("/sessions").expect(201);
     });
   });

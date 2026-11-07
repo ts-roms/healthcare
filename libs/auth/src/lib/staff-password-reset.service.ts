@@ -1,16 +1,7 @@
+import { openStaffMfaSecret } from "./auth.service";
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import { type AnonymousAuditContext, AuditService } from "@healthcare/audit";
-import {
-  APP_CONFIG,
-  type AppConfig,
-  DATABASE,
-  type Database,
-  decryptSecret,
-  randomToken,
-  type RequestMetadata,
-  sha256Hex,
-  UnauthenticatedError,
-} from "@healthcare/core";
+import { APP_CONFIG, type AppConfig, DATABASE, type Database, randomToken, type RequestMetadata, sha256Hex, UnauthenticatedError } from "@healthcare/core";
 import { organization } from "@healthcare/organization";
 import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import type { z } from "zod";
@@ -171,7 +162,7 @@ export class StaffPasswordResetService {
       if (user.mfaEnabled && user.mfaSecretEncrypted) {
         if (!input.code) return { kind: "rejected", reason: "mfa_code_required", codeRequired: true, ...base };
         // The app's code (each works once) or a recovery code, spent only if the reset goes through.
-        const factor = await spendSecondFactor(tx, user, decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), input.code, true);
+        const factor = await spendSecondFactor(tx, user, await openStaffMfaSecret(tx, user, this.config), input.code, true);
         if (!factor.ok) {
           const attempts = reset.failedAttempts + 1;
           if (attempts >= STAFF_RESET_MAX_FAILED_ATTEMPTS) await consume("exhausted");

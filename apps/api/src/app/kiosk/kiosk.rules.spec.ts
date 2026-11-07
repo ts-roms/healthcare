@@ -1,4 +1,6 @@
 import {
+  kioskNetworkAllowed,
+  normalizeKioskNetwork,
   isPrivateHost,
   printerHostProblem,
   DEVICE_FAILURE_BUDGET,
@@ -109,5 +111,24 @@ describe("kiosk rules", () => {
       expect(printerHostProblem("http://192.168.1.50/")).toMatchObject({ code: "printer_host_invalid" });
       expect(printerHostProblem("my printer")).toMatchObject({ code: "printer_host_invalid" });
     });
+  });
+});
+
+describe("kiosk network allowlist", () => {
+  it("accepts addresses and CIDR ranges, IPv4 and IPv6, and nothing else", () => {
+    expect(normalizeKioskNetwork(" 203.0.113.7 ")).toBe("203.0.113.7");
+    expect(normalizeKioskNetwork("203.0.113.0/24")).toBe("203.0.113.0/24");
+    expect(normalizeKioskNetwork("2001:DB8::/48")).toBe("2001:db8::/48");
+    for (const bad of ["clinic.example.ph", "203.0.113.0/33", "10.0.0.0/8/1", "", "/24", "::/129"]) expect(normalizeKioskNetwork(bad)).toBeNull();
+  });
+
+  it("lets a kiosk with no list be used anywhere, and one with a list only from inside it", () => {
+    expect(kioskNetworkAllowed("198.51.100.4", [])).toBe(true);
+    expect(kioskNetworkAllowed("203.0.113.9", ["203.0.113.0/24"])).toBe(true);
+    expect(kioskNetworkAllowed("::ffff:203.0.113.9", ["203.0.113.0/24"])).toBe(true);
+    expect(kioskNetworkAllowed("203.0.114.1", ["203.0.113.0/24"])).toBe(false);
+    expect(kioskNetworkAllowed("203.0.113.7", ["203.0.113.7"])).toBe(true);
+    expect(kioskNetworkAllowed("2001:db8:0:1::5", ["2001:db8::/48"])).toBe(true);
+    expect(kioskNetworkAllowed(undefined, ["203.0.113.0/24"])).toBe(false);
   });
 });

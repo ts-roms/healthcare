@@ -45,6 +45,11 @@ const appConfigSchema = z
     // Readiness details (which dependency is down, whether malware scanning is off) go only to a caller sending this
     // value as `X-Health-Token` (monitoring). Unset: details outside production only; production answers the status
     // alone. At least 32 characters (healthDetailsVisible).
+    // How long a readiness answer is reused (cachedHealthReport), in milliseconds; 0 checks on every probe (tests).
+    // Where the migration files this build ships are (relative to the working directory): readiness compares them with
+    // schema_migration and answers 503 while any is unapplied (ADR-0016). Unreadable: the check is skipped.
+    MIGRATIONS_DIR: z.string().min(1).default("database/migrations"),
+    HEALTH_CACHE_MS: z.coerce.number().int().min(0).max(60_000).default(5_000),
     HEALTH_DETAILS_TOKEN: z.string().min(32, "HEALTH_DETAILS_TOKEN must be at least 32 characters").optional(),
     LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),
     DATABASE_URL: z.string().url(),
@@ -58,13 +63,25 @@ const appConfigSchema = z
     // only for the first deploy, before the restricted role exists (docs/runbooks/database-roles.md).
     DATABASE_ALLOW_OWNER: booleanString.default(false),
     REDIS_URL: z.string().url().default("redis://localhost:6379"),
+    // Production requires TLS to PostgreSQL, Redis, SMTP and object storage (transportSecurityProblems). `true` exempts
+    // hosts on a private network only (*.railway.internal, private addresses, single-label service names), where the
+    // platform encrypts nothing itself: an explicit, documented choice (docs/deployment/railway.md). LiveKit is always wss.
+    ALLOW_PLAINTEXT_PRIVATE_NETWORK: booleanString.default(false),
     JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
     JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(14),
     // A staff session not refreshed for this long ends at its next refresh (server-side idle limit, behind the staff
     // app's own STAFF_IDLE_MINUTES in the browser). 0 turns it off. Default 12 hours: a browser left open overnight.
     SESSION_IDLE_MINUTES: z.coerce.number().int().min(0).max(43_200).default(720),
+    // The same for MyHealth sessions (browser and phone): not refreshed for this long, the next refresh ends the session
+    // and the patient signs in again. 0 turns it off. Default 12 hours, as for staff; a longer window suits a phone app.
+    PORTAL_SESSION_IDLE_MINUTES: z.coerce.number().int().min(0).max(43_200).default(720),
     MFA_ENCRYPTION_KEY: z.string().refine((value) => Buffer.from(value, "base64").length === 32, "MFA_ENCRYPTION_KEY must be 32 bytes, base64-encoded"),
+    // Further keys for two-step verification secrets, by id, for rotation (mfaKeyring): new secrets are sealed with
+    // MFA_ENCRYPTION_KEY_ID (default: MFA_ENCRYPTION_KEY, id "default"); older ones still open and are sealed again with
+    // the current key the next time they are used (docs/runbooks/mfa-key-rotation.md).
+    MFA_ENCRYPTION_KEYS: jsonKeyMap.optional(),
+    MFA_ENCRYPTION_KEY_ID: z.string().regex(ENCRYPTION_KEY_ID_PATTERN, "a key id from MFA_ENCRYPTION_KEYS").optional(),
     CORS_ORIGINS: z
       .string()
       .default("")
@@ -191,7 +208,10 @@ const appConfigSchema = z
     }
     if (config.NODE_ENV === "production") {
       for (const problem of placeholderSecretProblems(config)) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
+      for (const problem of transportSecurityProblems(config)) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
     }
+    const mfaProblem = mfaKeyringProblem(config);
+    if (mfaProblem) ctx.addIssue({ code: "custom", path: [mfaProblem.path], message: mfaProblem.message });
     const problem = integrationKeyringProblem(config);
     if (problem) ctx.addIssue({ code: "custom", path: [problem.path], message: problem.message });
     if (config.PAYMONGO_SECRET_KEY && (!config.PAYMONGO_WEBHOOK_SECRET || !config.PAYMONGO_PAYMENT_METHODS)) {
@@ -249,6 +269,67 @@ export function placeholderSecretProblems(
   return problems;
 }
 
+/** A host on a private network: Railway's private domains, other internal suffixes, private and loopback addresses, a bare service name. */
+export function isPrivateNetworkHost(hostname: string): boolean {
+  const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (!host) return false;
+  if (host === "localhost" || /\.(railway\.internal|internal|local|localhost)$/.test(host)) return true;
+  if (!host.includes(".") && !host.includes(":")) return true;
+  const v4 = host.match(/^(\d{1,3})\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  }
+  return host === "::1" || /^f[cd][0-9a-f]{2}:/.test(host);
+}
+
+/**
+ * Zero trust for the network (audit D8): in production every connection that carries patient data or credentials is
+ * encrypted. PostgreSQL needs `sslmode=require|verify-ca|verify-full`, Redis `rediss://`, SMTP `smtps://` or
+ * `requireTLS=true`, object storage `https`, LiveKit `wss`. ALLOW_PLAINTEXT_PRIVATE_NETWORK exempts private-network
+ * hosts of the first four only.
+ */
+export function transportSecurityProblems(
+  config: Pick<AppConfig, "DATABASE_URL" | "REDIS_URL" | "ALLOW_PLAINTEXT_PRIVATE_NETWORK"> &
+    Partial<Pick<AppConfig, "SMTP_URL" | "S3_ENDPOINT" | "LIVEKIT_URL">>,
+): Array<{ path: string; message: string }> {
+  const problems: Array<{ path: string; message: string }> = [];
+  const parse = (value: string): URL | undefined => {
+    try {
+      return new URL(value);
+    } catch {
+      return undefined;
+    }
+  };
+  const exempt = (url: URL) => config.ALLOW_PLAINTEXT_PRIVATE_NETWORK && isPrivateNetworkHost(url.hostname);
+  const hint = "or, for a host on a private network only, set ALLOW_PLAINTEXT_PRIVATE_NETWORK=true (docs/deployment/railway.md)";
+
+  const db = parse(config.DATABASE_URL);
+  if (db && !["require", "verify-ca", "verify-full"].includes(db.searchParams.get("sslmode") ?? "") && !exempt(db)) {
+    problems.push({ path: "DATABASE_URL", message: `must use TLS in production: add ?sslmode=verify-full (or require), ${hint}` });
+  }
+  const redis = parse(config.REDIS_URL);
+  if (redis && redis.protocol !== "rediss:" && !exempt(redis)) {
+    problems.push({ path: "REDIS_URL", message: `must use TLS in production (rediss://), ${hint}` });
+  }
+  const smtp = config.SMTP_URL ? parse(config.SMTP_URL) : undefined;
+  if (smtp && smtp.protocol !== "smtps:" && smtp.searchParams.get("requireTLS") !== "true" && !exempt(smtp)) {
+    problems.push({
+      path: "SMTP_URL",
+      message: `must use TLS in production (smtps://, or smtp:// with ?requireTLS=true): reset links travel in these emails, ${hint}`,
+    });
+  }
+  const s3 = config.S3_ENDPOINT ? parse(config.S3_ENDPOINT) : undefined;
+  if (s3 && s3.protocol !== "https:" && !exempt(s3)) {
+    problems.push({ path: "S3_ENDPOINT", message: `must use https in production, ${hint}` });
+  }
+  const livekit = config.LIVEKIT_URL ? parse(config.LIVEKIT_URL) : undefined;
+  if (livekit && livekit.protocol !== "wss:") {
+    problems.push({ path: "LIVEKIT_URL", message: "must use wss:// in production: browsers connect to it for consultations" });
+  }
+  return problems;
+}
+
 /** Whether credentials (reset links, verification codes) may be written to the log: development with `DEV_LOG_SECRETS` on. */
 export function devSecretsLogged(config: Pick<AppConfig, "NODE_ENV" | "DEV_LOG_SECRETS">): boolean {
   return config.NODE_ENV === "development" && config.DEV_LOG_SECRETS === true;
@@ -278,6 +359,37 @@ type IntegrationKeyConfig = Pick<
 
 /** Key id of INTEGRATION_PAYLOAD_KEY (the single-key configuration). */
 export const DEFAULT_INTEGRATION_KEY_ID = "default";
+/** Key id of MFA_ENCRYPTION_KEY in the two-step verification key ring. */
+export const DEFAULT_MFA_KEY_ID = "default";
+
+type MfaKeyConfig = Pick<AppConfig, "MFA_ENCRYPTION_KEY" | "MFA_ENCRYPTION_KEYS" | "MFA_ENCRYPTION_KEY_ID">;
+
+function mfaKeys(config: MfaKeyConfig): Map<string, string> {
+  const keys = new Map(Object.entries(config.MFA_ENCRYPTION_KEYS ?? {}));
+  if (!keys.has(DEFAULT_MFA_KEY_ID)) keys.set(DEFAULT_MFA_KEY_ID, config.MFA_ENCRYPTION_KEY);
+  return keys;
+}
+
+function mfaKeyringProblem(config: MfaKeyConfig): { path: string; message: string } | undefined {
+  const listed = config.MFA_ENCRYPTION_KEYS?.[DEFAULT_MFA_KEY_ID];
+  if (listed && listed !== config.MFA_ENCRYPTION_KEY) {
+    return { path: "MFA_ENCRYPTION_KEYS", message: `key id "${DEFAULT_MFA_KEY_ID}" is MFA_ENCRYPTION_KEY's; list it with the same key or use another id` };
+  }
+  if (config.MFA_ENCRYPTION_KEY_ID && !mfaKeys(config).has(config.MFA_ENCRYPTION_KEY_ID)) {
+    return { path: "MFA_ENCRYPTION_KEY_ID", message: "names a key that is neither MFA_ENCRYPTION_KEY nor in MFA_ENCRYPTION_KEYS" };
+  }
+  return undefined;
+}
+
+/**
+ * The key ring of two-step verification secrets (configuration already validated): sealed with the current key and
+ * bound to their row (sealBound); any listed key opens what it sealed, so a key is rotated by adding the new one and
+ * making it current, then removing the old once nothing needs it.
+ */
+export function mfaKeyring(config: MfaKeyConfig): Keyring {
+  return { currentKeyId: config.MFA_ENCRYPTION_KEY_ID ?? DEFAULT_MFA_KEY_ID, keys: mfaKeys(config) };
+}
+
 /** Key id of the MFA_ENCRYPTION_KEY fallback (development and tests only). */
 export const DEVELOPMENT_INTEGRATION_KEY_ID = "development";
 

@@ -70,6 +70,12 @@ variable "portal_organization_code" {
   default     = "demo"
 }
 
+variable "csp_connect_origins" {
+  description = "Origins the staff app and MyHealth may connect to besides themselves and the live-update socket, for their script policy: the video service's address (e.g. wss://video.example.ph). Empty sets nothing (video calls are then blocked)."
+  type        = string
+  default     = ""
+}
+
 variable "kiosk_privacy_notice" {
   description = "The privacy notice a new patient accepts at the patient kiosk (KIOSK_PRIVACY_NOTICE of the kiosk service). The wording is the organization's own decision; null leaves the kiosk's plain statement of what it does."
   type        = string
@@ -91,6 +97,16 @@ variable "optional_settings" {
   EOT
   type        = map(string)
   default     = {}
+}
+
+variable "allow_plaintext_private_network" {
+  description = <<-EOT
+    Lets the API and workers reach PostgreSQL, Redis, SMTP and object storage without TLS when the host is on Railway's
+    private network (*.railway.internal) — Railway's database templates offer no TLS there. Public hosts always need
+    TLS, and LiveKit always wss. Set false once every connection is encrypted (docs/deployment/railway.md).
+  EOT
+  type        = bool
+  default     = true
 }
 
 variable "allow_owner_database" {
@@ -130,7 +146,7 @@ variable "secrets" {
     livekit_api_secret         = optional(string)
     otel_exporter_otlp_headers = optional(string)
     # The restricted application role's connection URL (docs/runbooks/database-roles.md). When set it becomes
-    # DATABASE_URL of the API and workers, and the API's pre-deploy migration uses the owner (MIGRATION_DATABASE_URL).
+    # DATABASE_URL of the API and workers; only the migrate service holds the owner's URL (MIGRATION_DATABASE_URL, ADR-0016).
     app_database_url = optional(string)
   })
   sensitive = true

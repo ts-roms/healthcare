@@ -21,6 +21,7 @@ const device = (over: Partial<KioskDevice>): KioskDevice => ({
   printerStatus: "ok",
   printer: "available",
   printerHeartbeatAt: "2026-11-04T01:00:00Z",
+  allowedNetworks: [],
   version: 1,
   ...over,
 });

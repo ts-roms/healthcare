@@ -19,7 +19,12 @@ async function call<T>(
   headers: Record<string, string>,
   body?: unknown,
 ): Promise<T> {
-  const response = await context.fetch(`${API_URL}${path}`, { method, headers, data: body });
+  // A GET is safe to send again: once more if the connection was reset under it (a kept-alive connection closing).
+  const send = () => context.fetch(`${API_URL}${path}`, { method, headers, data: body });
+  const response = await send().catch((error: unknown) => {
+    if (method === "GET" && String(error).includes("ECONNRESET")) return send();
+    throw error;
+  });
   const text = await response.text();
   if (!response.ok()) throw new Error(`${method} ${path} → ${response.status()}: ${text}`);
   return (text ? JSON.parse(text) : undefined) as T;

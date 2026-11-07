@@ -137,6 +137,7 @@ describe("waiting-room display", () => {
         reject(new Error(JSON.stringify(payload)));
       });
     });
-    expect(ready).toEqual({ facilityId: tenant.facilityId, channels: ["queue", "notices"] });
+    // Its own room (zero trust): told only that the queue changed, never a visit's details.
+    expect(ready).toEqual({ facilityId: tenant.facilityId, channels: ["display", "notices"] });
   });
 });

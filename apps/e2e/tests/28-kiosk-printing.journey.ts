@@ -274,7 +274,12 @@ test("the printer is set in the staff app, not in the agent's environment: the a
   test.setTimeout(240_000);
   // A stand-in for a ticket printer on the clinic's network: it accepts connections and keeps what it is sent.
   const received: Buffer[] = [];
-  const printer: Server = createServer((socket) => socket.on("data", (chunk) => received.push(chunk)));
+  // A real printer drops the connection when the agent stops; the stand-in must too, without failing the journey
+  // (an "error" event with no listener would end the test with ECONNRESET after every check has passed).
+  const printer: Server = createServer((socket) => {
+    socket.on("data", (chunk) => received.push(chunk));
+    socket.on("error", () => undefined);
+  });
   await new Promise<void>((resolve) => printer.listen(0, "127.0.0.1", resolve));
   const port = (printer.address() as { port: number }).port;
   const text = () => Buffer.concat(received).toString("latin1");

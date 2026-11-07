@@ -41,6 +41,12 @@ async function bootstrap(): Promise<void> {
     rawBody: true,
   });
   configureApp(app, config);
+  // Keep idle connections open longer than clients and proxies reuse them (Node's default is 5 s): otherwise the API
+  // closes a kept-alive connection just as a client sends on it, and that request fails with ECONNRESET. Headers must
+  // be allowed a little longer than the keep-alive window (Node's own rule).
+  const server = app.getHttpServer() as import("node:http").Server;
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
   await app.listen(config.PORT);
   // Dispatches domain events (queue updates, reminders) written by transactions.
   app.get(OutboxRelay).start();

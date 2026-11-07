@@ -1,6 +1,6 @@
 import { boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0137_kiosk.sql, 0139_kiosk_printing_and_displays.sql, 0140_kiosk_prints_tickets.sql and 0141_kiosk_registration_claim.sql and 0142_kiosk_print_agent_binding.sql and 0143_kiosk_printer_settings.sql (the migrations are the source of truth). These tables belong to the API's
+// Mirrors database/migrations/0137_kiosk.sql, 0139_kiosk_printing_and_displays.sql, 0140_kiosk_prints_tickets.sql and 0141_kiosk_registration_claim.sql and 0142_kiosk_print_agent_binding.sql and 0143_kiosk_printer_settings.sql and 0148_kiosk_allowed_networks.sql (the migrations are the source of truth). These tables belong to the API's
 // kiosk composition, which spans the patient and clinic domains (ADR-0015), not to a domain library.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
@@ -33,6 +33,8 @@ export const kioskDevice = pgTable("kiosk_device", {
   printerPort: integer("printer_port"),
   /** The ticket roll's width in millimetres. */
   paperMm: integer("paper_mm").$type<58 | 80>().notNull().default(80),
+  /** Where this kiosk may be used: addresses or CIDR ranges (migration 0148); empty = anywhere. */
+  allowedNetworks: text("allowed_networks").array().notNull().default([]),
   appVersion: text("app_version"),
   printerStatus: text("printer_status").$type<KioskPrinterStatus>().notNull().default("unknown"),
   createdBy: uuid("created_by").notNull(),

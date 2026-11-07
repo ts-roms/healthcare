@@ -1,3 +1,4 @@
+import { encryptSecret } from "@healthcare/core";
 import { currentTotp } from "@healthcare/auth";
 import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWORD, type Tenant, type TestContext } from "./harness";
 
@@ -116,6 +117,8 @@ describe("authentication", () => {
 
       const stored = await ctx.pool.query(`SELECT mfa_secret_encrypted FROM app_user WHERE email = 'doctor@example.ph'`);
       expect(stored.rows[0].mfa_secret_encrypted).not.toContain(secret);
+      // Sealed with the current key and bound to this account's row.
+      expect(stored.rows[0].mfa_secret_encrypted).toMatch(/^v3\.default\./);
       const hashes = await ctx.pool.query(
         `SELECT code_hash FROM staff_recovery_code r JOIN app_user u ON u.id = r.user_id WHERE u.email = 'doctor@example.ph'`,
       );
@@ -135,6 +138,13 @@ describe("authentication", () => {
       // The used challenge opens no second session, even with a code that would otherwise be accepted.
       const replay = await verify(challenge.body.challengeToken, await freshCode()).expect(401);
       expect(replay.body.error.code).toBe("invalid_token");
+      // A secret stored before binding (the v1 format) still works, and is sealed again, bound, when it is used.
+      await ctx.pool.query(`UPDATE app_user SET mfa_secret_encrypted = $1 WHERE email = 'doctor@example.ph'`, [
+        encryptSecret(secret, ctx.config.MFA_ENCRYPTION_KEY),
+      ]);
+      await verify(await signIn(), await freshCode()).expect(200);
+      const resealed = await ctx.pool.query(`SELECT mfa_secret_encrypted FROM app_user WHERE email = 'doctor@example.ph'`);
+      expect(resealed.rows[0].mfa_secret_encrypted).toMatch(/^v3\.default\./);
       // A challenge token is not an access token.
       await ctx.http().get("/api/v1/auth/me").set(as(challenge.body.challengeToken)).expect(401);
       const me = await ctx.http().get("/api/v1/auth/me").set(as(verified.body.accessToken)).expect(200);

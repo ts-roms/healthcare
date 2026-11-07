@@ -84,6 +84,10 @@ export function testConfig(env: Record<string, string> = {}): AppConfig {
     LIVEKIT_URL: "wss://video.test.invalid",
     LIVEKIT_API_KEY: "test-key",
     LIVEKIT_API_SECRET: randomBytes(32).toString("hex"),
+    // Readiness is checked on every probe, so a test sees a dependency change at once.
+    HEALTH_CACHE_MS: "0",
+    // The migration files, so readiness compares the schema with them as in a deployment (tests run from apps/api).
+    MIGRATIONS_DIR: join(__dirname, "../../../database/migrations"),
     ...env,
   });
 }
