@@ -65,8 +65,13 @@ export const kioskRegistration = pgTable("kiosk_registration", {
   id: uuid("id").primaryKey().defaultRandom(),
   organizationId: uuid("organization_id").notNull(),
   facilityId: uuid("facility_id").notNull(),
-  deviceId: uuid("device_id").notNull(),
-  sessionId: uuid("session_id").notNull(),
+  /** The kiosk it was typed at; null for a pre-registration from MyHealth (migration 0150). */
+  deviceId: uuid("device_id"),
+  sessionId: uuid("session_id"),
+  /** Where it was typed: a kiosk, or the MyHealth app before a first visit (migration 0150). */
+  source: text("source").$type<"kiosk" | "myhealth">().notNull().default("kiosk"),
+  /** The organization's privacy notice version the person accepted (MyHealth). */
+  noticeVersion: integer("notice_version"),
   reference: text("reference").notNull(),
   status: text("status").$type<KioskRegistrationStatus>().notNull().default("pending"),
   payloadSealed: text("payload_sealed"),
@@ -110,3 +115,16 @@ export const kioskPrintJob = pgTable("kiosk_print_job", {
   updatedAt: ts("updated_at").notNull().defaultNow(),
 });
 export type KioskPrintJobRecord = typeof kioskPrintJob.$inferSelect;
+
+/** Whether MyHealth offers pre-registration, its privacy notice and how long a request waits (migration 0150). */
+export const preRegistrationSetting = pgTable("pre_registration_setting", {
+  organizationId: uuid("organization_id").primaryKey(),
+  enabled: boolean("enabled").notNull().default(false),
+  noticeText: text("notice_text"),
+  noticeVersion: integer("notice_version").notNull().default(0),
+  retentionDays: integer("retention_days").notNull().default(7),
+  updatedBy: uuid("updated_by"),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type PreRegistrationSettingRecord = typeof preRegistrationSetting.$inferSelect;

@@ -8,12 +8,13 @@ import { FacilityRequired } from "@/components/facility-required";
 import { LiveRegistrationsRefresh } from "@/components/live-queue";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { KioskRegistrationItem } from "@/lib/api/types";
+import type { KioskRegistrationItem, PreRegistrationSettings } from "@/lib/api/types";
+import { PreRegistrationSettingsCard } from "./pre-registration-settings";
 
 export const metadata = { title: "Registrations" };
 
 /**
- * New patients who typed their details at a kiosk. They are not patients yet: reception checks who they are, looks at
+ * New patients who typed their details at a kiosk or sent them from MyHealth before a first visit. They are not patients yet: reception checks who they are, looks at
  * possible duplicates and approves, links to an existing record or declines. The list holds no personal data.
  */
 export default async function KioskRegistrationsPage() {
@@ -26,11 +27,14 @@ export default async function KioskRegistrationsPage() {
       </ModulePage>
     );
   }
-  const { items } = await api<{ items: KioskRegistrationItem[] }>("/kiosk/admin/registrations");
+  const [{ items }, settings] = await Promise.all([
+    api<{ items: KioskRegistrationItem[] }>("/kiosk/admin/registrations"),
+    can(session, "clinic.configure") ? api<PreRegistrationSettings>("/kiosk/admin/pre-registration-settings") : Promise.resolve(null),
+  ]);
   return (
     <ModulePage
       title="Registrations"
-      description="New patients who registered at a kiosk. Check who they are, look at possible duplicates, then approve, link to an existing record or decline. Nothing is a patient record until you approve it."
+      description="New patients who registered at a kiosk or from MyHealth before a first visit. Check who they are, look at possible duplicates, then approve, link to an existing record or decline. Nothing is a patient record until you approve it."
       actions={<LiveRegistrationsRefresh />}
     >
       <Card className="py-0">
@@ -44,7 +48,7 @@ export default async function KioskRegistrationsPage() {
               <TableRow>
                 <TableHead>Reference</TableHead>
                 <TableHead>Submitted</TableHead>
-                <TableHead>Kiosk</TableHead>
+                <TableHead>From</TableHead>
                 <TableHead>Possible duplicates</TableHead>
                 <TableHead>Kept until</TableHead>
                 <TableHead />
@@ -55,7 +59,7 @@ export default async function KioskRegistrationsPage() {
                 <TableRow key={r.id}>
                   <TableCell className="font-mono font-medium">{r.reference}</TableCell>
                   <TableCell>{clinicalDateTime(r.submittedAt)}</TableCell>
-                  <TableCell>{r.kiosk}</TableCell>
+                  <TableCell>{r.source === "myhealth" ? <Badge variant="info">MyHealth</Badge> : r.kiosk}</TableCell>
                   <TableCell>
                     {r.possibleDuplicates > 0 ? (
                       <Badge variant="warning">
@@ -80,6 +84,7 @@ export default async function KioskRegistrationsPage() {
           </Table>
         )}
       </Card>
+      {settings ? <PreRegistrationSettingsCard settings={settings} /> : null}
     </ModulePage>
   );
 }

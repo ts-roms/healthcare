@@ -207,6 +207,30 @@ been tested.** Whether a given model understands the commands and the paper-sens
 printer queue behaves, full-screen and wake-lock behaviour, the browser's speech voices and the room's acoustics must be
 checked on the target devices before the module is relied on.
 
+## Pre-registration from MyHealth (migration `0150`)
+
+A person who is not yet a patient can send their details from the MyHealth app before a first visit. It is the kiosk's
+staged registration with another source (`kiosk_registration.source = 'myhealth'`, no device or session, reference
+`MR-XXXXXX`): nothing becomes a patient, an account or access on its own.
+
+- **Off until the organization turns it on** (`pre_registration_setting`: enabled, its own privacy notice — the platform
+  ships none — and how long a request waits, 1 to 30 days, 7 by default; staff **Queue → Registrations**, settings card,
+  `clinic.configure`; `GET|PUT /kiosk/admin/pre-registration-settings`, audited `myhealth.pre-registration.settings`).
+  A changed notice text is a new version; each request records the version accepted, and one sent against an older
+  version is refused (`pre_registration_notice_changed`).
+- **Public routes for the app** (no account yet): `GET /portal/pre-registration?organizationCode=` (enabled, the notice,
+  the active facilities' names; an unknown or non-offering clinic answers `{ enabled: false }` alike) and `POST
+/portal/pre-registration` (the kiosk's form plus `organizationCode`, `facilityId`, `noticeVersion`; `202` with the
+  reference and expiry only — never whether the person may already be a patient). 5 a minute per address; per
+  organization at most 500 waiting and 200 a day (`pre_registration_busy`). Audited `myhealth.pre-registration.submit`
+  (anonymous, with the organization); `KioskRegistrationSubmitted` updates reception live.
+- **Reception** reviews it with the kiosk's requests (list column **From**: the kiosk, or **MyHealth**) and decides the
+  same way after checking the person's identification: approve through the ordinary registration, link, or decline.
+  The sealed payload is erased on any decision and at expiry (`KioskHousekeeping`).
+- **MyHealth access** still starts with the clinic's activation code, issued from the patient record after approval.
+- The screen in the MyHealth app is built in its own project (`myhealth-mobile`). Notifying the person of the decision
+  (to an unverified address) is deliberately not built.
+
 ## Not built yet
 
 A QR code on the ticket, direct USB printer drivers (a USB printer is reached through the operating system's printer

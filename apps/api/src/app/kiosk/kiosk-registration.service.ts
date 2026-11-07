@@ -8,6 +8,7 @@ import {
   asPgError,
   asPlatform,
   BusinessRuleError,
+  ConflictError,
   DATABASE,
   type Database,
   DomainEventPublisher,
@@ -16,17 +17,27 @@ import {
   type Keyring,
   openWithKeyring,
   PgErrorCode,
+  type RequestMetadata,
   requireFacilityId,
   sealWithKeyring,
+  withinOrganization,
 } from "@healthcare/core";
-import { PatientRecordService, PatientRegistrationService, type RegisterPatientInput } from "@healthcare/patient";
+import { OrganizationService } from "@healthcare/organization";
+import { PatientRecordService, PatientRegistrationService, PortalAccountService, type RegisterPatientInput } from "@healthcare/patient";
 import { and, asc, eq, gt, inArray, isNull, lt, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { KioskDeviceService } from "./kiosk-device.service";
 import { KioskSessionService } from "./kiosk-session.service";
-import type { approveRegistrationSchema, KioskRegistrationInput, linkRegistrationSchema, rejectRegistrationSchema } from "./kiosk.dto";
-import { newRegistrationReference, REGISTRATION_TTL_MS } from "./kiosk.rules";
-import { kioskDevice, kioskRegistration, type KioskRegistrationRecord } from "./kiosk.schema";
+import type {
+  approveRegistrationSchema,
+  KioskRegistrationInput,
+  linkRegistrationSchema,
+  preRegistrationSchema,
+  preRegistrationSettingSchema,
+  rejectRegistrationSchema,
+} from "./kiosk.dto";
+import { MAX_MYHEALTH_PENDING_PER_ORGANIZATION, MAX_MYHEALTH_PER_ORGANIZATION_PER_DAY, newRegistrationReference, REGISTRATION_TTL_MS } from "./kiosk.rules";
+import { kioskDevice, kioskRegistration, type KioskRegistrationRecord, preRegistrationSetting, type PreRegistrationSettingRecord } from "./kiosk.schema";
 import { found } from "./kiosk-support";
 
 /** At most this many registrations may wait from one kiosk, so a flood of submissions cannot bury the desk. */
@@ -41,7 +52,9 @@ export interface PendingRegistrationView {
   reference: string;
   submittedAt: Date;
   expiresAt: Date;
-  kiosk: string;
+  /** Where it was typed: a kiosk (named) or MyHealth before a first visit. */
+  source: "kiosk" | "myhealth";
+  kiosk: string | null;
   /** Existing patients the Patient Master thought might be the same person, found when it was submitted. */
   possibleDuplicates: number;
 }
@@ -68,6 +81,8 @@ export class KioskRegistrationService {
     private readonly registration: PatientRegistrationService,
     private readonly records: PatientRecordService,
     private readonly visits: VisitService,
+    private readonly accounts: PortalAccountService,
+    private readonly organizations: OrganizationService,
   ) {
     this.keyring = integrationPayloadKeyring(config);
   }
@@ -159,6 +174,174 @@ export class KioskRegistrationService {
     throw new BusinessRuleError("Please try again.", "kiosk_registration_retry");
   }
 
+  // ---- MyHealth: pre-registration before a first visit (migration 0150) ----------------------------------------------
+
+  /** What the app shows before the form: whether the clinic offers it, its notice, and the facilities to choose from. */
+  async preRegistrationInfo(organizationCode: string) {
+    const org = await this.accounts.organizationByCode(organizationCode);
+    if (!org) return { enabled: false as const };
+    return withinOrganization(org.id, async () => {
+      const setting = await this.setting(org.id);
+      if (!setting?.enabled || !setting.noticeText) return { enabled: false as const };
+      const facilities = (await this.organizations.listFacilities(org.id)).filter((f) => f.status === "active");
+      return {
+        enabled: true as const,
+        organizationName: (await this.organizations.getOrganization(org.id)).name,
+        notice: { text: setting.noticeText, version: setting.noticeVersion },
+        facilities: facilities.map((f) => ({ id: f.id, name: f.name })),
+        retentionDays: setting.retentionDays,
+      };
+    });
+  }
+
+  /**
+   * Stores a pre-registration for reception (zero trust: nothing becomes a patient, an account or access on its own).
+   * The answer is always a reference and an expiry: it never says whether the person may already be a patient, and an
+   * organization that does not offer it answers the same refusal as an unknown one.
+   */
+  async submitFromMyHealth(input: z.infer<typeof preRegistrationSchema>, request: RequestMetadata): Promise<{ reference: string; expiresAt: Date }> {
+    const org = await this.accounts.organizationByCode(input.organizationCode);
+    const unavailable = () => new BusinessRuleError("Pre-registration is not available for this clinic.", "pre_registration_unavailable");
+    if (!org) throw unavailable();
+    return withinOrganization(org.id, async () => {
+      const setting = await this.setting(org.id);
+      if (!setting?.enabled) throw unavailable();
+      if (input.noticeVersion !== setting.noticeVersion) {
+        throw new BusinessRuleError("The clinic's privacy notice has changed. Read it again before sending.", "pre_registration_notice_changed");
+      }
+      const facility = (await this.organizations.listFacilities(org.id)).find((f) => f.id === input.facilityId && f.status === "active");
+      if (!facility) throw new BusinessRuleError("Choose one of the clinic's facilities.", "pre_registration_facility_unknown");
+      const [pending] = await this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(kioskRegistration)
+        .where(and(eq(kioskRegistration.organizationId, org.id), eq(kioskRegistration.source, "myhealth"), eq(kioskRegistration.status, "pending")));
+      const [today] = await this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(kioskRegistration)
+        .where(
+          and(
+            eq(kioskRegistration.organizationId, org.id),
+            eq(kioskRegistration.source, "myhealth"),
+            gt(kioskRegistration.submittedAt, new Date(Date.now() - 86_400_000)),
+          ),
+        );
+      if ((pending?.n ?? 0) >= MAX_MYHEALTH_PENDING_PER_ORGANIZATION || (today?.n ?? 0) >= MAX_MYHEALTH_PER_ORGANIZATION_PER_DAY) {
+        throw new BusinessRuleError("Pre-registration is busy right now. Please register at the clinic.", "pre_registration_busy");
+      }
+      const { organizationCode: _code, facilityId: _facility, noticeVersion, ...typed } = input;
+      const candidates = await this.registration.findDuplicates(this.db, org.id, {
+        familyName: typed.familyName,
+        givenName: typed.givenName,
+        middleName: typed.middleName,
+        birthDate: typed.birthDate,
+        sex: typed.sex,
+        contacts: typed.contacts,
+        identifiers: typed.identifiers,
+      });
+      const { keyId, sealed } = sealWithKeyring(JSON.stringify(typed), this.keyring);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + setting.retentionDays * 86_400_000);
+      const anonymous = { kind: "anonymous" as const, organizationId: org.id, request };
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          return await this.db.transaction(async (tx) => {
+            const [created] = await tx
+              .insert(kioskRegistration)
+              .values({
+                organizationId: org.id,
+                facilityId: facility.id,
+                source: "myhealth",
+                noticeVersion,
+                reference: newRegistrationReference("MR"),
+                payloadSealed: sealed,
+                payloadKeyId: keyId,
+                duplicateCandidateIds: candidates.map((c) => c.patient.id),
+                submittedAt: now,
+                expiresAt,
+              })
+              .returning();
+            const row = found(created, "Registration");
+            await this.audit.record(tx, anonymous, {
+              action: "myhealth.pre-registration.submit",
+              resourceType: "kiosk_registration",
+              resourceId: row.id,
+              metadata: { reference: row.reference, facilityId: facility.id, noticeVersion, possibleDuplicates: candidates.length },
+            });
+            await this.events.record(tx, {
+              type: "KioskRegistrationSubmitted",
+              organizationId: row.organizationId,
+              aggregateType: "kiosk_registration",
+              aggregateId: row.id,
+              facilityId: row.facilityId,
+              payload: { reference: row.reference, source: "myhealth" },
+            });
+            return { reference: row.reference, expiresAt: row.expiresAt };
+          });
+        } catch (error) {
+          if (asPgError(error)?.code !== PgErrorCode.uniqueViolation) throw error;
+          // The reference collided with another: draw a new one.
+        }
+      }
+      throw new BusinessRuleError("Please try again.", "pre_registration_retry");
+    });
+  }
+
+  /** The organization's pre-registration settings (staff). */
+  async settings(actor: Actor) {
+    const row = await this.setting(actor.organizationId);
+    return {
+      enabled: row?.enabled ?? false,
+      noticeText: row?.noticeText ?? null,
+      noticeVersion: row?.noticeVersion ?? 0,
+      retentionDays: row?.retentionDays ?? 7,
+      version: row?.version ?? 0,
+    };
+  }
+
+  /** Turns pre-registration on or off, sets the notice (a changed text is a new version) and the waiting time. Audited. */
+  async updateSettings(actor: Actor, input: z.infer<typeof preRegistrationSettingSchema>) {
+    await this.db.transaction(async (tx) => {
+      const [current] = await tx.select().from(preRegistrationSetting).where(eq(preRegistrationSetting.organizationId, actor.organizationId)).for("update");
+      if (current && input.version !== undefined && input.version !== current.version) {
+        throw new ConflictError("The settings were changed by someone else. Reload and try again.", undefined, "version_conflict");
+      }
+      const noticeChanged = (current?.noticeText ?? null) !== input.noticeText;
+      const noticeVersion = noticeChanged && input.noticeText !== null ? (current?.noticeVersion ?? 0) + 1 : (current?.noticeVersion ?? 0);
+      const values = {
+        enabled: input.enabled,
+        noticeText: input.noticeText,
+        noticeVersion,
+        retentionDays: input.retentionDays,
+        updatedBy: actor.userId,
+        updatedAt: new Date(),
+      };
+      if (current) {
+        await tx
+          .update(preRegistrationSetting)
+          .set({ ...values, version: sql`${preRegistrationSetting.version} + 1` })
+          .where(eq(preRegistrationSetting.organizationId, actor.organizationId));
+      } else {
+        await tx.insert(preRegistrationSetting).values({ organizationId: actor.organizationId, ...values });
+      }
+      await this.audit.record(tx, actor, {
+        action: "myhealth.pre-registration.settings",
+        resourceType: "pre_registration_setting",
+        resourceId: actor.organizationId,
+        changes: {
+          ...(current?.enabled !== input.enabled ? { enabled: { from: current?.enabled ?? false, to: input.enabled } } : {}),
+          ...(noticeChanged ? { noticeVersion: { from: current?.noticeVersion ?? 0, to: noticeVersion } } : {}),
+          ...(current?.retentionDays !== input.retentionDays ? { retentionDays: { from: current?.retentionDays ?? 7, to: input.retentionDays } } : {}),
+        },
+      });
+    });
+    return this.settings(actor);
+  }
+
+  private async setting(organizationId: string): Promise<PreRegistrationSettingRecord | undefined> {
+    const [row] = await this.db.select().from(preRegistrationSetting).where(eq(preRegistrationSetting.organizationId, organizationId));
+    return row;
+  }
+
   // ---- Staff --------------------------------------------------------------------------------------------------
 
   /** Registrations waiting at the actor's facility, oldest first. No personal data: that is behind `get`. */
@@ -167,7 +350,7 @@ export class KioskRegistrationService {
     const rows = await this.db
       .select({ r: kioskRegistration, kiosk: kioskDevice.name })
       .from(kioskRegistration)
-      .innerJoin(kioskDevice, and(eq(kioskDevice.organizationId, kioskRegistration.organizationId), eq(kioskDevice.id, kioskRegistration.deviceId)))
+      .leftJoin(kioskDevice, and(eq(kioskDevice.organizationId, kioskRegistration.organizationId), eq(kioskDevice.id, kioskRegistration.deviceId)))
       .where(
         and(eq(kioskRegistration.organizationId, actor.organizationId), eq(kioskRegistration.facilityId, facilityId), eq(kioskRegistration.status, "pending")),
       )
@@ -177,6 +360,7 @@ export class KioskRegistrationService {
       reference: r.reference,
       submittedAt: r.submittedAt,
       expiresAt: r.expiresAt,
+      source: r.source,
       kiosk,
       possibleDuplicates: r.duplicateCandidateIds.length,
     }));
@@ -222,6 +406,7 @@ export class KioskRegistrationService {
       reference: row.reference,
       submittedAt: row.submittedAt,
       expiresAt: row.expiresAt,
+      source: row.source,
       registration: input,
       possibleDuplicates: candidates,
     };
@@ -240,7 +425,7 @@ export class KioskRegistrationService {
     await this.claim(actor, row.id);
     let created: { id: string; patientNumber: string };
     try {
-      const { emergencyContact, privacyAcknowledged: _acknowledged, ...person } = typed;
+      const { emergencyContact, privacyAcknowledged: _acknowledged, ...person } = typed as KioskRegistrationInput;
       created = await this.registration.register(actor, {
         ...person,
         relationships: [

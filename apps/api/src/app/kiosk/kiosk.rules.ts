@@ -61,10 +61,14 @@ export function sessionDeadline(startedAt: Date, lastTouch: Date): Date {
 
 const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I, O, 0, 1
 /** "KR-7H2QXD": short enough to read out, 32^6 possibilities, no ambiguous characters. */
-export function newRegistrationReference(): string {
+export function newRegistrationReference(prefix: "KR" | "MR" = "KR"): string {
   const bytes = randomBytes(6);
-  return `KR-${[...bytes].map((b) => REFERENCE_ALPHABET[b % REFERENCE_ALPHABET.length]).join("")}`;
+  return `${prefix}-${[...bytes].map((b) => REFERENCE_ALPHABET[b % REFERENCE_ALPHABET.length]).join("")}`;
 }
+
+/** Pre-registrations from MyHealth (migration 0150): at most this many may wait per organization, and arrive per day. */
+export const MAX_MYHEALTH_PENDING_PER_ORGANIZATION = 500;
+export const MAX_MYHEALTH_PER_ORGANIZATION_PER_DAY = 200;
 
 /**
  * A printer must be on the clinic's own network: a private, loopback or link-local address, or a local name (one label, or a

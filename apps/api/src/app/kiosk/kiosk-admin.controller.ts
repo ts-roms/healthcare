@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import { DeviceRateLimitGuard } from "../rate-limit.guard";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
@@ -13,6 +13,7 @@ import {
   RejectRegistrationDto,
   ReprintDto,
   UpdateDeviceDto,
+  PreRegistrationSettingDto,
 } from "./kiosk.dto";
 
 /** Staff side of the kiosk module: managing kiosks and reviewing what was typed at them. */
@@ -62,6 +63,20 @@ export class KioskAdminController {
   @ApiOperation({ summary: "Print a kiosk ticket again, with a reason (limited, audited)" })
   reprint(@CurrentActor() actor: Actor, @Param("jobId", ParseUUIDPipe) jobId: string, @Body() body: ReprintDto) {
     return this.print.reprint(actor, jobId, body);
+  }
+
+  @Get("pre-registration-settings")
+  @RequirePermissions("kiosk.registration.review")
+  @ApiOperation({ summary: "Whether MyHealth offers pre-registration, its privacy notice and how long a request waits (migration 0150)" })
+  preRegistrationSettings(@CurrentActor() actor: Actor) {
+    return this.registrations.settings(actor);
+  }
+
+  @Put("pre-registration-settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Turn MyHealth pre-registration on or off, set the organization's privacy notice and how long a request waits (audited)" })
+  updatePreRegistrationSettings(@CurrentActor() actor: Actor, @Body() body: PreRegistrationSettingDto) {
+    return this.registrations.updateSettings(actor, body);
   }
 
   @Get("registrations")

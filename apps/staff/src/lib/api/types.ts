@@ -5649,8 +5649,19 @@ export interface KioskRegistrationItem {
   reference: string;
   submittedAt: string;
   expiresAt: string;
-  kiosk: string;
+  /** Typed at a kiosk (named), or sent from MyHealth before a first visit (migration 0150). */
+  source: "kiosk" | "myhealth";
+  kiosk: string | null;
   possibleDuplicates: number;
+}
+
+/** `GET /kiosk/admin/pre-registration-settings` (migration 0150). */
+export interface PreRegistrationSettings {
+  enabled: boolean;
+  noticeText: string | null;
+  noticeVersion: number;
+  retentionDays: number;
+  version: number;
 }
 
 /** What a new patient typed at the kiosk (the registration's own shape), as `GET /kiosk/admin/registrations/:id` returns it. */

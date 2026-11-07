@@ -145,6 +145,31 @@ export const kioskRegistrationSchema = registerPatientSchema
 export class KioskRegistrationDto extends createZodDto(kioskRegistrationSchema) {}
 export type KioskRegistrationInput = z.infer<typeof kioskRegistrationSchema>;
 
+/**
+ * A pre-registration from MyHealth (migration 0150): the kiosk's form, plus the clinic (its code), the facility the person
+ * means to visit, and the version of the organization's privacy notice they accepted.
+ */
+export const preRegistrationSchema = kioskRegistrationSchema.extend({
+  organizationCode: z.string().trim().min(1).max(64),
+  facilityId: z.string().uuid(),
+  noticeVersion: z.number().int().min(1),
+});
+export class PreRegistrationDto extends createZodDto(preRegistrationSchema) {}
+
+export const preRegistrationQuerySchema = z.object({ organizationCode: z.string().trim().min(1).max(64) });
+export class PreRegistrationQueryDto extends createZodDto(preRegistrationQuerySchema) {}
+
+export const preRegistrationSettingSchema = z
+  .object({
+    enabled: z.boolean(),
+    /** The organization's own privacy notice (the platform ships none); a changed text becomes a new version. */
+    noticeText: z.string().trim().min(20).max(5000).nullable(),
+    retentionDays: z.number().int().min(1).max(30),
+    version: z.number().int().positive().optional(),
+  })
+  .refine((v) => !v.enabled || v.noticeText !== null, { message: "Pre-registration needs a privacy notice to show", path: ["noticeText"] });
+export class PreRegistrationSettingDto extends createZodDto(preRegistrationSettingSchema) {}
+
 // ---- Staff: registration review ------------------------------------------------------------------------------------
 
 /**

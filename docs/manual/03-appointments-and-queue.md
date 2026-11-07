@@ -277,6 +277,17 @@ number shows how many are waiting, and the list updates by itself).
 
 The typed details are erased as soon as you decide, and after 24 hours if nobody does.
 
+**Requests from MyHealth.** If your organization offers pre-registration, people who are not yet patients can send their
+details from the MyHealth app before their first visit. They appear in the same list with **MyHealth** under **From**,
+and you review them exactly as above: check the person's identification (usually when they arrive), then approve, link
+or decline. They wait as long as your organization chose (7 days unless changed). Approving does not give the person
+MyHealth access: invite them from the patient record as usual.
+
+**Turning it on (administrators).** At the bottom of **Queue → Registrations**, in **Pre-registration from MyHealth**,
+tick **Offer pre-registration in MyHealth**, paste your organization's own privacy notice (what it must say is your data
+protection officer's decision; changing it makes a new version) and choose how many days a request waits, then
+**Save**.
+
 ### How to work a patient's route
 
 A route is the planned sequence of service points for one visit — say **Emergency room → Laboratory → X-ray**. It is planned at triage (the
