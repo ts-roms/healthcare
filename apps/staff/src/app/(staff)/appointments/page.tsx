@@ -20,7 +20,11 @@ const VIEWS: readonly AppointmentsView[] = ["day", "list", "room", "calendar"];
 /** A month is read a page at a time (100 each); more than this is flagged as cut short. */
 const MONTH_PAGES = 5;
 
-export default async function AppointmentsPage({ searchParams }: { searchParams: Promise<{ date?: string; practitionerId?: string; view?: string }> }) {
+export default async function AppointmentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string; practitionerId?: string; view?: string; appointmentId?: string }>;
+}) {
   const [params, session, facility] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "appointment.read")) redirect("/");
   if (!facility) {
@@ -136,6 +140,8 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
         timeZone={facility.timezone}
         rooms={rooms}
         month={month ? { days: month.days, items: monthItems, truncated: monthTruncated } : null}
+        // Opened in the side panel, e.g. the appointment just booked.
+        initialAppointmentId={params.appointmentId ?? null}
       />
     </ModulePage>
   );

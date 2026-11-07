@@ -75,6 +75,7 @@ export function AppointmentsDay({
   timeZone,
   rooms,
   month,
+  initialAppointmentId,
 }: {
   items: AppointmentItem[];
   truncated: boolean;
@@ -99,6 +100,8 @@ export function AppointmentsDay({
   rooms: ClinicRoom[];
   /** The calendar view: the weeks around `date`'s month and their appointments (same practitioner filter). */
   month: { days: string[]; items: AppointmentItem[]; truncated: boolean } | null;
+  /** The appointment to open in the side panel first (e.g. the one just booked); otherwise the next one up. */
+  initialAppointmentId?: string | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -133,7 +136,7 @@ export function AppointmentsDay({
   );
 
   // The appointment in the side panel: the one picked, else the next one up, else the first of the day.
-  const [picked, setPicked] = React.useState<string | null>(null);
+  const [picked, setPicked] = React.useState<string | null>(initialAppointmentId ?? null);
   const selected = items.find((a) => a.id === picked) ?? month?.items.find((a) => a.id === picked) ?? figures.nextUp ?? items[0] ?? null;
   // Check-in is offered only on the appointment's own day (in the calendar view it may be another day than `date`).
   const selectedIsToday = selected ? localDay(selected.startsAt, timeZone) === today : false;

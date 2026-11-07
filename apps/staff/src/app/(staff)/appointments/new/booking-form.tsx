@@ -99,7 +99,11 @@ export function BookingForm({
           const linked = await updateCareActivity({ ...context.activity, status: "scheduled", appointmentId: appointment.id });
           if (!linked.ok) toast.warning("Booked, but the care-plan follow-up could not be linked", { description: linked.message });
         }
-        router.push(context.returnTo || `/appointments?date=${selection.date}&practitionerId=${selection.practitionerId}`);
+        // Back on the day's board, the appointment just booked is the one opened beside the schedule (ready to check in).
+        router.push(
+          context.returnTo ||
+            `/appointments?date=${selection.date}&practitionerId=${selection.practitionerId}${appointment ? `&appointmentId=${appointment.id}` : ""}`,
+        );
         return;
       }
       setAttemptKey(crypto.randomUUID());
