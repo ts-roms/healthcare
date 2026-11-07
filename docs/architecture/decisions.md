@@ -353,8 +353,10 @@ cannot be scrubbed); a CI job that migrates over a public TCP proxy (exposes the
 CI, which holds no Railway credential today); migrating on API start as the owner (the same exposure, plus every
 replica racing).
 
-**Consequences.** One more service to deploy; a deploy is two steps; the API needs the schema check. Until this is
-built the exposure is documented in `docs/runbooks/database-roles.md` ("The owner's URL at runtime").
+**Consequences.** One more service to deploy; a deploy is two steps (`migrate`, then `api`); the API's readiness has a
+required `schema` check (`pendingMigrations` in `libs/core`; `MIGRATIONS_DIR`) that answers `503 behind` until the
+migrate service has applied what the API ships. Built 2026-11-07 (`tools/db/railway.json`, Terraform service
+`migrate`, `apps/api/railway.json` without a pre-deploy command and a 300-second health check).
 
 ## ADR-0017 Platform scope that SQL running as the application role cannot claim
 

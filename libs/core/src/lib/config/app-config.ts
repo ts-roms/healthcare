@@ -46,6 +46,9 @@ const appConfigSchema = z
     // value as `X-Health-Token` (monitoring). Unset: details outside production only; production answers the status
     // alone. At least 32 characters (healthDetailsVisible).
     // How long a readiness answer is reused (cachedHealthReport), in milliseconds; 0 checks on every probe (tests).
+    // Where the migration files this build ships are (relative to the working directory): readiness compares them with
+    // schema_migration and answers 503 while any is unapplied (ADR-0016). Unreadable: the check is skipped.
+    MIGRATIONS_DIR: z.string().min(1).default("database/migrations"),
     HEALTH_CACHE_MS: z.coerce.number().int().min(0).max(60_000).default(5_000),
     HEALTH_DETAILS_TOKEN: z.string().min(32, "HEALTH_DETAILS_TOKEN must be at least 32 characters").optional(),
     LOG_LEVEL: z.enum(["error", "warn", "log", "debug", "verbose"]).default("log"),

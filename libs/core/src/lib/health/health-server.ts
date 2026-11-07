@@ -2,7 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 import { createServer, type Server } from "node:http";
 
 /** The outcome of one dependency check: reachable, unreachable (with a reason), or not configured. */
-export type DependencyState = "ok" | "unreachable" | "unconfigured";
+/** `behind`: the database lacks a migration this build ships (ADR-0016); counted as down, like `unreachable`. */
+export type DependencyState = "ok" | "unreachable" | "unconfigured" | "behind";
 
 export interface HealthReport {
   status: "ok" | "degraded" | "unavailable";
@@ -25,7 +26,7 @@ export async function healthReport(checks: HealthCheck[]): Promise<HealthReport>
   const report: HealthReport = { status: "ok", checks: {} };
   for (const [check, state] of states) {
     report.checks[check.name] = state;
-    if (state !== "unreachable") continue;
+    if (state !== "unreachable" && state !== "behind") continue;
     if (check.required) report.status = "unavailable";
     else if (report.status === "ok") report.status = "degraded";
   }

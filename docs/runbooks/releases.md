@@ -35,7 +35,7 @@ By hand, the same thing is: `git switch -c release/v1.0.0`, `pnpm pkg set versio
 
 Railway services (`api`, `integration-worker`, `notification-worker`, `staff`, `portal`) deploy from the `production` branch. Set that once per service under Settings → Source → Branch.
 
-Order within a release that has a migration: the API runs `pnpm db:migrate` in its pre-deploy step, so deploy `api` first, then the workers, then `staff` and `portal`.
+Order within a release that has a migration: deploy `migrate` first (it runs `pnpm db:migrate` and stops; ADR-0016), then `api` (it stays unready while a migration it ships is not applied), then the workers, then `staff` and `portal`.
 
 ## A fix after release
 

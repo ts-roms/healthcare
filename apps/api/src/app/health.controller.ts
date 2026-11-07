@@ -1,4 +1,5 @@
-import { Controller, Get, Inject, Req, Res } from "@nestjs/common";
+import { resolve } from "node:path";
+import { Controller, Get, Inject, Logger, Req, Res } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
 import { SkipThrottle } from "@nestjs/throttler";
 import {
@@ -6,6 +7,7 @@ import {
   type AppConfig,
   asPlatform,
   DATABASE,
+  DATABASE_POOL,
   type Database,
   cachedHealthReport,
   type DependencyState,
@@ -13,11 +15,13 @@ import {
   healthDetailsVisible,
   type HealthReport,
   healthStatusCode,
+  pendingMigrations,
   Public,
 } from "@healthcare/core";
 import { DocumentsService } from "@healthcare/documents";
 import { sql } from "drizzle-orm";
 import type { Request, Response } from "express";
+import type { Pool } from "pg";
 import { RedisThrottlerStorage } from "./redis-throttler-storage";
 
 /** Object storage is probed at most once a minute (DocumentsService.probeStorage). */
@@ -28,21 +32,28 @@ const STORAGE_PROBE_INTERVAL_MS = 60_000;
 @SkipThrottle()
 export class HealthController {
   private storageProbe: { at: number; state: DependencyState } | undefined;
+  private readonly logger = new Logger("Health");
   private readonly report: () => Promise<HealthReport>;
 
   constructor(
     @Inject(DATABASE) private readonly db: Database,
+    @Inject(DATABASE_POOL) private readonly pool: Pool,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly documents: DocumentsService,
     private readonly redis: RedisThrottlerStorage,
   ) {
-    this.report = cachedHealthReport([
-      { name: "database", required: true, probe: () => asPlatform("readiness check", async () => this.db.execute(sql`SELECT 1`)).then(() => "ok" as const) },
-      { name: "redis", required: false, probe: async () => ((await this.redis.ping()) ? "ok" : "unreachable") },
-      { name: "objectStorage", required: false, probe: () => this.probeStorage() },
-      // Unconfigured: uploads are accepted as "not scanned" (docs/domains/documents.md); unreachable: uploads are refused.
-      { name: "malwareScanner", required: false, probe: () => this.documents.probeScanner() },
-    ], this.config.HEALTH_CACHE_MS);
+    this.report = cachedHealthReport(
+      [
+        { name: "database", required: true, probe: () => asPlatform("readiness check", async () => this.db.execute(sql`SELECT 1`)).then(() => "ok" as const) },
+        { name: "redis", required: false, probe: async () => ((await this.redis.ping()) ? "ok" : "unreachable") },
+        { name: "objectStorage", required: false, probe: () => this.probeStorage() },
+        // A migration this build ships is not applied yet (the migrate service has not finished, ADR-0016): not ready.
+        { name: "schema", required: true, probe: () => this.probeSchema() },
+        // Unconfigured: uploads are accepted as "not scanned" (docs/domains/documents.md); unreachable: uploads are refused.
+        { name: "malwareScanner", required: false, probe: () => this.documents.probeScanner() },
+      ],
+      this.config.HEALTH_CACHE_MS,
+    );
   }
 
   /** Liveness: the process is up. */
@@ -65,6 +76,14 @@ export class HealthController {
     const report = await this.report();
     res.status(healthStatusCode(report));
     return healthAnswer(report, healthDetailsVisible(this.config, req.headers["x-health-token"]));
+  }
+
+  private async probeSchema(): Promise<DependencyState> {
+    const pending = await asPlatform("readiness check of the schema", () => pendingMigrations(this.pool, resolve(this.config.MIGRATIONS_DIR)));
+    if (pending === null) return "unconfigured";
+    if (pending.length === 0) return "ok";
+    this.logger.warn({ event: "db.schema_behind", pending: pending.length, first: pending[0] });
+    return "behind";
   }
 
   private async probeStorage(): Promise<DependencyState> {

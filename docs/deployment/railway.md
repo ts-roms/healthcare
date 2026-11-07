@@ -32,20 +32,23 @@ Railpack picks up Node 22 from `.nvmrc` and pnpm 10 from `packageManager`.
 - **The Next.js apps listen on `$PORT`.** The `start` scripts in `apps/staff`, `apps/portal` and `apps/kiosk` use `${PORT:-3000}`,
   `${PORT:-3001}` and `${PORT:-3002}`: Railway's `$PORT` when set, the local development ports otherwise. The Railway start command also
   passes `--port $PORT` explicitly, so a service still deploys if Railpack falls back to the `start` script.
-- `pnpm db:migrate` runs as the API's pre-deploy command. It needs dev dependencies (`@swc-node/register`), so do not
-  enable `RAILPACK_PRUNE_DEPS`.
+- `pnpm db:migrate` runs in its own one-off service, `migrate` (`tools/db/railway.json`: start command `pnpm db:migrate`,
+  restart policy `NEVER`, no domain; ADR-0016). It is the only service holding the owner's URL (`MIGRATION_DATABASE_URL`).
+  It needs dev dependencies (`@swc-node/register`), so do not enable `RAILPACK_PRUNE_DEPS` there.
 
 ## Deploy triggers
 
 Automatic deploys on push are turned off. Railway keeps this setting in the dashboard, not in `railway.json`
-(`watchPatterns` only narrows which changes count). For each of the six app services, in **Settings → Source**, remove
+(`watchPatterns` only narrows which changes count). For each of the seven app services (including `migrate`), in **Settings → Source**, remove
 the branch trigger (or disconnect the repository) so pushes do not deploy. To keep automatic deploys but only after
 GitHub checks pass, enable **Wait for CI** there instead.
 
 Deploy by hand, from the dashboard (**Deploy** / **Redeploy**) or with `railway up --service <name>`.
 
-- `api` runs `pnpm db:migrate` as its pre-deploy step, so migrations are applied only when you deploy `api`. Deploy `api`
-  before the workers, `staff` and `portal` when a release includes a new migration.
+- Migrations are applied by deploying `migrate`. Deploy it **first** when a release includes a new migration, then `api`.
+  An `api` deployed before them waits: its readiness answers `503` with `schema: behind` while a migration it ships is
+  not applied (`db.schema_behind` in its log), and Railway keeps the previous version serving until the health check
+  passes (up to `healthcheckTimeout`, 300 s). If it times out, deploy `migrate`, then redeploy `api`.
 - The workers and the Next.js apps do not deploy together with `api`. Deploy each service you changed.
 
 ## Variables
@@ -61,7 +64,7 @@ Put the settings every backend process reads in **Project → Shared Variables**
 | `NODE_ENV`                                                                                                 | `production`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `LOG_LEVEL`                                                                                                | `log`. In production every process logs one JSON object per line (`docs/architecture/observability.md`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `DATABASE_URL`                                                                                             | `${{Postgres.DATABASE_URL}}` (private network), or — once the restricted login role exists — its URL (`healthcare_api`, member of `healthcare_app`; [database roles runbook](../runbooks/database-roles.md))                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `MIGRATION_DATABASE_URL`                                                                                   | API only, with the restricted role: `${{Postgres.DATABASE_URL}}`, the owner, for the pre-deploy `pnpm db:migrate`. Unset, migrations use `DATABASE_URL`.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `MIGRATION_DATABASE_URL`                                                                                   | `migrate` only: `${{Postgres.DATABASE_URL}}`, the owner. The API and workers never hold it (ADR-0016).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `AUDIT_RETENTION_MONTHS`                                                                                   | API only, optional: whole months an archived month of the audit trail must be past before a platform administrator may remove it (`docs/runbooks/audit-retention.md`). Unset: nothing is ever removed. The organization decides the period.                                                                                                                                                                                                                                                                                                                                                                        |
 | `REDIS_URL`                                                                                                | `${{Redis.REDIS_URL}}?family=0`. Holds the BullMQ queues and the API's shared rate-limit counters (requests are let through while it is unreachable). `family=0` lets ioredis resolve `*.railway.internal` over IPv6 as well as IPv4. Without it, BullMQ connections fail with `ENOTFOUND` in environments whose private network is IPv6-only.                                                                                                                                                                                                                                                                     |
 | `HEALTH_PORT`                                                                                              | Workers only, optional: with a port set, `notification-worker` and `integration-worker` answer `GET /live` and `GET /ready` on it for health probes (`docs/architecture/observability.md`). The API has `/api/v1/health/live` and `/ready` on its own port. Not yet set up on Railway.                                                                                                                                                                                                                                                                                                                             |
@@ -154,9 +157,9 @@ staff account (docs/domains/kiosk.md). The print agent is not a Railway service:
 
 ## First deploy
 
-1. Create the Postgres and Redis services, then the six app services from this repository, each with its config file.
+1. Create the Postgres and Redis services, then the seven app services from this repository (including `migrate`, `tools/db/railway.json`), each with its config file.
 2. Set the variables above. Generate every secret fresh for this environment.
-3. Deploy `api` first. Its pre-deploy step applies `database/migrations`.
+3. Deploy `migrate` first: it applies `database/migrations` and stops. Then deploy `api`.
 4. Seed the first organization and platform administrator once from the API container:
    `railway ssh --service api`, then `pnpm db:seed`. The seed is idempotent.
 5. Deploy the workers, `staff` and `portal`. Sign in to the staff app with the seeded administrator and enrol MFA.
@@ -184,20 +187,20 @@ The checklist for rebuilding this environment or creating another (ADR-0010). Ro
 `infrastructure/terraform/railway/` (`docs/runbooks/railway-terraform.md`); tick the "by hand" rows when setting one
 up.
 
-| Item                                                                                                | Where it is defined                                                                     |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Build command, watch patterns, pre-deploy migration, start command, health check, restarts          | `railway.json` next to each app (config-as-code), root `railway.json`                   |
-| Project, default environment                                                                        | Terraform (`railway_project`)                                                           |
-| Postgres and Redis services                                                                         | By hand (Railway templates; the provider has no database resource)                      |
-| The six app services, bound to this repository and its branch                                       | Terraform (`railway_service`, `source_repo`, `source_repo_branch`)                      |
-| Each service's config-as-code path                                                                  | Terraform (`config_path`)                                                               |
-| Deploy-on-push turned off per service (**Settings → Source**)                                       | By hand (not in the provider)                                                           |
-| Shared and per-service variables (tables above)                                                     | Terraform (`railway_variable`); secrets supplied at apply time, never in the repository |
-| Public domains for `api`, `staff`, `portal`, `kiosk`; `CORS_ORIGINS` and `REALTIME_URL` follow them | Terraform (`railway_custom_domain` / `railway_service_domain`; derived variables)       |
-| First deploy order and the one-time seed (`railway ssh`, `pnpm db:seed`)                            | By hand, steps above                                                                    |
-| Worker health probes (`HEALTH_PORT`, `healthcheckPath`)                                             | Not set up (observability.md; Railway checks on `PORT` only)                            |
-| Telemetry backend and its OTLP endpoint, credentials and alert rules (`docs/runbooks/alerts.md`)    | Not chosen; `optional_settings` / `secrets` in Terraform once it is                     |
-| Local development dependencies                                                                      | `infrastructure/docker/docker-compose.yml`                                              |
+| Item                                                                                                       | Where it is defined                                                                     |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Build command, watch patterns, start command, health check, restarts (migrations: `tools/db/railway.json`) | `railway.json` next to each app (config-as-code), root `railway.json`                   |
+| Project, default environment                                                                               | Terraform (`railway_project`)                                                           |
+| Postgres and Redis services                                                                                | By hand (Railway templates; the provider has no database resource)                      |
+| The six app services, bound to this repository and its branch                                              | Terraform (`railway_service`, `source_repo`, `source_repo_branch`)                      |
+| Each service's config-as-code path                                                                         | Terraform (`config_path`)                                                               |
+| Deploy-on-push turned off per service (**Settings → Source**)                                              | By hand (not in the provider)                                                           |
+| Shared and per-service variables (tables above)                                                            | Terraform (`railway_variable`); secrets supplied at apply time, never in the repository |
+| Public domains for `api`, `staff`, `portal`, `kiosk`; `CORS_ORIGINS` and `REALTIME_URL` follow them        | Terraform (`railway_custom_domain` / `railway_service_domain`; derived variables)       |
+| First deploy order and the one-time seed (`railway ssh`, `pnpm db:seed`)                                   | By hand, steps above                                                                    |
+| Worker health probes (`HEALTH_PORT`, `healthcheckPath`)                                                    | Not set up (observability.md; Railway checks on `PORT` only)                            |
+| Telemetry backend and its OTLP endpoint, credentials and alert rules (`docs/runbooks/alerts.md`)           | Not chosen; `optional_settings` / `secrets` in Terraform once it is                     |
+| Local development dependencies                                                                             | `infrastructure/docker/docker-compose.yml`                                              |
 
 In production the API does not serve Swagger (`/api/docs`).
 
