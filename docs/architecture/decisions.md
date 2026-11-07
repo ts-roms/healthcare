@@ -333,7 +333,7 @@ the organization's (compliance register).
 
 ## ADR-0016 Migrations run by a one-off service that alone holds the owner's database URL
 
-**Status:** proposed (2026-11-07; zero-trust audit D2, `docs/security/zero-trust-audit-2026-11-06.md`). **Context:** the
+**Status:** accepted (2026-11-07; zero-trust audit D2, `docs/security/zero-trust-audit-2026-11-06.md`). **Context:** the
 API's Railway service runs `pnpm db:migrate` as its pre-deploy command, so the owner's URL (`MIGRATION_DATABASE_URL`)
 is one of the API service's variables. Railway gives a service's variables to its pre-deploy command and to the running
 process alike: code execution in the API container can read the owner's credentials (the API deletes the variable from
@@ -358,7 +358,11 @@ built the exposure is documented in `docs/runbooks/database-roles.md` ("The owne
 
 ## ADR-0017 Platform scope that SQL running as the application role cannot claim
 
-**Status:** proposed (2026-11-07; zero-trust audit D5). **Context:** row-level security (migration 0111) trusts
+**Status:** deferred (2026-11-07; zero-trust audit D5): to be built after ADR-0016. Until then the residual risk is
+accepted: row-level security stops mistakes in the application's own filters, not SQL that runs as the application role
+(an injection or a compromised dependency could claim the platform scope). The controls that limit it meanwhile: no
+`sql.raw` with request input, the restricted role (no DDL, no trigger changes, append-only tables), and audit and
+alerting on `db.context_missing`. **Context:** row-level security (migration 0111) trusts
 `current_setting('app.scope') = 'all'`. Any session of the application role may set a custom setting, so SQL that runs
 as that role (an injection, a compromised dependency) can call `set_config('app.scope', 'all', false)` and read every
 organization. The policies stop mistakes in the application's own filters; they do not stop SQL-level compromise.
