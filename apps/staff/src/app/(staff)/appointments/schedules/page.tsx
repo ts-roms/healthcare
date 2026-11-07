@@ -1,15 +1,16 @@
 import { StaffSettingsPage } from "@/components/settings-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { clinicalDate, clinicalDateTime, PractitionerCard } from "@healthcare/ui/healthcare";
+import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { ClinicRoom, PractitionerDetail, PractitionerScheduleRow, ScheduleExceptionRow, StaffUser } from "@/lib/api/types";
 import { todayIn } from "@/lib/clinic-mapping";
-import { labelOf, PROFESSIONS, ROOM_TYPES, WEEKDAYS } from "./labels";
-import { AddClosure, AddPractitioner, AddRoom, AddSchedule, EditPractitioner, RetireSchedule } from "./schedule-forms";
+import { labelOf, PROFESSIONS, ROOM_TYPES } from "./labels";
+import { AddClosure, AddPractitioner, AddRoom, AddSchedule, EditPractitioner } from "./schedule-forms";
+import { ScheduleTable } from "./schedule-table";
 
 export const metadata = { title: "Schedules" };
 
@@ -46,9 +47,6 @@ export default async function SchedulesPage() {
   const roomName = (id: string | null) => (id ? (rooms.find((r) => r.id === id)?.name ?? "A room") : null);
   const active = practitioners.filter((p) => p.status === "active");
   const todayDow = new Date(`${today}T00:00:00Z`).getUTCDay();
-  const byPractitioner = active
-    .map((p) => ({ practitioner: p, rows: here.filter((s) => s.practitionerId === p.id) }))
-    .filter((g) => g.rows.length > 0 || configure);
 
   return (
     <StaffSettingsPage
@@ -62,31 +60,6 @@ export default async function SchedulesPage() {
         </Link>
       }
     >
-      {active.length > 0 ? (
-        <section aria-label="Practitioners at this facility" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {active.map((p) => {
-            const rows = here.filter((s) => s.practitionerId === p.id);
-            const worksToday = rows.some((s) => s.dayOfWeek === todayDow);
-            const hours = rows
-              .slice(0, 3)
-              .map((s) => `${WEEKDAYS[s.dayOfWeek]!.slice(0, 3)} ${hhmm(s.startTime)}–${hhmm(s.endTime)}`)
-              .join(" · ");
-            return (
-              <PractitionerCard
-                key={p.id}
-                name={p.displayName}
-                specialty={p.specialty ?? labelOf(PROFESSIONS, p.profession)}
-                hours={rows.length === 0 ? "No schedule here" : `${hours}${rows.length > 3 ? ` · +${rows.length - 3} more` : ""}`}
-                available={worksToday}
-                week={Array.from({ length: 7 }, (_, d) => rows.some((s) => s.dayOfWeek === d))}
-                today={todayDow}
-                availableLabel="Scheduled today"
-                unavailableLabel="Not scheduled today"
-              />
-            );
-          })}
-        </section>
-      ) : null}
       <Card>
         <CardHeader>
           <CardTitle>Weekly schedules</CardTitle>
@@ -100,32 +73,26 @@ export default async function SchedulesPage() {
               rooms={rooms.filter((r) => r.status === "active").map((r) => ({ id: r.id, name: r.name }))}
             />
           ) : null}
-          {byPractitioner.length === 0 ? <p className="text-muted-foreground">No schedules at this facility yet.</p> : null}
-          {byPractitioner.map(({ practitioner, rows }) => (
-            <div key={practitioner.id}>
-              <p className="font-medium">{practitioner.displayName}</p>
-              {rows.length === 0 ? (
-                <p className="text-muted-foreground">No schedule here.</p>
-              ) : (
-                <ul className="divide-y rounded-md border">
-                  {rows.map((s) => (
-                    <li key={s.id} className="flex flex-wrap items-center gap-2 p-2">
-                      <span className="w-24 font-medium">{WEEKDAYS[s.dayOfWeek]}</span>
-                      <span>
-                        {hhmm(s.startTime)}–{hhmm(s.endTime)} · {s.slotMinutes}-minute slots
-                      </span>
-                      {roomName(s.roomId) ? <span className="text-muted-foreground">{roomName(s.roomId)}</span> : null}
-                      <span className="text-meta text-muted-foreground">
-                        from {day(s.validFrom)}
-                        {s.validUntil ? ` to ${day(s.validUntil)}` : ""}
-                      </span>
-                      {configure ? <RetireSchedule scheduleId={s.id} label={`${WEEKDAYS[s.dayOfWeek]} ${hhmm(s.startTime)}–${hhmm(s.endTime)}`} /> : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          ))}
+          {here.length === 0 && active.length === 0 ? (
+            <p className="text-muted-foreground">No schedules at this facility yet.</p>
+          ) : (
+            <ScheduleTable
+              rows={here.map((s) => ({
+                id: s.id,
+                practitionerId: s.practitionerId,
+                practitionerName: practitionerName(s.practitionerId) ?? "A practitioner",
+                dayOfWeek: s.dayOfWeek,
+                start: hhmm(s.startTime),
+                end: hhmm(s.endTime),
+                slotMinutes: s.slotMinutes,
+                room: roomName(s.roomId),
+                valid: s.validUntil ? `${day(s.validFrom)} – ${day(s.validUntil)}` : `from ${day(s.validFrom)}`,
+              }))}
+              practitioners={active.map((p) => ({ id: p.id, name: p.displayName }))}
+              todayDow={todayDow}
+              configure={configure}
+            />
+          )}
         </CardContent>
       </Card>
 

@@ -56,6 +56,7 @@ import { VisitRouteService } from "./queue/visit-route.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { HISTORY_STAFF_NAMES } from "./history/ports";
+import { APPOINTMENT_STAFF_NAMES } from "./appointments/ports";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
 
@@ -132,6 +133,8 @@ export class ClinicModule {
         PatientHistoryPortalService,
         // The history reads staff names through the same adapter (it answers from the auth domain).
         { provide: HISTORY_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
+        // The schedule names the staff member who cancelled an appointment through the same adapter.
+        { provide: APPOINTMENT_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
         ClinicProcedureService,
         ConsentSignatureService,
         PractitionerSignatureService,

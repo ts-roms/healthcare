@@ -579,7 +579,15 @@ export interface AppointmentItem {
   bookingChannel: string;
   /** Booked by the patient in MyHealth (no staff user). */
   bookedByPatient?: boolean;
+  /** The last change was the patient's own, in MyHealth (e.g. they cancelled it). */
+  updatedByPatient?: boolean;
   reason: string | null;
+  cancelledAt?: string | null;
+  /** The staff member who cancelled (user id); null when the patient cancelled in MyHealth. */
+  cancelledBy?: string | null;
+  /** Their display name, for the schedule's "cancelled by" note. */
+  cancelledByName?: string | null;
+  cancellationReason?: string | null;
   version: number;
   patient: PatientBrief | null;
   /** The room, when the booking names one (migration 0096 views). */

@@ -92,6 +92,7 @@ import { StaffSecurityNotices } from "./staff-security-notices";
 import { PatientMessageReminders } from "./portal/patient-message-reminders";
 import { CrmApprovalNotices, CrmApprovalReminders } from "./outreach/crm-approval-notices";
 import { PatientMessageNotices } from "./portal/patient-message-notices";
+import { AppointmentCancellationNotices } from "./appointment-cancellation-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
@@ -329,6 +330,7 @@ export class AppModule implements NestModule {
         PortalMfaPolicyNotices,
         StaffSecurityNotices,
         PatientMessageNotices,
+        AppointmentCancellationNotices,
         PatientMessageReminders,
         CrmApprovalNotices,
         CrmApprovalReminders,

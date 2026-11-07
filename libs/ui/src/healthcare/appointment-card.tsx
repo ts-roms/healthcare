@@ -57,13 +57,17 @@ export function AppointmentCard({
       </article>
     );
   }
+  const who = showPatient ? appointment.patientName : appointment.provider;
+  // Second line: what the visit is for (visit type, how it was booked, the reason) and how long it is booked.
+  const details = [appointment.mode === "online" ? "Online" : "In person", `${appointment.durationMin} min`, appointment.reason].filter(Boolean).join(" · ");
   return (
     <div className={cn("flex items-center gap-3 py-1.5", className)}>
-      <span className="tabular w-12 shrink-0 font-semibold">{clinicalTime(appointment.start)}</span>
-      <ModeIcon className="size-3.5 shrink-0 text-muted-foreground" aria-label={appointment.mode === "online" ? "Online" : "In person"} />
-      <div className="min-w-0 flex-1 truncate">
-        {showPatient ? <span className="font-medium">{appointment.patientName}</span> : <span className="font-medium">{appointment.provider}</span>}
-        {appointment.reason ? <span className="text-muted-foreground"> · {appointment.reason}</span> : null}
+      <span className="tabular w-12 shrink-0 self-start pt-px font-semibold">{clinicalTime(appointment.start)}</span>
+      <ModeIcon className="mt-1 size-3.5 shrink-0 self-start text-muted-foreground" aria-hidden />
+      <div className="min-w-0 flex-1">
+        {/* Both lines wrap in full: the reason is what tells the desk what the visit is about. */}
+        <p className="break-words font-medium">{who}</p>
+        <p className="break-words text-meta text-muted-foreground">{details}</p>
       </div>
       <AppointmentStatusBadge status={appointment.status} />
       {action}

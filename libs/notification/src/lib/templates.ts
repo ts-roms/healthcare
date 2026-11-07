@@ -571,6 +571,26 @@ export const TEMPLATES = [
     }),
   }),
   defineTemplate({
+    key: "appointment.cancelled-notice",
+    version: 1,
+    category: "administrative",
+    // In-app to the clinic's staff (the practitioner and the front desk) so a freed time is rebooked. The day, time,
+    // practitioner and who cancelled — never the patient: the appointment is opened behind access control.
+    channels: ["in_app"],
+    variables: z.object({
+      day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      date: shortText,
+      time: shortText,
+      practitionerName: shortText,
+      cancelledBy: shortText,
+    }),
+    render: (v) => ({
+      subject: "Appointment cancelled",
+      text: `An appointment on ${v.date} at ${v.time} with ${v.practitionerName} was cancelled by ${v.cancelledBy}. The time can be booked again.`,
+      href: `/appointments?date=${v.day}`,
+    }),
+  }),
+  defineTemplate({
     key: "appointment.waitlist-opened",
     version: 1,
     category: "administrative",
@@ -884,6 +904,7 @@ export const TEMPLATE_LABEL: Record<TemplateKey, string> = {
   "outreach.campaign-notice": "Outreach campaign notice (staff)",
   "document.quarantine-notice": "File quarantined (staff)",
   "document.integrity-notice": "Document integrity finding (staff)",
+  "appointment.cancelled-notice": "Appointment cancelled (staff)",
   "appointment.waitlist-opened": "Waiting list: a time may have opened",
   "appointment.waitlist-offer": "Waiting list: a time is being held",
   "portal.push-test": "Push notification test",
