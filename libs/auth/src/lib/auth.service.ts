@@ -9,11 +9,14 @@ import {
   DATABASE,
   type Database,
   type DbExecutor,
-  decryptSecret,
-  encryptSecret,
   ForbiddenError,
   type RequestMetadata,
   UnauthenticatedError,
+  ConsumedTokens,
+  tokenExpiry,
+  mfaKeyring,
+  openBound,
+  sealBound,
 } from "@healthcare/core";
 import { organization } from "@healthcare/organization";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
@@ -32,7 +35,32 @@ import { generateTotpSecret, totpUri, verifyTotpStep } from "./totp";
 export const MAX_FAILED_LOGINS = 5;
 export const LOCKOUT_MINUTES = 15;
 
-const invalidCredentials = () => new UnauthenticatedError("Invalid email or password", "invalid_credentials");
+/**
+ * One answer for an unknown email, a wrong password and a locked account (zero trust: sign-in never tells whether an
+ * account exists or is locked; the audit trail keeps the real reason).
+ */
+const invalidCredentials = () =>
+  new UnauthenticatedError("Invalid email or password. After repeated failures, sign-in pauses for a while.", "invalid_credentials");
+
+/** What a staff member's two-step verification secret is bound to: their account row. */
+export function staffMfaBinding(userId: string): string {
+  return `app_user:${userId}`;
+}
+
+/**
+ * The staff member's secret, opened for their own row; one sealed before binding or with an older key is sealed again
+ * with the current key, in the caller's transaction (how keys rotate: on use, no batch job).
+ */
+export async function openStaffMfaSecret(tx: DbExecutor, user: AppUserRecord, config: AppConfig): Promise<string> {
+  const keyring = mfaKeyring(config);
+  const { plaintext, current } = openBound(user.mfaSecretEncrypted!, keyring, staffMfaBinding(user.id));
+  if (!current)
+    await tx
+      .update(appUser)
+      .set({ mfaSecretEncrypted: sealBound(plaintext, keyring, staffMfaBinding(user.id)) })
+      .where(eq(appUser.id, user.id));
+  return plaintext;
+}
 
 @Injectable()
 export class AuthService {
@@ -46,6 +74,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly mfaPolicy: MfaPolicyService,
     @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
+    private readonly consumedTokens: ConsumedTokens,
   ) {}
 
   async login(input: z.infer<typeof loginSchema>, request: RequestMetadata): Promise<TokenResponse | MfaRequiredResponse> {
@@ -72,7 +101,8 @@ export class AuthService {
         outcome: "denied",
         reason: "account_locked",
       });
-      throw new UnauthenticatedError("Too many failed attempts. Try again later.", "account_locked");
+      await burnPasswordVerification(input.password);
+      throw invalidCredentials();
     }
     if (!(await verifyPassword(user.passwordHash, input.password))) {
       await this.recordFailedAttempt(user, context, "wrong_password");
@@ -120,6 +150,10 @@ export class AuthService {
     if (!factor.ok) {
       await this.recordFailedAttempt(user, context, "wrong_mfa_code");
       throw new UnauthenticatedError("Invalid verification code", "invalid_mfa_code");
+    }
+    // The challenge opens one session: spent now, so it cannot be replayed with another code while it lasts.
+    if (!(await this.consumedTokens.consume("staff_mfa_challenge", challengeToken, tokenExpiry(claims)))) {
+      throw new UnauthenticatedError("Invalid or expired token", "invalid_token");
     }
     // Membership may have changed during the challenge window.
     await this.selectOrganization(user.id, claims.org, context);
@@ -214,7 +248,7 @@ export class AuthService {
     await this.db.transaction(async (tx) => {
       await tx
         .update(appUser)
-        .set({ mfaPendingSecretEncrypted: encryptSecret(secret, this.config.MFA_ENCRYPTION_KEY), updatedAt: new Date() })
+        .set({ mfaPendingSecretEncrypted: sealBound(secret, mfaKeyring(this.config), staffMfaBinding(user.id)), updatedAt: new Date() })
         .where(eq(appUser.id, user.id));
       await this.audit.record(tx, actor, { action: "auth.mfa.setup-start", resourceType: "app_user", resourceId: user.id });
     });
@@ -228,7 +262,7 @@ export class AuthService {
       if (user.mfaEnabled) throw new ConflictError("Multi-factor authentication is already enabled", undefined, "mfa_already_enabled");
       if (!user.mfaPendingSecretEncrypted) throw new BusinessRuleError("Start MFA setup first", "mfa_setup_not_started");
       const pending = user.mfaPendingSecretEncrypted;
-      const step = verifyTotpStep(decryptSecret(pending, this.config.MFA_ENCRYPTION_KEY), code);
+      const step = verifyTotpStep(openBound(pending, mfaKeyring(this.config), staffMfaBinding(user.id)).plaintext, code);
       if (step === null) throw new BusinessRuleError("Invalid verification code", "invalid_mfa_code");
       await tx
         .update(appUser)
@@ -316,9 +350,9 @@ export class AuthService {
   }
 
   /** The app's code or, where allowed, a recovery code, spent in the caller's transaction (`spendSecondFactor`). */
-  private checkSecondFactor(tx: DbExecutor, user: AppUserRecord, code: string, allowRecovery: boolean): Promise<SecondFactorResult> {
-    if (!user.mfaEnabled || !user.mfaSecretEncrypted) return Promise.resolve({ ok: false });
-    return spendSecondFactor(tx, user, decryptSecret(user.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code, allowRecovery);
+  private async checkSecondFactor(tx: DbExecutor, user: AppUserRecord, code: string, allowRecovery: boolean): Promise<SecondFactorResult> {
+    if (!user.mfaEnabled || !user.mfaSecretEncrypted) return { ok: false };
+    return spendSecondFactor(tx, user, await openStaffMfaSecret(tx, user, this.config), code, allowRecovery);
   }
 
   private async replaceRecoveryCodes(tx: DbExecutor, userId: string): Promise<string[]> {

@@ -23,6 +23,20 @@ export function QueueStats({ figures }: { figures: QueueFigures }) {
         tone={long ? "long" : undefined}
       />
       <Stat label="With provider" value={figures.withProvider} sub="in consultation" />
+      <p className="col-span-2 flex flex-wrap gap-x-5 gap-y-1 text-table text-muted-foreground lg:col-span-4" aria-label="Today's outcomes">
+        <span>
+          <span className="tabular font-semibold text-foreground">{figures.serving}</span> being called
+        </span>
+        <span>
+          <span className="tabular font-semibold text-foreground">{figures.completed}</span> seen
+        </span>
+        <span>
+          <span className="tabular font-semibold text-foreground">{figures.skipped}</span> skipped
+        </span>
+        <span>
+          <span className="tabular font-semibold text-foreground">{figures.noShow}</span> no-show
+        </span>
+      </p>
     </section>
   );
 }

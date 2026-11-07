@@ -1,13 +1,16 @@
-import { CanActivate, ExecutionContext, Injectable } from "@nestjs/common";
+import { CanActivate, ExecutionContext, Inject, Injectable } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuditService } from "@healthcare/audit";
 import {
   ACCESS_METADATA,
+  APP_CONFIG,
+  type AppConfig,
   asPlatform,
   BadRequestError,
   DomainError,
   ForbiddenError,
   type Permission,
+  platformAdminMfaRequired,
   requestMetadataFrom,
   setRequestOrganization,
   setRequestPlatformScope,
@@ -39,6 +42,7 @@ export class AccessGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly actors: ActorResolver,
     private readonly audit: AuditService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -94,6 +98,18 @@ export class AccessGuard implements CanActivate {
         metadata: { missing },
       });
       throw new ForbiddenError();
+    }
+    // Zero trust for the widest power: a route that acts across every organization (organizations, rate limits, audit
+    // retention, payload keys) answers only an administrator who proves a second factor at sign-in.
+    if (needsPlatformAdmin && platformAdminMfaRequired(this.config) && !actor.mfaEnabled) {
+      await this.audit.recordStandalone(actor, {
+        action: "access.deny",
+        resourceType: "route",
+        resourceId: `${request.method} ${request.route?.path ?? request.path}`,
+        outcome: "denied",
+        reason: "platform_admin_mfa_required",
+      });
+      throw new ForbiddenError("Platform administration needs two-step verification. Turn it on in My account first.", "platform_admin_mfa_required");
     }
     // A platform administrator route works across organizations on purpose (organizations, rate limits, audit
     // retention, payload keys).

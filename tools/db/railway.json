@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "RAILPACK",
+    "watchPatterns": ["database/**", "tools/db/**", "libs/core/src/lib/database/migrator.ts", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".nvmrc"]
+  },
+  "deploy": {
+    "startCommand": "pnpm db:migrate",
+    "restartPolicyType": "NEVER"
+  }
+}

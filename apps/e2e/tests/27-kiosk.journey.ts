@@ -1,0 +1,420 @@
+import { expect, type Page, test } from "@playwright/test";
+import { loadState, type StaffApi, staffApi } from "../support/api";
+import { KIOSK_URL, STAFF, STAFF_PASSWORD } from "../support/env";
+import { staffPage, toast, watchErrors } from "../support/pages";
+
+/**
+ * The patient self-service kiosk in a real browser (docs/domains/kiosk.md): the device signs in once, an existing patient
+ * checks in as a walk-in and gets a queue ticket the front desk sees, a wrong identification is answered without saying what
+ * was wrong, nothing reaches browser storage, a new patient's registration waits for reception under a reference, and every
+ * visit ends back on the welcome screen with nothing of the last person left.
+ */
+test.describe.configure({ mode: "serial" });
+
+const state = loadState();
+const errors: string[] = [];
+
+const patient = { id: "", number: "", given: "Kioskita", family: "Kioskuser" };
+
+let page: Page;
+/** The reference a new patient was given at the kiosk, for reception to find (set by the registration test). */
+let reference = "";
+/** Reception, signed in once for the whole file (sign-ins are rate limited). */
+let desk: StaffApi;
+
+/** E2E_KIOSK_SHOTS=<folder> saves a picture of the main screens, for a look at the design. */
+async function shot(name: string) {
+  if (process.env.E2E_KIOSK_SHOTS) await page.screenshot({ path: `${process.env.E2E_KIOSK_SHOTS}/${name}.png` });
+}
+
+/** A new patient registers at the kiosk with these details (the same person typed twice makes a possible duplicate). */
+async function registerAtKiosk(who: { family: string; given: string; day: string; month: string; year: string; mobile: string }): Promise<string> {
+  await startAtWelcome();
+  await page.getByRole("button", { name: "Touch here to check in" }).click();
+  await page.getByRole("button", { name: "No, this is my first visit" }).click();
+  await page.locator("#familyName").fill(who.family);
+  await page.locator("#givenName").fill(who.given);
+  await page.locator("#birth-day").fill(who.day);
+  await page.locator("#birth-month").selectOption({ label: who.month });
+  await page.locator("#birth-year").fill(who.year);
+  await page.locator("#sex").selectOption({ label: "Female" });
+  await page.locator("#mobile").fill(who.mobile);
+  await page.locator("#cityMunicipality").fill("Pasig");
+  await page.locator("#emergencyName").fill("Contact Person");
+  await page.locator("#emergencyNumber").fill("09175550199");
+  await page.locator("#emergencyRelationship").selectOption({ label: "Brother or sister" });
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Check my answers" }).click();
+  await page.getByRole("button", { name: "Yes, send to reception" }).click();
+  const reference = /KR-[A-HJ-NP-Z2-9]{6}/.exec(await page.getByLabel("Your registration reference").innerText())?.[0] ?? "";
+  expect(reference).toBeTruthy();
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+  return reference;
+}
+
+async function startAtWelcome() {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+  await shot("1-welcome");
+}
+
+test.beforeAll(async ({ browser }) => {
+  const admin = await staffApi(STAFF.admin, state.facilityId);
+  const created = await admin.post<{ id: string; patientNumber: string }>("/patients", {
+    familyName: patient.family,
+    givenName: patient.given,
+    sex: "female",
+    birthDate: "1980-06-15",
+    contacts: [{ system: "mobile", value: "0917 555 0127" }],
+  });
+  patient.id = created.id;
+  patient.number = created.patientNumber;
+  await admin.dispose();
+  desk = await staffApi(STAFF.desk, state.facilityId);
+
+  // A portrait touchscreen.
+  const context = await browser.newContext({ baseURL: KIOSK_URL, viewport: { width: 1080, height: 1920 }, hasTouch: true });
+  page = await context.newPage();
+  watchErrors(page, "kiosk", errors);
+});
+
+test.afterAll(async () => {
+  await desk.dispose();
+  await page.context().close();
+  expect(errors, "console or page errors on the kiosk").toEqual([]);
+});
+
+test("the kiosk answers with browser hardening headers and is never cached", async ({ request }) => {
+  const response = await request.get(`${KIOSK_URL}/setup`, { maxRedirects: 0 });
+  const headers = response.headers();
+  expect(headers["x-frame-options"]).toBe("DENY");
+  expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+  // Scripts run only with this request's nonce, and the nonce is different on the next request.
+  const policy = headers["content-security-policy"] ?? "";
+  expect(policy).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/);
+  expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+  const again = (await request.get(`${KIOSK_URL}/setup`, { maxRedirects: 0 })).headers()["content-security-policy"] ?? "";
+  expect(again.match(/nonce-([^']+)/)?.[1]).not.toBe(policy.match(/nonce-([^']+)/)?.[1]);
+  expect(headers["permissions-policy"]).toContain("camera=()");
+  expect(headers["cache-control"]).toBe("no-store");
+});
+
+test("a mistyped address shows a plain page with one way back, not a technical error", async ({ page: visitor }) => {
+  await visitor.goto(`${KIOSK_URL}/setup/nowhere-at-all`);
+  await expect(visitor.getByRole("heading", { name: "We cannot find that page" })).toBeVisible();
+  await expect(visitor.getByRole("link", { name: "Go to the start" })).toBeVisible();
+});
+
+test("a screen that is not signed in goes to set-up, and the kiosk account signs it in once", async () => {
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/setup$/);
+
+  await page.locator("#email").fill(STAFF.kiosk);
+  await page.locator("#password").fill(STAFF_PASSWORD);
+  await page.getByRole("button", { name: "Sign in this kiosk" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+  await expect(page.getByText("E2E Main Clinic").first()).toBeVisible();
+});
+
+test("an existing patient checks in as a walk-in and receives a ticket the front desk sees", async () => {
+  await startAtWelcome();
+  await page.getByRole("button", { name: "Touch here to check in" }).click();
+  await shot("2-type");
+  await page.getByRole("button", { name: "Yes, I am a patient here" }).click();
+  await shot("3-existing");
+
+  const fill = async (key: string, given: string) => {
+    await page.locator("#key").fill(key);
+    await page.locator("#birth-day").fill("15");
+    await page.locator("#birth-month").selectOption({ label: "June" });
+    await page.locator("#birth-year").fill("1980");
+    await page.locator("#givenName").fill(given);
+    await page.getByRole("button", { name: "Continue" }).click();
+  };
+
+  // A wrong first name gets the same plain answer for any wrong part.
+  await fill(patient.number, "Someoneelse");
+  await expect(page.getByRole("alert").filter({ hasText: "We could not find a matching record" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: /birth|first name|number/i })
+      .filter({ hasText: /wrong|incorrect/i }),
+  ).toHaveCount(0);
+
+  await fill(patient.number, patient.given);
+  // Only initials come back, never the name or the number.
+  await expect(page.getByRole("heading", { name: "What are you here for?" })).toBeVisible();
+  await shot("4-services");
+  await expect(page.getByText(/Hello,/)).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(patient.family);
+  await expect(page.locator("body")).not.toContainText(patient.number);
+
+  await page.getByRole("button", { name: state.kioskVisitType.name }).click();
+  await expect(page.getByRole("heading", { name: "You are checked in" })).toBeVisible();
+  await shot("5-ticket");
+  const ticket = /A-\d{3}/.exec(await page.getByLabel("Your queue ticket").innerText())?.[0];
+  expect(ticket).toBeTruthy();
+
+  const board = JSON.stringify(await desk.get("/queue"));
+  expect(board).toContain(ticket!);
+  expect(board).toContain('"kiosk"');
+});
+
+test("nothing of the patient is kept in browser storage, and Done returns to a clean welcome", async () => {
+  const kept = await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length, cookie: document.cookie }));
+  expect(kept).toEqual({ local: 0, session: 0, cookie: "" });
+
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+  await expect(page.locator("body")).not.toContainText("A-0");
+
+  // The person's session cookie is gone with the session (the device's own cookies stay).
+  await expect.poll(async () => (await page.context().cookies()).some((c) => c.name === "kc_ss")).toBe(false);
+});
+
+test("a new patient registers, reviews the answers and leaves a reference for reception", async () => {
+  await startAtWelcome();
+  await page.getByRole("button", { name: "Touch here to check in" }).click();
+  await page.getByRole("button", { name: "No, this is my first visit" }).click();
+
+  // The required answers are checked before anything is sent.
+  await page.getByRole("button", { name: "Check my answers" }).click();
+  await expect(page.getByText("Please enter your first name")).toBeVisible();
+  await shot("6-registration-errors");
+
+  await page.locator("#familyName").fill("Newcomer");
+  await page.locator("#givenName").fill("Nena");
+  await page.locator("#birth-day").fill("2");
+  await page.locator("#birth-month").selectOption({ label: "March" });
+  await page.locator("#birth-year").fill("1991");
+  await page.locator("#sex").selectOption({ label: "Female" });
+  await page.locator("#mobile").fill("0918 555 0199");
+  await page.locator("#cityMunicipality").fill("Quezon City");
+  await page.locator("#emergencyName").fill("Nilo Newcomer");
+  await page.locator("#emergencyNumber").fill("09175550123");
+  await page.locator("#emergencyRelationship").selectOption({ label: "Brother or sister" });
+
+  // The privacy notice must be accepted.
+  await page.getByRole("button", { name: "Check my answers" }).click();
+  await expect(page.getByText("Please tick the box to continue")).toBeVisible();
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Check my answers" }).click();
+
+  await expect(page.getByRole("heading", { name: "Is everything correct?" })).toBeVisible();
+  await expect(page.getByText("Nena Newcomer")).toBeVisible();
+  await shot("7-review");
+  await expect(page.getByText("2 March 1991")).toBeVisible();
+  await page.getByRole("button", { name: "Yes, send to reception" }).click();
+
+  await expect(page.getByRole("heading", { name: "We received your details" })).toBeVisible();
+  reference = /KR-[A-HJ-NP-Z2-9]{6}/.exec(await page.getByLabel("Your registration reference").innerText())?.[0] ?? "";
+  expect(reference).toBeTruthy();
+  // What was typed is gone from the screen.
+  await expect(page.locator("body")).not.toContainText("Newcomer");
+
+  // Done clears the screen for the next person.
+  await page.getByRole("button", { name: "Done" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+
+  const pending = (await desk.get<{ items: Array<{ id: string; reference: string }> }>("/kiosk/admin/registrations")).items;
+  expect(
+    pending.some((r) => r.reference === reference),
+    "the registration is waiting for reception",
+  ).toBe(true);
+});
+
+test("reception reviews the registration in the staff app and approves it into a patient in the queue", async ({ browser }) => {
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    await reception.goto("/queue/registrations");
+    const row = reception.getByRole("row", { name: new RegExp(reference) });
+    await expect(row).toBeVisible();
+    await row.getByRole("link", { name: "Review" }).click();
+
+    // What was typed, for the desk to check against the person's identification.
+    await expect(reception.getByRole("heading", { name: `Registration ${reference}` })).toBeVisible();
+    await expect(reception.getByText("Nena Newcomer")).toBeVisible();
+    await expect(reception.getByText("+639185550199")).toBeVisible();
+
+    // Nothing can be decided before the identification check is ticked.
+    const approve = reception.getByRole("button", { name: "Approve and register" });
+    await expect(approve).toBeDisabled();
+    await reception.getByRole("checkbox", { name: /I checked the person/ }).check();
+    await reception.locator("#identity-note").fill("PhilHealth ID shown");
+    await reception.locator("#visit-type").selectOption({ label: state.kioskVisitType.name });
+    await expect(approve).toBeEnabled();
+    await approve.click();
+
+    await expect(reception.getByText("Patient registered")).toBeVisible();
+    await expect(reception.getByText(/^P\d{8}$/)).toBeVisible();
+
+    // It is no longer waiting, and the new patient is on the queue board.
+    const pending = (await desk.get<{ items: Array<{ reference: string }> }>("/kiosk/admin/registrations")).items;
+    expect(pending.some((r) => r.reference === reference)).toBe(false);
+    await reception.goto("/queue");
+    await expect(reception.getByRole("button", { name: /A-\d+.*Newcomer/i })).toBeVisible();
+  } finally {
+    await reception.context().close();
+  }
+});
+
+test("a possible duplicate: reception links the registration to the existing record, or approves it as a different person with a reason", async ({
+  browser,
+}) => {
+  const existing = await desk.post<{ id: string; patientNumber: string }>("/patients", {
+    familyName: "Dupaname",
+    givenName: "Dina",
+    sex: "female",
+    birthDate: "1982-04-04",
+    contacts: [{ system: "mobile", value: "0920 555 0160" }],
+  });
+  const same = { family: "Dupaname", given: "Dina", day: "4", month: "April", year: "1982", mobile: "0920 555 0160" };
+  const linkRef = await registerAtKiosk(same);
+  const differentRef = await registerAtKiosk(same);
+
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    // 1. It is the same person: link it to the record that exists, without creating a second one.
+    await reception.goto("/queue/registrations");
+    await reception
+      .getByRole("row", { name: new RegExp(linkRef) })
+      .getByRole("link", { name: "Review" })
+      .click();
+    await expect(reception.getByRole("heading", { name: /Possible existing records \(1\)/ })).toBeVisible();
+    await expect(reception.getByText(existing.patientNumber)).toBeVisible();
+
+    // Linking, like approving, needs the identification check first.
+    const link = reception.getByRole("button", { name: /Same person — link/ });
+    await expect(link).toBeDisabled();
+    await reception.getByRole("checkbox", { name: /I checked the person/ }).check();
+    await reception.locator("#identity-note").fill("Senior citizen ID shown");
+    await link.click();
+    await expect(reception.getByRole("main").getByText("Linked to the existing record")).toBeVisible();
+
+    // 2. A different person with the same details: approving needs the reviewer's reason.
+    await reception.goto("/queue/registrations");
+    await reception
+      .getByRole("row", { name: new RegExp(differentRef) })
+      .getByRole("link", { name: "Review" })
+      .click();
+    const approve = reception.getByRole("button", { name: "Approve and register" });
+    await reception.getByRole("checkbox", { name: /I checked the person/ }).check();
+    await expect(approve).toBeDisabled();
+    await reception.getByRole("checkbox", { name: /this is a different person/ }).check();
+    await expect(approve).toBeDisabled();
+    await reception.locator("#override-reason").fill("Mother and daughter, same name and birth date");
+    await expect(approve).toBeEnabled();
+    await approve.click();
+    await expect(reception.getByText("Patient registered")).toBeVisible();
+
+    // Neither is waiting any more, and the linking left a single record for that person.
+    const pending = (await desk.get<{ items: Array<{ reference: string }> }>("/kiosk/admin/registrations")).items.map((r) => r.reference);
+    expect(pending).not.toContain(linkRef);
+    expect(pending).not.toContain(differentRef);
+  } finally {
+    await reception.context().close();
+  }
+});
+
+test("a registration appears on reception's open list at once, without a reload", async ({ browser }) => {
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    await reception.goto("/queue/registrations");
+    // The list is live: the socket is connected before anything is sent from the kiosk.
+    await expect(reception.getByRole("status").filter({ hasText: "Live" })).toBeVisible();
+
+    await startAtWelcome();
+    await page.getByRole("button", { name: "Touch here to check in" }).click();
+    await page.getByRole("button", { name: "No, this is my first visit" }).click();
+    await page.locator("#familyName").fill("Livearrival");
+    await page.locator("#givenName").fill("Lia");
+    await page.locator("#birth-day").fill("9");
+    await page.locator("#birth-month").selectOption({ label: "August" });
+    await page.locator("#birth-year").fill("1975");
+    await page.locator("#sex").selectOption({ label: "Female" });
+    await page.locator("#mobile").fill("0919 555 0155");
+    await page.locator("#cityMunicipality").fill("Makati");
+    await page.locator("#emergencyName").fill("Lito Livearrival");
+    await page.locator("#emergencyNumber").fill("09175550155");
+    await page.locator("#emergencyRelationship").selectOption({ label: "Brother or sister" });
+    await page.getByRole("checkbox").check();
+    await page.getByRole("button", { name: "Check my answers" }).click();
+    await page.getByRole("button", { name: "Yes, send to reception" }).click();
+    const live = /KR-[A-HJ-NP-Z2-9]{6}/.exec(await page.getByLabel("Your registration reference").innerText())?.[0] ?? "";
+    expect(live).toBeTruthy();
+
+    // Reception's page was not reloaded: the new row arrives over the socket.
+    await expect(reception.getByRole("row", { name: new RegExp(live) })).toBeVisible();
+
+    await page.getByRole("button", { name: "Done" }).click();
+    const pending = (await desk.get<{ items: Array<{ id: string; reference: string }> }>("/kiosk/admin/registrations")).items;
+    const mine = pending.find((r) => r.reference === live)!;
+    await desk.post(`/kiosk/admin/registrations/${mine.id}/reject`, { reason: "End-to-end test: live update" });
+    // Deciding it removes the row from the open list, again without a reload.
+    await expect(reception.getByRole("row", { name: new RegExp(live) })).toHaveCount(0);
+  } finally {
+    await reception.context().close();
+  }
+});
+
+test("reception recalls a called patient, marks a no-show and puts the patient back in line", async ({ browser }) => {
+  const reception = await staffPage(browser, STAFF.desk, errors);
+  try {
+    await reception.goto("/queue");
+    // The patient who checked in at the kiosk earlier in this journey.
+    await reception.getByRole("button", { name: new RegExp(`A-\\d+.*${patient.family}`, "i") }).click();
+    const panel = reception.getByRole("complementary", { name: /^Ticket A-\d+$/ });
+
+    // Recall and no-show are offered only once the patient has been called.
+    await expect(panel.getByRole("button", { name: "Recall" })).toHaveCount(0);
+    await panel.getByLabel("Call patient to").fill("Room 9");
+    await panel.getByRole("button", { name: "Call", exact: true }).click();
+    await toast(reception, /called to Room 9/);
+
+    // The desk sees who is being called now, and can search and narrow the board.
+    await expect(reception.getByRole("region", { name: "Now serving" }).getByText("Room 9")).toBeVisible();
+    const search = reception.getByLabel("Search the queue");
+    await search.fill("no-ticket-matches-this");
+    await expect(reception.getByRole("status").filter({ hasText: /Showing 0 of/ })).toBeVisible();
+    await search.fill(patient.family);
+    await expect(reception.getByRole("button", { name: new RegExp(`A-\\d+\\s+\\d+ min.*${patient.family}`, "i") })).toBeVisible();
+    await search.fill("");
+    await reception.getByRole("button", { name: "Being called", exact: true }).click();
+    await expect(reception.getByRole("button", { name: new RegExp(`A-\\d+\\s+\\d+ min.*${patient.family}`, "i") })).toBeVisible();
+    await reception.getByRole("button", { name: "All", exact: true }).click();
+
+    await panel.getByRole("button", { name: "Recall" }).click();
+    await toast(reception, /called again/);
+
+    await panel.getByRole("button", { name: "No-show…" }).click();
+    await panel.getByRole("button", { name: "Mark no-show" }).click();
+    await toast(reception, /marked a no-show/);
+    await expect(reception.getByRole("region", { name: "Now serving" }).getByText("Room 9")).toHaveCount(0);
+    await expect(panel.getByText("Marked a no-show").first()).toBeVisible();
+
+    // A reason is needed to put the visit back in line.
+    const again = panel.getByRole("button", { name: "Put back in line" });
+    await expect(again).toBeDisabled();
+    await panel.getByLabel(/Put back in line: why/).fill("Patient was in the restroom");
+    await again.click();
+    await toast(reception, /is back in line/);
+    await expect(panel.getByRole("button", { name: "Put back in line" })).toHaveCount(0);
+    await expect(panel.getByText("Waiting").first()).toBeVisible();
+  } finally {
+    await reception.context().close();
+  }
+});
+
+test("Start over clears the screen and ends the session", async () => {
+  await startAtWelcome();
+  await page.getByRole("button", { name: "Touch here to check in" }).click();
+  await page.getByRole("button", { name: "Yes, I am a patient here" }).click();
+  await page.locator("#key").fill(patient.number);
+  await page.getByRole("button", { name: "Start over" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome" })).toBeVisible();
+  await page.getByRole("button", { name: "Touch here to check in" }).click();
+  await page.getByRole("button", { name: "Yes, I am a patient here" }).click();
+  await expect(page.locator("#key")).toHaveValue("");
+});

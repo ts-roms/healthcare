@@ -1,7 +1,7 @@
 import { type Browser, expect, type Locator, type Page, test } from "@playwright/test";
 import { staffApi } from "../support/api";
 import { STAFF, STAFF_URL } from "../support/env";
-import { staffPage, toast, watchErrors } from "../support/pages";
+import { clickUntilVisible, staffPage, toast, watchErrors } from "../support/pages";
 
 /**
  * Administration: a staff member is added, given a role (organization-wide and for one facility), revoked with a reason,
@@ -201,11 +201,12 @@ test("editing the role changes what its holder can open at the next request, and
   const stale = await admin.context().newPage();
   watchErrors(stale, "admin (second tab)", errors);
   await stale.goto("/admin/roles");
-  await roleCard(stale, ROLE.name).getByRole("button", { name: "Edit…" }).click();
+  const staleEditor = roleCard(stale, ROLE.name);
+  await clickUntilVisible(staleEditor.getByRole("button", { name: "Edit…" }), staleEditor.getByRole("button", { name: "Save role" }));
 
   await admin.goto("/admin/roles");
   const card = roleCard(admin, ROLE.name);
-  await card.getByRole("button", { name: "Edit…" }).click();
+  await clickUntilVisible(card.getByRole("button", { name: "Edit…" }), card.getByRole("button", { name: "Save role" }));
   await card.getByLabel("Name", { exact: true }).fill(ROLE.renamed);
   await card.getByLabel(/^Description/).fill(`${ROLE.description} and the staff list`);
   await card.getByRole("checkbox", { name: "user.read", exact: true }).click();
@@ -232,13 +233,15 @@ test("editing the role changes what its holder can open at the next request, and
 
   // Take it away again.
   const again = roleCard(admin, ROLE.renamed);
-  await again.getByRole("button", { name: "Edit…" }).click();
+  await clickUntilVisible(again.getByRole("button", { name: "Edit…" }), again.getByRole("button", { name: "Save role" }));
   await again.getByRole("checkbox", { name: "user.read", exact: true }).click();
   await again.getByRole("button", { name: "Save role" }).click();
   await toast(admin, `${ROLE.renamed} updated`);
+  // Without user.read the staff list sends them home (a server redirect), where the menu is already the new one:
+  // opening "/" again straight away would collide with that redirect and be aborted.
   await hire!.goto("/admin/users");
   await expect(hire!.getByRole("heading", { name: "Staff users" })).toHaveCount(0);
-  await hire!.goto("/");
+  await hire!.waitForURL((url) => url.pathname === "/");
   await expect.poll(() => adminMenu(hire!)).toEqual(["/admin/audit"]);
 });
 
@@ -281,7 +284,7 @@ test("a suspended member is signed out and refused, and can sign in again once r
 
 test("a department and a second facility are added, and the facility can be set inactive", async () => {
   await admin.goto("/admin/facilities");
-  const main = admin.locator('section[data-slot="card"]').filter({ has: admin.getByRole("heading", { name: "E2E Main Clinic", exact: true }) });
+  const main = admin.getByRole("article", { name: "E2E Main Clinic", exact: true });
   await main.getByRole("button", { name: "Add department…" }).click();
   await main.getByLabel("Name", { exact: true }).fill(DEPARTMENT.name);
   await main.getByLabel("Code", { exact: true }).fill(DEPARTMENT.code);
@@ -295,10 +298,10 @@ test("a department and a second facility are added, and the facility can be set 
   await dialog.locator("#new-facility-name").fill(FACILITY.name);
   await dialog.getByRole("button", { name: "Add facility" }).click();
   await toast(admin, `${FACILITY.name} added`);
-  const satellite = admin.locator('section[data-slot="card"]').filter({ has: admin.getByRole("heading", { name: FACILITY.name, exact: true }) });
+  const satellite = admin.getByRole("article", { name: FACILITY.name, exact: true });
   await expect(satellite.getByText("Active", { exact: true })).toBeVisible();
 
-  await satellite.getByRole("button", { name: "Edit…" }).click();
+  await clickUntilVisible(satellite.getByRole("button", { name: "Edit…" }), admin.getByRole("dialog"));
   await admin.getByRole("dialog").getByLabel("Status").selectOption("inactive");
   await admin.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
   await toast(admin, "Facility saved");

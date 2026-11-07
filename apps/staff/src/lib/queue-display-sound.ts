@@ -63,21 +63,46 @@ function voiceFor(lang: string): SpeechSynthesisVoice | undefined {
 }
 
 /**
- * Reads the announcements out one after the other at the volume given (0–1), replacing anything still being said:
- * a newer call must never wait behind an older one.
+ * Reads one announcement's lines out one after the other at the volume given (0-1) and says whether it worked. It never cuts
+ * off what is being said: the display's playback queue (announcement-queue.ts) decides the order, so a call is read after
+ * the one before it. False when this browser cannot speak, a voice errors, or nothing finishes in time (no voice installed,
+ * the speech service stuck) — the screen then says that announcements are not working.
  */
-export function speak(lines: ReadonlyArray<{ lang: string; text: string }>, volume: number): void {
-  if (!canSpeak()) return;
-  window.speechSynthesis.cancel();
-  for (const line of lines) {
-    const utterance = new SpeechSynthesisUtterance(line.text);
-    utterance.lang = line.lang;
-    const voice = voiceFor(line.lang);
-    if (voice) utterance.voice = voice;
-    utterance.rate = 0.9;
-    utterance.volume = Math.max(0, Math.min(1, volume));
-    window.speechSynthesis.speak(utterance);
-  }
+export function speakLines(lines: ReadonlyArray<{ lang: string; text: string }>, volume: number): Promise<boolean> {
+  if (lines.length === 0) return Promise.resolve(true);
+  if (!canSpeak()) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    let remaining = lines.length;
+    let failed = false;
+    const guard = setTimeout(
+      () => {
+        failed = true;
+        window.speechSynthesis.cancel();
+        resolve(false);
+      },
+      8_000 + lines.length * 6_000,
+    );
+    const settle = () => {
+      remaining -= 1;
+      if (remaining > 0) return;
+      clearTimeout(guard);
+      resolve(!failed);
+    };
+    for (const line of lines) {
+      const utterance = new SpeechSynthesisUtterance(line.text);
+      utterance.lang = line.lang;
+      const voice = voiceFor(line.lang);
+      if (voice) utterance.voice = voice;
+      utterance.rate = 0.9;
+      utterance.volume = Math.max(0, Math.min(1, volume));
+      utterance.onend = settle;
+      utterance.onerror = () => {
+        failed = true;
+        settle();
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+  });
 }
 
 export function stopSpeaking(): void {

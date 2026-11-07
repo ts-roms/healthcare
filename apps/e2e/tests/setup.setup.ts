@@ -45,6 +45,8 @@ setup("configure the clinic", async () => {
     }
   }
   await admin.post("/clinic/coding-systems", { key: "icd10", name: "ICD-10", version: "2019" });
+  // The guided tour opens a dialog on first visit that covers the screen; the journeys drive the screens themselves.
+  await admin.put("/organization/tour-setting", { enabled: false, version: 0 });
 
   const chemistry = await admin.post<{ id: string }>("/laboratory/departments", { code: "chem", name: "Chemistry" });
   const serum = await admin.post<{ id: string }>("/laboratory/specimen-types", { code: "serum", name: "Serum" });
@@ -68,6 +70,20 @@ setup("configure the clinic", async () => {
     decimalPlaces: 1,
   });
   await admin.post(`/laboratory/tests/${hba1c.id}/reference-ranges`, { low: 4.0, high: 5.6 });
+
+  // The patient self-service kiosk: a walk-in service it offers, and the device registered to its account (journey 27).
+  const kioskVisitType = await admin.post<{ id: string; name: string }>("/clinic/visit-types", {
+    code: "kiosk-walkin",
+    name: "Kiosk walk-in",
+    defaultDurationMinutes: 15,
+    requiresTriage: false,
+    kioskEnabled: true,
+  });
+  const kioskUser = (await admin.get<Array<{ id: string; email: string }>>("/users")).find((u) => u.email === STAFF.kiosk)!;
+  await admin.post("/kiosk/admin/devices", { code: "e2e-front", name: "E2E front kiosk", userId: kioskUser.id, printsTickets: true });
+  // The waiting-room screen is a registered device too, so staff can see that it is alive (journey 28).
+  const displayUser = (await admin.get<Array<{ id: string; email: string }>>("/users")).find((u) => u.email === STAFF.display)!;
+  await admin.post("/kiosk/admin/devices", { kind: "display", code: "e2e-lobby-tv", name: "E2E lobby screen", userId: displayUser.id });
 
   // A patient who already uses MyHealth and books online (journey 2).
   const email = "ana.reyes@e2e.ph";
@@ -101,6 +117,8 @@ setup("configure the clinic", async () => {
     telePractitionerId: telePractitioner.id,
     consultVisitTypeId: consult.id,
     onlineVisitTypeId: online.id,
+    kioskVisitType: { id: kioskVisitType.id, name: kioskVisitType.name },
+    kioskDeviceCode: "e2e-front",
     onlinePatient: { id: patient.id, email, displayName: patient.displayName },
   });
 });

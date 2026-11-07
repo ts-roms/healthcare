@@ -16,7 +16,7 @@ import { as, auditRows, createStaff, createTenant, createTestApp, drainEvents, j
 const PASSWORD = "Pahintulot-ko-2026";
 const ORG = "myhealth-push";
 const vapid = webpush.generateVAPIDKeys();
-const endpoint = (n: number) => `https://push.example.test/send/device-${n}`;
+const endpoint = (n: number) => `https://fcm.googleapis.com/send/device-${n}`;
 const keys = { p256dh: "B".repeat(87), auth: "a".repeat(22) };
 const ANDROID = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36";
 
@@ -149,7 +149,7 @@ describe("MyHealth push notifications", () => {
       .http()
       .post("/api/v1/portal/push/subscriptions")
       .set("Authorization", `Bearer ${juanToken}`)
-      .send({ endpoint: "http://push.example.test/x", keys })
+      .send({ endpoint: "http://fcm.googleapis.com/x", keys })
       .expect(400);
     await ctx
       .http()

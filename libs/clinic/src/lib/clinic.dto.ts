@@ -52,6 +52,8 @@ export const createVisitTypeSchema = z.object({
   requiresTriage: z.boolean().default(true),
   /** Patients may book this visit type themselves in MyHealth. */
   onlineBooking: z.boolean().default(false),
+  /** A patient kiosk offers this visit type for a walk-in check-in. */
+  kioskEnabled: z.boolean().default(false),
 });
 export class CreateVisitTypeDto extends createZodDto(createVisitTypeSchema) {}
 
@@ -59,6 +61,7 @@ export const updateVisitTypeSchema = z.object({
   name: text(120).optional(),
   defaultDurationMinutes: z.number().int().min(5).max(480).optional(),
   onlineBooking: z.boolean().optional(),
+  kioskEnabled: z.boolean().optional(),
   status: z.enum(["active", "inactive"]).optional(),
   version: z.number().int().positive(),
 });
@@ -146,6 +149,33 @@ export const updateServicePointSettingsSchema = z.object({
   version: z.number().int().positive().optional(),
 });
 export class UpdateServicePointSettingsDto extends createZodDto(updateServicePointSettingsSchema) {}
+
+export const queueDisplaySettingsQuerySchema = z.object({ facilityId: z.string().uuid() });
+export class QueueDisplaySettingsQueryDto extends createZodDto(queueDisplaySettingsQuerySchema) {}
+
+/** Words for the display; an empty text clears one. */
+const displayText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((v) => (v === "" ? null : v));
+
+/** A facility's waiting-room display wording and layout (migration 0139): no patient data, only the clinic's own words. */
+export const updateQueueDisplaySettingsSchema = z.object({
+  facilityId: z.string().uuid(),
+  headline: displayText(80).nullable().optional(),
+  footerMessage: displayText(160).nullable().optional(),
+  accentColor: z
+    .string()
+    .trim()
+    .regex(/^#[0-9A-Fa-f]{6}$/, "Use a colour like #1A7F8E")
+    .nullable()
+    .optional(),
+  groupByServicePoint: z.boolean(),
+  version: z.number().int().positive().optional(),
+});
+export class UpdateQueueDisplaySettingsDto extends createZodDto(updateQueueDisplaySettingsSchema) {}
 
 /** The stops still ahead of the visit, in order (replaces the planned ones; done, skipped and current steps stay). */
 export const planRouteSchema = z.object({ servicePointIds: z.array(z.string().uuid()).min(1).max(10), version: z.number().int().positive() });
@@ -317,6 +347,22 @@ export const moveVisitSchema = z.object({
   version: z.number().int().positive(),
 });
 export class MoveVisitDto extends createZodDto(moveVisitSchema) {}
+
+/** A called patient who did not come forward goes back into the line (migration 0137). */
+export const skipVisitSchema = z.object({ reason: reason.optional(), version: z.number().int().positive() });
+export class SkipVisitDto extends createZodDto(skipVisitSchema) {}
+
+/** The desk calls a called patient again, to the same place (the waiting-room display announces it again). */
+export const recallVisitSchema = z.object({ version: z.number().int().positive() });
+export class RecallVisitDto extends createZodDto(recallVisitSchema) {}
+
+/** A called patient never came forward: the visit is closed as a no-show. */
+export const noShowVisitSchema = z.object({ reason: reason.optional(), version: z.number().int().positive() });
+export class NoShowVisitDto extends createZodDto(noShowVisitSchema) {}
+
+/** A visit closed as left-without-being-seen goes back in line (the reason is kept in the audit trail). */
+export const requeueVisitSchema = z.object({ reason, version: z.number().int().positive() });
+export class RequeueVisitDto extends createZodDto(requeueVisitSchema) {}
 
 export const callVisitSchema = z.object({ calledTo: text(60), version: z.number().int().positive() });
 export class CallVisitDto extends createZodDto(callVisitSchema) {}

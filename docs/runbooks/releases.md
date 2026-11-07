@@ -13,6 +13,9 @@ How a version of the platform is cut, deployed and, if it goes wrong, rolled bac
 
 Version numbers follow `MAJOR.MINOR.PATCH`: a patch is a fix only, a minor adds behaviour without breaking an API or screen in use, a major changes a contract (API shape, permission meaning, a migration that cannot run beside the old code).
 
+Release notes are written before the tag, one file per version, in [`docs/releases/`](../releases/v1.1.0.md) (what changed, migrations, anything to do on
+deploy, how it was tested, known gaps). The GitHub Release's generated notes should link to them.
+
 ## Cutting a release
 
 `pnpm release` does the bump, the commit and the tag; pushing and deploying are flags, so nothing leaves your machine unless you ask.
@@ -32,7 +35,7 @@ By hand, the same thing is: `git switch -c release/v1.0.0`, `pnpm pkg set versio
 
 Railway services (`api`, `integration-worker`, `notification-worker`, `staff`, `portal`) deploy from the `production` branch. Set that once per service under Settings → Source → Branch.
 
-Order within a release that has a migration: the API runs `pnpm db:migrate` in its pre-deploy step, so deploy `api` first, then the workers, then `staff` and `portal`.
+Order within a release that has a migration: deploy `migrate` first (it runs `pnpm db:migrate` and stops; ADR-0016), then `api` (it stays unready while a migration it ships is not applied), then the workers, then `staff` and `portal`.
 
 ## A fix after release
 

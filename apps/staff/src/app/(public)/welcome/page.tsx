@@ -9,6 +9,11 @@ import {
   GlobeIcon,
   HandshakeIcon,
   KeyRoundIcon,
+  ListOrderedIcon,
+  MonitorSmartphoneIcon,
+  ScanFaceIcon,
+  TicketIcon,
+  Volume2Icon,
   LandmarkIcon,
   ScrollTextIcon,
   ShieldCheckIcon,
@@ -31,6 +36,7 @@ export const metadata = {
 const NAV = [
   { href: "#modules", label: "Modules" },
   { href: "#journey", label: "Care journey" },
+  { href: "#kiosk", label: "Kiosk" },
   { href: "#philippines", label: "Philippines" },
   { href: "#security", label: "Security" },
   { href: "#myhealth", label: "MyHealth" },
@@ -38,7 +44,7 @@ const NAV = [
 
 const JOURNEY: ReadonlyArray<{ title: string; description: string }> = [
   { title: "Register", description: "One Patient Master with duplicate review at the front desk." },
-  { title: "Book or walk in", description: "Online booking, reception scheduling and a live queue." },
+  { title: "Book or walk in", description: "Online booking, a self-service kiosk, reception scheduling and a live queue." },
   { title: "Consult", description: "Triage, SOAP notes, diagnoses and prescriptions in one workspace." },
   { title: "Order labs", description: "Specimens, results, verification and approval in the LIS." },
   { title: "Release", description: "Approved results reach the doctor and, when releasable, the patient." },
@@ -58,6 +64,41 @@ const STEP_STATE: Record<(typeof HERO_STEPS)[number]["state"], { icon: LucideIco
   active: { icon: ClockIcon, text: "In progress", className: "text-warning" },
   next: { icon: CircleDashedIcon, text: "Next", className: "text-sidebar-muted" },
 };
+
+const KIOSK: ReadonlyArray<{ icon: LucideIcon; title: string; description: string }> = [
+  {
+    icon: ScanFaceIcon,
+    title: "Patients check themselves in",
+    description: "A patient or mobile number, a date of birth and a first name find the record; then an appointment or a walk-in service, and a queue number.",
+  },
+  {
+    icon: UsersIcon,
+    title: "New patients register at the kiosk",
+    description:
+      "The form waits for reception, who check identification and create the record with the usual duplicate review. Nothing becomes a patient on its own.",
+  },
+  {
+    icon: TicketIcon,
+    title: "A number on screen, or on paper",
+    description: "The queue number is always shown; a ticket printer can be added by the clinic. A failed print never stops a check-in.",
+  },
+  {
+    icon: Volume2Icon,
+    title: "A waiting-room screen that calls the number",
+    description: "Ticket and place only, never a name. An optional chime and voice call-out, one number at a time.",
+  },
+  {
+    icon: ShieldCheckIcon,
+    title: "Private by design",
+    description: "Only initials after identification, the same answer for every wrong guess, and a screen that clears itself when nobody is there.",
+  },
+  {
+    icon: ListOrderedIcon,
+    title: "The same queue as the front desk",
+    description:
+      "Kiosk tickets use the clinic's own queue and rules. Reception can call, recall, skip or mark a no-show, and choose which services the kiosk offers.",
+  },
+];
 
 const PHILIPPINES: ReadonlyArray<{ icon: LucideIcon; title: string; description: string }> = [
   {
@@ -210,6 +251,61 @@ export default function WelcomePage() {
                 </li>
               ))}
             </ol>
+          </div>
+        </section>
+
+        {/* Kiosk */}
+        <section id="kiosk" className="scroll-mt-16 border-b">
+          <div className="mx-auto grid max-w-6xl items-start gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:py-20">
+            <div>
+              <SectionHeading eyebrow="Patient self-service kiosk" title="Shorter lines at the front desk">
+                Patients arriving for a booked visit or a walk-in check themselves in at a kiosk in the waiting area. Reception keeps the desk for the people
+                who need one, and the queue stays in one place.
+              </SectionHeading>
+              <FeatureGrid items={KIOSK} className="sm:grid-cols-1" />
+              <p className="mt-6 text-meta text-muted-foreground">
+                Kiosk, printer and screen hardware is chosen and set up by each clinic; services offered at the kiosk are the clinic&apos;s own choice.
+              </p>
+            </div>
+
+            <div
+              aria-label="Illustration of a kiosk ticket and the waiting-room screen"
+              role="img"
+              className="flex flex-col items-center gap-6 lg:sticky lg:top-24"
+            >
+              <div className="w-64 rounded-[2rem] border-[10px] border-sidebar bg-primary-subtle p-5 shadow-xl">
+                <div className="flex items-center justify-between text-meta text-muted-foreground">
+                  <span className="flex items-center gap-1 font-medium text-foreground">
+                    <MonitorSmartphoneIcon className="size-3.5" aria-hidden /> Your clinic
+                  </span>
+                  <span className="rounded-full bg-card px-2 py-0.5">Illustration</span>
+                </div>
+                <div className="mt-6 flex flex-col items-center gap-2 text-center">
+                  <CheckCircle2Icon className="size-9 text-success" aria-hidden />
+                  <p className="text-section font-semibold">You are checked in</p>
+                  <div className="mt-2 w-full rounded-xl border-2 border-primary/60 bg-card px-3 py-4">
+                    <p className="text-meta text-muted-foreground">Your number</p>
+                    <p className="text-5xl font-semibold tracking-tight text-primary tabular-nums">A-007</p>
+                    <p className="mt-1 text-table">Consultation</p>
+                  </div>
+                  <p className="mt-2 text-meta text-muted-foreground">Please take a seat. Your number will be shown on the screen when it is your turn.</p>
+                </div>
+              </div>
+
+              <div className="surface-deep w-full max-w-md rounded-xl border-[6px] border-sidebar bg-sidebar p-5 text-sidebar-foreground shadow-xl">
+                <div className="flex items-center justify-between text-meta text-sidebar-muted">
+                  <span>Waiting room</span>
+                  <span className="rounded-full bg-sidebar-accent px-2 py-0.5">Illustration</span>
+                </div>
+                <p className="mt-3 text-meta tracking-widest text-sidebar-muted uppercase">Now calling</p>
+                <p className="flex items-baseline gap-3 text-sidebar-accent-foreground">
+                  <span className="text-5xl font-semibold tabular-nums">A-007</span>
+                  <ArrowRightIcon className="size-6 self-center" aria-hidden />
+                  <span className="text-3xl font-semibold">Room 2</span>
+                </p>
+                <p className="mt-3 border-t border-sidebar-border pt-3 text-table text-sidebar-muted">Earlier: A-006 → Room 1 · A-005 → Room 2</p>
+              </div>
+            </div>
           </div>
         </section>
 

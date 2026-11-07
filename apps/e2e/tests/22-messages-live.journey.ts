@@ -46,7 +46,7 @@ test("the bell and its unread count move when a notice arrives, without reloadin
   // Any page: the count lives in the top bar of every screen.
   const staff = await staffPage(browser, STAFF.admin, errors);
   await staff.goto("/");
-  const bell = staff.getByRole("link", { name: /^Notifications/ });
+  const bell = staff.getByRole("button", { name: /^Notifications/ });
   const before = Number(/(\d+) unread/.exec((await bell.getAttribute("aria-label")) ?? "")?.[1] ?? 0);
 
   // A patient writes to the clinic: the clinic's repliers get an in-app notice.

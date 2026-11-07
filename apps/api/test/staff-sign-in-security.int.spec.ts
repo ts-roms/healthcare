@@ -1,5 +1,5 @@
 import { currentTotp } from "@healthcare/auth";
-import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWORD, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWORD, type Tenant, type TestContext, openedVariable } from "./harness";
 
 const NEW_PASSWORD = "Bagong-Password-Ko-2026";
 
@@ -19,7 +19,7 @@ describe("staff password reset by email", () => {
       "SELECT variables FROM notification WHERE recipient_user_id = $1 AND template_key = 'staff.password-reset' ORDER BY created_at DESC LIMIT 1",
       [userId],
     );
-    const link = rows[0]?.variables.link ?? "";
+    const link = openedVariable(ctx, rows[0]?.variables.link);
     expect(link).toMatch(/^https:\/\/staff\.test\.invalid\/reset-password#token=[\w-]{20,}$/);
     return link.split("#token=")[1]!;
   };

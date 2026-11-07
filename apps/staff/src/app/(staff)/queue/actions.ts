@@ -102,3 +102,37 @@ export async function registerWalkIn(input: z.input<typeof walkInSchema>, idempo
   const body = { ...parsed.data, chiefComplaint: parsed.data.chiefComplaint || undefined };
   return actionResult(() => api<Visit>("/queue/walk-ins", { method: "POST", body, idempotencyKey }));
 }
+
+const recallSchema = z.object({ visitId: z.uuid(), version: z.number().int().positive() });
+
+/** Calls the patient again to the same place (the waiting-room display announces it once more). */
+export async function recallVisit(input: z.input<typeof recallSchema>): Promise<ActionResult<Visit>> {
+  const parsed = recallSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { visitId, ...body } = parsed.data;
+  return actionResult(() => api<Visit>(`/queue/visits/${visitId}/recall`, { method: "POST", body }));
+}
+
+const noShowSchema = z.object({ visitId: z.uuid(), reason: z.string().trim().max(500).optional(), version: z.number().int().positive() });
+
+/** A called patient never came forward: the visit is closed as a no-show (it can be put back in line). */
+export async function noShowVisit(input: z.input<typeof noShowSchema>): Promise<ActionResult<Visit>> {
+  const parsed = noShowSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { visitId, ...body } = parsed.data;
+  return actionResult(() => api<Visit>(`/queue/visits/${visitId}/no-show`, { method: "POST", body: { ...body, reason: body.reason || undefined } }));
+}
+
+const requeueSchema = z.object({
+  visitId: z.uuid(),
+  reason: z.string().trim().min(5, "Give a reason of at least 5 characters").max(500),
+  version: z.number().int().positive(),
+});
+
+/** Puts a visit closed as left-without-being-seen back in line (the same day, a limited number of times). */
+export async function requeueVisit(input: z.input<typeof requeueSchema>): Promise<ActionResult<Visit>> {
+  const parsed = requeueSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  const { visitId, ...body } = parsed.data;
+  return actionResult(() => api<Visit>(`/queue/visits/${visitId}/requeue`, { method: "POST", body }));
+}

@@ -268,9 +268,10 @@ describe("MyHealth passkeys", () => {
       if (!challengeToken) break;
       await portalPost("/auth/mfa/verify", { challengeToken, passkey: new SoftAuthenticator().assert(options.challenge) });
     }
+    // Locked: sign-in answers as for a wrong password (no account oracle).
     await signIn()
       .expect(401)
-      .expect((r) => expect(r.body.error.code).toBe("account_locked"));
+      .expect((r) => expect(r.body.error.code).toBe("invalid_credentials"));
     await ctx.pool.query("UPDATE patient_portal_account SET failed_attempts = 0, locked_until = NULL WHERE patient_id = $1", [patientId]);
   });
 

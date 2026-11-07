@@ -12,6 +12,7 @@ import {
   RadioIcon,
   RefreshCwIcon,
   SettingsIcon,
+  TriangleAlertIcon,
   Volume2Icon,
   VolumeXIcon,
   WifiOffIcon,
@@ -19,12 +20,16 @@ import {
 import { cn } from "@healthcare/ui/lib/utils";
 import { Button, Popover, PopoverContent, PopoverTrigger, ToggleGroup, ToggleGroupItem } from "@healthcare/ui/primitives";
 import { useQueueUpdates } from "@/components/live-queue";
+import { AnnouncementQueue } from "@/lib/announcement-queue";
+import { readableAccent } from "@/lib/display-colour";
 import type { LiveStatus } from "@/lib/live-queue";
 import type { QueueDisplay } from "@/lib/api/types";
 import {
   announcements,
   CALL_HIGHLIGHT_MS,
   callAnnouncement,
+  callKeyOf,
+  callsSince,
   currentCallKey,
   displayStatusLabel,
   type DisplaySoundSettings,
@@ -36,7 +41,8 @@ import {
   type SoundLevel,
   type VoiceLanguage,
 } from "@/lib/queue-display";
-import { canSpeak, playChime, speak, stopSpeaking } from "@/lib/queue-display-sound";
+import { canSpeak, playChime, speakLines, stopSpeaking } from "@/lib/queue-display-sound";
+import { reportDisplayAlive } from "./actions";
 
 /**
  * The waiting-room display: the ticket being served now and where to go, the tickets called before it, and how many
@@ -48,19 +54,27 @@ export function DisplayBoard({
   facilityName,
   timeZone,
   canLeave,
+  renderedAt,
 }: {
+  /**
+   * The server's clock when the page was rendered. The first render on the client uses the same instant, so the text it
+   * shows (the update time, waiting minutes) matches the server's HTML: reading the clock again during hydration gives a
+   * different minute now and then, which React reports as a hydration mismatch.
+   */
+  renderedAt: string;
   display: QueueDisplay | null;
   facilityName: string;
   timeZone: string;
   canLeave: boolean;
 }) {
-  const [now, setNow] = React.useState(() => new Date());
+  const [now, setNow] = React.useState(() => new Date(renderedAt));
   const status = useQueueUpdates(() => setNow(new Date()));
   const [current, ...earlier] = display?.calls ?? [];
   const callKey = currentCallKey(display);
-  const sound = useDisplaySound(callKey, current ?? null);
+  const sound = useDisplaySound(callKey, display?.calls ?? []);
   const highlighted = useCallHighlight(callKey);
   useWakeLock();
+  useDisplayHeartbeat();
   const fullscreen = React.useSyncExternalStore(subscribeToFullscreen, isFullscreen, () => false);
 
   // The clock moves on the minute's scale, not every second (the queue's own updates refresh it too).
@@ -72,15 +86,24 @@ export function DisplayBoard({
   const time = (iso: string | Date) => new Intl.DateTimeFormat("en-PH", { timeZone, hour: "numeric", minute: "2-digit" }).format(new Date(iso));
   const today = new Intl.DateTimeFormat("en-PH", { timeZone, weekday: "long", month: "long", day: "numeric" }).format(now);
   const recent = earlier.slice(0, RECENT_CALLS_SHOWN);
+  // The clinic's own wording and colour (used only when white text stays readable on it).
+  const branding = display?.branding ?? { headline: null, footerMessage: null, accentColor: null };
+  const accent = readableAccent(branding.accentColor);
 
   return (
-    <div className="queue-display bg-qd-bg text-qd-text flex h-dvh min-h-[40rem] flex-col gap-6 overflow-hidden px-10 py-8">
+    <div
+      className="queue-display bg-qd-bg text-qd-text flex h-dvh min-h-[40rem] flex-col gap-6 overflow-hidden px-10 py-8"
+      style={accent ? ({ "--qd-accent": accent } as React.CSSProperties) : undefined}
+    >
       <header className="flex items-center justify-between gap-6">
         <div className="flex min-w-0 items-center gap-4">
           <span className="bg-qd-accent grid size-[clamp(40px,3vw,56px)] shrink-0 place-items-center rounded-xl text-white" aria-hidden>
             <ActivityIcon className="size-[55%]" />
           </span>
-          <h1 className="text-qd-ink truncate text-[clamp(24px,2.1vw,40px)] leading-tight font-semibold">{facilityName}</h1>
+          <div className="min-w-0">
+            <h1 className="text-qd-ink truncate text-[clamp(24px,2.1vw,40px)] leading-tight font-semibold">{facilityName}</h1>
+            {branding.headline ? <p className="text-qd-muted truncate text-[clamp(14px,1.2vw,24px)] leading-tight">{branding.headline}</p> : null}
+          </div>
         </div>
         <div className="shrink-0 text-right">
           <p className="text-qd-ink text-[clamp(32px,2.7vw,52px)] leading-none font-semibold tabular-nums">{time(now)}</p>
@@ -126,7 +149,9 @@ export function DisplayBoard({
           </section>
 
           <aside className="flex min-h-0 flex-col gap-6">
+            {display.groups ? <DepartmentCalls groups={display.groups} /> : null}
             <section
+              hidden={display.groups !== null}
               aria-labelledby="recently-called"
               className="border-qd-border bg-qd-card flex min-h-0 flex-1 flex-col rounded-3xl border-2 p-[clamp(20px,2vw,36px)]"
             >
@@ -169,7 +194,14 @@ export function DisplayBoard({
             <Volume2Icon className="size-[1.1em] shrink-0" aria-hidden />
             {spokenNote(sound)}
           </p>
+          {sound.on && sound.problem ? (
+            <p role="status" className="text-qd-ink mt-0.5 flex items-center gap-2 text-[clamp(12px,0.95vw,18px)] font-medium">
+              <TriangleAlertIcon className="size-[1.1em] shrink-0" aria-hidden />
+              Announcements are not working on this screen. Your number still appears above.
+            </p>
+          ) : null}
           <ConnectionStatus status={status} />
+          {branding.footerMessage ? <p className="text-qd-muted mt-1 text-[clamp(13px,1vw,20px)]">{branding.footerMessage}</p> : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {canLeave ? (
@@ -260,6 +292,8 @@ interface DisplaySound {
   on: boolean;
   settings: DisplaySoundSettings;
   speechAvailable: boolean;
+  /** The last announcement did not play (no voice, a speech error, the audio device refused). */
+  problem: boolean;
   toggle: () => void;
   setLevel: (level: SoundLevel) => void;
   setVoice: (voice: VoiceLanguage) => void;
@@ -354,47 +388,73 @@ const subscribeNever = () => () => undefined;
  * screen (browsers only play sound after a click there); never on the first render. Volume and voice are kept in this
  * browser's storage, so the screen keeps them across reloads; whether sound is on is not — it needs the click.
  */
-function useDisplaySound(callKey: string | null, current: { ticket: string; calledTo: string } | null): DisplaySound {
+function useDisplaySound(callKey: string | null, calls: QueueDisplay["calls"]): DisplaySound {
   const [on, setOn] = React.useState(false);
+  const [problem, setProblem] = React.useState(false);
   // Read from this browser's storage without a render-then-effect round trip: the server render (and hydration) use the defaults.
   const storedSettings = React.useSyncExternalStore(subscribeToSoundSettings, readStoredSoundSettings, () => null);
   const settings = React.useMemo(() => parseSoundSettings(storedSettings), [storedSettings]);
   const speechAvailable = React.useSyncExternalStore(subscribeNever, canSpeak, () => false);
   const audio = React.useRef<AudioContext | null>(null);
   const previous = React.useRef<string | null | undefined>(undefined);
-  const speakTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latest = React.useRef({ settings, current });
+  const queue = React.useRef(new AnnouncementQueue());
+  const draining = React.useRef(false);
+  const latest = React.useRef({ settings, calls });
   // Refs are written after the render commits, never during it.
   React.useEffect(() => {
-    latest.current = { settings, current };
+    latest.current = { settings, calls };
   });
 
   React.useEffect(() => {
     // Chrome loads voices after the first ask; asking now has them ready for the first announcement.
     if (canSpeak()) window.speechSynthesis.getVoices();
+    const waiting = queue.current;
     return () => {
-      if (speakTimer.current) clearTimeout(speakTimer.current);
+      waiting.clear();
       stopSpeaking();
     };
   }, []);
 
-  const play = React.useCallback((call: { ticket: string; calledTo: string } | null) => {
-    const context = audio.current;
-    if (!context) return;
-    const { settings: now } = latest.current;
-    const gain = SOUND_LEVEL_GAIN[now.level];
-    const seconds = playChime(context, gain);
-    if (speakTimer.current) clearTimeout(speakTimer.current);
-    stopSpeaking();
-    const lines = call ? announcements(call, now.voice) : [];
-    if (lines.length) speakTimer.current = setTimeout(() => speak(lines, gain), seconds * 1000 - 400);
+  /** Plays what is waiting, one call at a time: the chime, then the spoken call. Never over another call. */
+  const drain = React.useCallback(async () => {
+    if (draining.current) return;
+    draining.current = true;
+    try {
+      for (let item = queue.current.next(); item; item = queue.current.next()) {
+        const context = audio.current;
+        if (!context) break;
+        const gain = SOUND_LEVEL_GAIN[latest.current.settings.level];
+        let worked = true;
+        try {
+          const seconds = playChime(context, gain);
+          await new Promise((resolve) => setTimeout(resolve, seconds * 1000 - 400));
+        } catch {
+          worked = false;
+        }
+        if (item.lines.length > 0) worked = (await speakLines(item.lines, gain)) && worked;
+        setProblem(!worked);
+      }
+    } finally {
+      draining.current = false;
+    }
   }, []);
 
+  /** Queues a call (the same call is queued once); `call` null plays the chime alone. */
+  const announce = React.useCallback(
+    (key: string, call: { ticket: string; calledTo: string } | null) => {
+      const lines = call ? announcements(call, latest.current.settings.voice) : [];
+      if (queue.current.enqueue({ key, lines })) void drain();
+    },
+    [drain],
+  );
+
   React.useEffect(() => {
-    // The call read out is the one the key names: it changes together with the key.
-    if (on && shouldChime(previous.current, callKey)) play(latest.current.current);
+    // Every call since the one shown before is read out, oldest first: two calls between two looks are both announced.
+    if (on && callKey && shouldChime(previous.current, callKey)) {
+      for (const call of callsSince(previous.current, latest.current.calls)) announce(callKeyOf(call), call);
+    }
     previous.current = callKey;
-  }, [callKey, on, play]);
+  }, [callKey, on, announce]);
 
   const save = (next: DisplaySoundSettings) => {
     try {
@@ -410,21 +470,74 @@ function useDisplaySound(callKey: string | null, current: { ticket: string; call
     on,
     settings,
     speechAvailable,
+    problem,
     toggle: () => {
       if (!on) {
-        audio.current ??= new AudioContext();
-        void audio.current.resume();
-        play(null);
+        try {
+          audio.current ??= new AudioContext();
+          void audio.current.resume().catch(() => setProblem(true));
+          setProblem(false);
+        } catch {
+          // No audio device or the browser refused: the screen says so instead of staying silently quiet.
+          setProblem(true);
+        }
+        announce(`on-${Date.now()}`, null);
       } else {
-        if (speakTimer.current) clearTimeout(speakTimer.current);
+        queue.current.clear();
         stopSpeaking();
       }
       setOn(!on);
     },
     setLevel: (level) => save({ ...latest.current.settings, level }),
     setVoice: (voice) => save({ ...latest.current.settings, voice }),
-    test: () => play(latest.current.current ?? { ticket: "A-001", calledTo: "Room 1" }),
+    test: () => announce(`test-${Date.now()}`, latest.current.calls[0] ?? { ticket: "A-001", calledTo: "Room 1" }),
   };
+}
+
+/** The screen tells the API it is alive every minute, so staff can see which waiting-room screens are working. */
+function useDisplayHeartbeat() {
+  React.useEffect(() => {
+    void reportDisplayAlive();
+    const timer = setInterval(() => void reportDisplayAlive(), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+}
+
+/** Calls by department (service point), when the clinic asked for it: each one's latest calls and how many wait there. */
+function DepartmentCalls({ groups }: { groups: NonNullable<QueueDisplay["groups"]> }) {
+  return (
+    <section
+      aria-labelledby="by-department"
+      className="border-qd-border bg-qd-card flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-3xl border-2 p-[clamp(20px,2vw,36px)]"
+    >
+      <h2 id="by-department" className="text-qd-muted text-[clamp(14px,1.1vw,20px)] font-semibold tracking-widest uppercase">
+        By department
+      </h2>
+      {groups.length === 0 ? (
+        <p className="text-qd-muted text-[clamp(16px,1.25vw,24px)]">No one is waiting.</p>
+      ) : (
+        <ul className="divide-qd-divider min-h-0 flex-1 divide-y overflow-hidden">
+          {groups.map((group) => (
+            <li key={group.name} className="py-2.5">
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="text-qd-ink truncate text-[clamp(18px,1.5vw,28px)] font-semibold">{group.name}</p>
+                <p className="text-qd-muted shrink-0 text-[clamp(13px,1vw,20px)] tabular-nums">{group.waiting} waiting</p>
+              </div>
+              {group.calls.length > 0 ? (
+                <p className="text-qd-accent mt-0.5 flex flex-wrap gap-x-5 text-[clamp(18px,1.6vw,30px)] font-semibold tabular-nums">
+                  {group.calls.slice(0, 2).map((call) => (
+                    <span key={`${call.ticket}-${call.calledAt}`}>
+                      {call.ticket} <span className="text-qd-text text-[0.7em] font-medium">&rarr; {call.calledTo}</span>
+                    </span>
+                  ))}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 // ---- full screen, as the browser reports it (Esc or the button can end it) ---------------------------------------------------

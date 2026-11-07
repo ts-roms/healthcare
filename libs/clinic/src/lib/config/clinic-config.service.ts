@@ -18,7 +18,7 @@ import type {
 import { codingSystem, practitioner, practitionerSchedule, room, scheduleException, visitType } from "../clinic.schema";
 import { assertVersion, found, publicView } from "../clinic-support";
 
-const VISIT_TYPE_FIELDS = ["name", "defaultDurationMinutes", "onlineBooking", "status"] as const;
+const VISIT_TYPE_FIELDS = ["name", "defaultDurationMinutes", "onlineBooking", "kioskEnabled", "status"] as const;
 const CODING_SYSTEM_FIELDS = ["name", "version", "status"] as const;
 const PRACTITIONER_FIELDS = ["displayName", "profession", "specialty", "licenseNumber", "licenseValidUntil", "userId", "status"] as const;
 

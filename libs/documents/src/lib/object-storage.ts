@@ -169,11 +169,29 @@ export class InMemoryObjectStorage implements ObjectStorage {
     return this.contents.get(key);
   }
 
-  /** Simulates the client completing the presigned upload; without bytes given, the object is `sizeBytes` zero bytes. */
+  /**
+   * Simulates the client completing the presigned upload. Without bytes given, the object is `sizeBytes` zero bytes
+   * that begin with the signature of its content type, as a real file of that type would.
+   */
   put(key: string, info: StoredObjectInfo, body?: Buffer): void {
     this.objects.set(key, info);
-    this.contents.set(key, body ? Buffer.from(body) : Buffer.alloc(info.sizeBytes));
+    this.contents.set(key, body ? Buffer.from(body) : signedPlaceholder(info.contentType ?? "", info.sizeBytes));
   }
+}
+
+const SIGNATURES: Record<string, Array<{ offset: number; bytes: Buffer }>> = {
+  "application/pdf": [{ offset: 0, bytes: Buffer.from("%PDF-1.4 ") }],
+  "image/jpeg": [{ offset: 0, bytes: Buffer.from([0xff, 0xd8, 0xff]) }],
+  "image/png": [{ offset: 0, bytes: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) }],
+  "image/tiff": [{ offset: 0, bytes: Buffer.from([0x49, 0x49, 0x2a, 0x00]) }],
+  "image/heic": [{ offset: 4, bytes: Buffer.from("ftypheic") }],
+  "application/dicom": [{ offset: 128, bytes: Buffer.from("DICM") }],
+};
+
+function signedPlaceholder(contentType: string, sizeBytes: number): Buffer {
+  const out = Buffer.alloc(sizeBytes);
+  for (const { offset, bytes } of SIGNATURES[contentType] ?? []) bytes.copy(out, offset, 0, Math.max(0, Math.min(bytes.length, sizeBytes - offset)));
+  return out;
 }
 
 /** RFC 6266 attachment disposition with a UTF-8 file name. */

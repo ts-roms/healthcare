@@ -3,11 +3,16 @@
 import * as React from "react";
 import { AlertTriangleIcon, KeyRoundIcon, ShieldCheckIcon } from "lucide-react";
 import { Button, Input, Label, NativeSelect, PasswordInput } from "@healthcare/ui/primitives";
+import { clearOfflineSnapshot } from "@/lib/offline/snapshot";
 import { authenticate, type LoginState } from "./actions";
 
 export function LoginForm({ next, notice }: { next: string; notice?: string }) {
   const [state, action, pending] = React.useActionState(authenticate, { step: "password" } as LoginState);
   const error = state.error;
+  // Whoever reaches sign-in (signed out, idle, session ended) finds no earlier person's queue in the offline copy.
+  React.useEffect(() => {
+    void clearOfflineSnapshot();
+  }, []);
 
   return (
     <div className="flex flex-col gap-4">

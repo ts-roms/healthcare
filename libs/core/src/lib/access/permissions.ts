@@ -17,6 +17,8 @@ export const PERMISSIONS = [
   "patient.portal.proxy.manage",
   // Patient merge (migration 0068)
   "patient.merge",
+  // Government and insurance identifiers in full instead of masked (migration 0136)
+  "patient.identifier.reveal",
   // Patient QR codes: issue, print and revoke; the organization setting (migration 0117)
   "patient.qr.issue",
   "patient.qr.manage",
@@ -36,6 +38,14 @@ export const PERMISSIONS = [
   "clinic.queue.manage",
   // Waiting-room display: called tickets only (migration 0112)
   "clinic.queue.display",
+  // Patient self-service kiosk (migration 0137)
+  "kiosk.session.use",
+  "kiosk.device.read",
+  "kiosk.device.manage",
+  "kiosk.registration.review",
+  // Kiosk ticket printing (migration 0139)
+  "kiosk.print.agent",
+  "kiosk.print.reprint",
   "clinic.triage.write",
   "clinical.read",
   "allergy.manage",

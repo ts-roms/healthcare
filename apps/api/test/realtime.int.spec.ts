@@ -14,6 +14,7 @@ import {
   TEST_REDIS_URL,
   type TestContext,
 } from "./harness";
+import { RealtimeGateway } from "../src/app/realtime/realtime.gateway";
 
 describe("realtime queue and laboratory updates", () => {
   let ctx: TestContext;
@@ -68,7 +69,7 @@ describe("realtime queue and laboratory updates", () => {
 
   it("pushes queue changes to subscribers of the facility, without patient details", async () => {
     const socket = connect({ token: desk, facilityId: tenant.facilityId });
-    await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "notices"] });
+    await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "registrations", "notices"] });
 
     const admin = (await login(ctx, "admin@example.ph")).accessToken;
     const visitType = await ctx
@@ -78,6 +79,11 @@ describe("realtime queue and laboratory updates", () => {
       .send({ code: "consult", name: "Consultation", defaultDurationMinutes: 15 })
       .expect(201);
     const patient = await ctx.http().post("/api/v1/patients").set(as(desk, tenant.facilityId)).send(juan).expect(201);
+    // A waiting-room screen account (display only) hears that the queue changed, nothing about the visit.
+    await createStaff(ctx.pool, tenant, "screen@example.ph", [{ role: "queue_display", facilityId: tenant.facilityId }]);
+    const screen = connect({ token: (await login(ctx, "screen@example.ph")).accessToken, facilityId: tenant.facilityId });
+    await expect(next(screen, "ready")).resolves.toMatchObject({ channels: ["display", "notices"] });
+    const screenUpdate = next<Record<string, unknown>>(screen, "queue.updated");
     const update = next<Record<string, unknown>>(socket, "queue.updated");
     const visit = await ctx
       .http()
@@ -90,6 +96,7 @@ describe("realtime queue and laboratory updates", () => {
     const message = await update;
     expect(message).toMatchObject({ visitId: visit.body.id, status: "waiting", queueNumber: 1 });
     expect(JSON.stringify(message)).not.toMatch(/Dela Cruz|Juan/);
+    expect(Object.keys(await screenUpdate)).toEqual(["occurredAt"]);
   });
 
   it("pushes a new conversation message to staff who read conversations: ids and the sender, never the text", async () => {
@@ -292,7 +299,10 @@ describe("realtime queue and laboratory updates", () => {
       expect(issued.body).toEqual({ ticket: expect.any(String), expiresInSeconds: 60 });
 
       const socket = connect({ ticket: issued.body.ticket });
-      await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "notices"] });
+      await expect(next(socket, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "registrations", "notices"] });
+      // Spent on first use: the same ticket never opens a second socket, even within its minute.
+      const replay = connect({ ticket: issued.body.ticket });
+      await expect(next(replay, "unauthorized")).resolves.toBeDefined();
     });
 
     it("needs a facility, and a ticket is never accepted as an access token", async () => {
@@ -319,9 +329,40 @@ describe("realtime queue and laboratory updates", () => {
     });
   });
 
+  it("checks open sockets again: an ended session or revoked access disconnects, a removed permission leaves its channel", async () => {
+    const gateway = ctx.app.get(RealtimeGateway);
+    const ticket = async (token: string) =>
+      (await ctx.http().post("/api/v1/auth/realtime-tickets").set(as(token, tenant.facilityId)).expect(201)).body.ticket as string;
+
+    // A session that ends after the socket opened (the ticket has long been used).
+    const session = await login(ctx, "desk@example.ph");
+    const open = connect({ ticket: await ticket(session.accessToken) });
+    await next(open, "ready");
+    await ctx.http().post("/api/v1/auth/logout").set(as(session.accessToken)).expect(204);
+    const told = next(open, "unauthorized");
+    expect(await gateway.revalidateAll()).toBeGreaterThanOrEqual(1);
+    await expect(told).resolves.toMatchObject({ message: expect.any(String) });
+
+    // A member whose every role at the facility is revoked.
+    await createStaff(ctx.pool, tenant, "temp@example.ph", [{ role: "receptionist", facilityId: tenant.facilityId }]);
+    const temp = (await login(ctx, "temp@example.ph")).accessToken;
+    const revoked = connect({ ticket: await ticket(temp) });
+    await next(revoked, "ready");
+    await ctx.pool.query("DELETE FROM role_assignment WHERE user_id = (SELECT id FROM app_user WHERE email = 'temp@example.ph')");
+    const revokedTold = next(revoked, "unauthorized");
+    await gateway.revalidateAll();
+    await expect(revokedTold).resolves.toBeDefined();
+
+    // Still allowed: the socket stays open.
+    const kept = connect({ ticket: await ticket(desk) });
+    await next(kept, "ready");
+    await gateway.revalidateAll();
+    expect(kept.connected).toBe(true);
+  });
+
   it("reaches a browser connected to another instance (rooms shared through Redis)", async () => {
     const elsewhere = connect({ token: desk, facilityId: tenant.facilityId }, secondUrl);
-    await expect(next(elsewhere, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "notices"] });
+    await expect(next(elsewhere, "ready")).resolves.toEqual({ facilityId: tenant.facilityId, channels: ["queue", "messages", "registrations", "notices"] });
     const admin = (await login(ctx, "admin@example.ph")).accessToken;
     const visitType = await ctx
       .http()
@@ -358,7 +399,7 @@ describe("realtime queue and laboratory updates", () => {
       const token = (await login(offline, "desk@example.ph")).accessToken;
       const admin = (await login(offline, "admin@example.ph")).accessToken;
       const local = connect({ token, facilityId: again.facilityId }, realtimeUrl(offline));
-      await expect(next(local, "ready")).resolves.toMatchObject({ channels: ["queue", "messages", "notices"] });
+      await expect(next(local, "ready")).resolves.toMatchObject({ channels: ["queue", "messages", "registrations", "notices"] });
       const visitType = await offline
         .http()
         .post("/api/v1/clinic/visit-types")

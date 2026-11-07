@@ -1,9 +1,9 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import { DATABASE, type Database } from "@healthcare/core";
+import { DATABASE, type Database, APP_CONFIG, type AppConfig, integrationPayloadKeyring } from "@healthcare/core";
 import { and, eq, isNull, lte, or, sql } from "drizzle-orm";
 import { notification, notificationAttempt } from "./notification.schema";
 import { CHANNEL_SENDERS, type ChannelSender } from "./ports";
-import { findTemplate, renderForChannel, withoutSecrets } from "./templates";
+import { findTemplate, openVariables, renderForChannel, withoutSecrets } from "./templates";
 
 export type DispatchOutcome = "sent" | "retry" | "failed" | "skipped";
 
@@ -22,6 +22,7 @@ export class NotificationDispatcher {
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     @Inject(CHANNEL_SENDERS) private readonly senders: ChannelSender[],
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
   async dispatch(notificationId: string): Promise<DispatchOutcome> {
@@ -41,7 +42,7 @@ export class NotificationDispatcher {
 
     const [attempt] = await this.db
       .insert(notificationAttempt)
-      .values({ notificationId, attemptNumber: claimed.attemptCount })
+      .values({ organizationId: claimed.organizationId, notificationId, attemptNumber: claimed.attemptCount })
       .returning({ id: notificationAttempt.id });
 
     try {
@@ -53,7 +54,11 @@ export class NotificationDispatcher {
       if (!sender) throw new PermanentDeliveryError(`No sender configured for ${claimed.channel}`);
       if (!claimed.destination) throw new PermanentDeliveryError("No destination");
 
-      const result = await sender.send(claimed.destination, renderForChannel(template, claimed.channel, claimed.variables), { notificationId });
+      const result = await sender.send(
+        claimed.destination,
+        renderForChannel(template, claimed.channel, openVariables(claimed.variables, integrationPayloadKeyring(this.config))),
+        { notificationId },
+      );
       await this.db.transaction(async (tx) => {
         await tx
           .update(notification)

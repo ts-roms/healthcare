@@ -9,6 +9,7 @@ import {
   type RequestMetadata,
   sha256Hex,
   UnauthenticatedError,
+  sessionIdle,
 } from "@healthcare/core";
 import { and, eq, gt, isNull, ne, sql } from "drizzle-orm";
 import { authSession, type AuthSessionRecord } from "./auth.schema";
@@ -64,6 +65,11 @@ export class SessionService {
       const [current] = await tx.select().from(authSession).where(eq(authSession.refreshTokenHash, hash)).for("update");
       if (current) {
         if (current.revokedAt || current.expiresAt <= new Date()) return { kind: "invalid" };
+        // Zero trust for an abandoned browser: a session nobody refreshed within the idle limit is ended, not renewed.
+        if (sessionIdle(current.lastUsedAt, new Date(), this.config.SESSION_IDLE_MINUTES)) {
+          await tx.update(authSession).set({ revokedAt: new Date(), revokedReason: "idle" }).where(eq(authSession.id, current.id));
+          return { kind: "invalid" };
+        }
         const next = randomToken();
         const [rotated] = await tx
           .update(authSession)

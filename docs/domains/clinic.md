@@ -330,9 +330,36 @@ before it and how many wait (migration `0112`).
   typed; the device's installed voices, nothing sent anywhere — with the level and voice choice kept in the screen's
   browser storage (`apps/staff/src/lib/queue-display.ts`, `queue-display-sound.ts`), a screen wake lock and full screen.
   English labels; the room text is whatever staff typed.
-- Not built: ticket printing or a kiosk, announcements over a public-address system, and priority lanes (which the organization would first
+- Since migration `0139` the clinic can add a headline, a footer line and an accent colour, and turn on calls grouped by service point
+  (the service point's name only); the announcement is a playback queue and the screen reports that it is alive
+  (`docs/domains/kiosk.md`, "Printing and devices").
+- Not built: announcements over a public-address system, and priority lanes (which the organization would first
   confirm against current rules). Service points (below) do not change the display: a call still shows the ticket and the
   place typed, never the service point.
+
+## Queue actions at the desk
+
+Migration `0138` (kiosk brief, phase 4). Three actions on a visit, all `clinic.queue.manage`, facility-scoped, audited,
+guarded by the visit's `version` (two people acting on one ticket at once: one succeeds, the other gets `409`), and
+announced to the board by the usual `QueueEntryUpdated`:
+
+- **Recall** (`POST /queue/visits/:id/recall`, audit `visit.recall`): the patient was called and did not come; the call
+  is repeated to the same place — `called_at` moves to now, so the waiting-room display announces the ticket again. Open
+  visits that were called only (`not_called`, `visit_closed`).
+- **Mark no-show** (`POST /queue/visits/:id/no-show`, optional note, audit `visit.no-show`): a called patient who is
+  still waiting for care (not with the provider: `not_waiting`) is closed as `left_without_being_seen` with
+  `visit.no_show_at` set (CHECK: only on that status) and the note, or "No-show after being called", as the reason.
+  The board's figures count it apart from a patient who walked out.
+- **Put back in line** (`POST /queue/visits/:id/requeue`, reason required, audit `visit.requeue`): a visit closed as
+  left-without-being-seen (a no-show or someone who stepped out) goes back to `waiting` the same day, behind those who
+  arrived since (`queued_at`, as for a skip), keeping its ticket and arrival time; `requeued_count` limits it to
+  `MAX_REQUEUES` (3) times. Cancelled and completed visits never reopen; a patient who checked in again meanwhile
+  cannot be put back beside the new visit (`already_in_queue`); other days are refused (`not_today`).
+
+Rules are pure functions in `domain/queue-state.ts` (`recallRefusal`, `noShowRefusal`, `requeueRefusal`). Staff
+`/queue`: the ticket panel offers **Recall** and **No-show…** once the patient is called, and **Put back in line** on a
+visit closed that way; the figures strip shows being called, seen, skipped and no-show. Skip (migration `0137`) is the
+alternative when the desk wants the patient back in the line without closing the visit.
 
 ## Service points
 

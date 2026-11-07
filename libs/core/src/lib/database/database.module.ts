@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { APP_CONFIG, type AppConfig } from "../config/app-config";
 import { DATABASE, DATABASE_POOL } from "./database";
 import { ContextPool } from "./database-context";
+import { DatabasePrivilegeCheck } from "./database-privileges";
 
 @Global()
 @Module({
@@ -20,6 +21,8 @@ import { ContextPool } from "./database-context";
       inject: [DATABASE_POOL],
       useFactory: (pool: Pool) => drizzle(pool),
     },
+    // Refuses to start in production as a role that bypasses row-level security (database-privileges.ts).
+    DatabasePrivilegeCheck,
   ],
   exports: [DATABASE, DATABASE_POOL],
 })

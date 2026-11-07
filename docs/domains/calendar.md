@@ -40,4 +40,4 @@ None published.
 
 ## Integration points
 
-Staff app `/calendar?view=month|week|day&date=YYYY-MM-DD` (times in the selected facility's time zone; month cells link to the day; appointments link to `/appointments`; a toggle hides appointments).
+Staff app `/calendar?view=month|week|day&date=YYYY-MM-DD` (times in the selected facility's time zone; month cells link to the day; appointments link to `/appointments`; a toggle hides appointments). **Day view** (`calendar-day.tsx`, helpers in `apps/staff/src/lib/calendar.ts`): a mini month and the day's figures (appointments and events, their hours; cancelled entries counted apart) and the next entries on the left; the hours of the day in the middle (7 AM to 7 PM, wider when an entry falls outside) with each entry drawn where it falls and overlapping entries side by side, all-day events above the hours, a current-time line on today; and the selected entry in full on the right (an event with its notes, invitees and **Edit event** / **Cancel event…**; an appointment with its status, reason, room and **Open in appointments**). **By room** lays the hours out in one column per room. Nothing in the API changed.

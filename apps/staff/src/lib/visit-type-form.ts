@@ -28,6 +28,8 @@ export const visitTypeFormSchema = z.object({
   modality: z.enum(["in_person", "telemedicine"], { message: "Choose where the visit happens." }),
   requiresTriage: z.boolean(),
   onlineBooking: z.boolean(),
+  /** Offered at the patient kiosk for a walk-in check-in (in person only; the API refuses a kiosk for an online type at check-in). */
+  kioskEnabled: z.boolean().default(false),
 });
 
 export type VisitTypeFormInput = z.input<typeof visitTypeFormSchema>;
@@ -41,4 +43,5 @@ export const BLANK_VISIT_TYPE: {
   modality: VisitTypeModality;
   requiresTriage: boolean;
   onlineBooking: boolean;
-} = { code: "", name: "", defaultDurationMinutes: "15", modality: "in_person", requiresTriage: true, onlineBooking: false };
+  kioskEnabled: boolean;
+} = { code: "", name: "", defaultDurationMinutes: "15", modality: "in_person", requiresTriage: true, onlineBooking: false, kioskEnabled: false };

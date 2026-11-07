@@ -72,3 +72,20 @@ export async function runMigrations(pool: Pool, directory: string): Promise<Migr
     client.release();
   }
 }
+
+/**
+ * The migration files in `directory` that the database has not applied yet (ADR-0016): read-only, so the application
+ * role can run it. The API's readiness answers 503 while any is pending, so a new API never serves against an old schema
+ * when the migrate service has not finished. Null when the directory cannot be read (nothing to compare against).
+ */
+export async function pendingMigrations(pool: Pick<Pool, "query">, directory: string): Promise<string[] | null> {
+  let files: string[];
+  try {
+    files = (await readdir(directory)).filter((name) => MIGRATION_FILE.test(name)).sort();
+  } catch {
+    return null;
+  }
+  const { rows } = await pool.query<{ name: string }>("SELECT name FROM schema_migration");
+  const applied = new Set(rows.map((row) => row.name));
+  return files.filter((file) => !applied.has(file));
+}

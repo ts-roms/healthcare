@@ -18,6 +18,7 @@ import {
   toast,
 } from "@healthcare/ui/primitives";
 import { selectFacility, signOut } from "@/app/(staff)/actions";
+import { clearOfflineSnapshot } from "@/lib/offline/snapshot";
 import type { StaffBadges } from "@/lib/api/types";
 import { NOTICE_EVENTS } from "@/lib/live-queue";
 import { moduleTabsFor } from "@/lib/module-tabs";
@@ -189,7 +190,7 @@ export function StaffShell({
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => void signOut()}>
+              <DropdownMenuItem onSelect={() => void clearOfflineSnapshot().finally(() => void signOut())}>
                 <LogOutIcon aria-hidden /> Log out
               </DropdownMenuItem>
             </DropdownMenuContent>

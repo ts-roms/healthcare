@@ -2,7 +2,7 @@ import { Test } from "@nestjs/testing";
 import { authenticator } from "otplib";
 import { CoreModule } from "@healthcare/core";
 import { CHANNEL_SENDERS, LoggingSender, NOTIFICATION_QUEUE, NotificationDispatcher, NotificationWorkerModule } from "@healthcare/notification";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform, openedVariable } from "./harness";
 
 const PASSWORD = "Pahintulot-ko-2026";
 const ORG = "myhealth-sec";
@@ -331,7 +331,7 @@ describe("MyHealth email verification and two-step verification", () => {
       // A reset changes the password only; the second step is still asked.
       await portalPost("/auth/password-reset/request", { organizationCode: ORG, email: NEW_EMAIL }).expect(202);
       const [reset] = (await notifications("portal.password-reset")).slice(-1);
-      const token = reset!.variables["link"]!.split("#token=")[1]!;
+      const token = openedVariable(ctx, reset!.variables["link"]).split("#token=")[1]!;
       await portalPost("/auth/password-reset/confirm", { token, birthDate, password: PASSWORD }).expect(204);
       expect((await signIn(NEW_EMAIL).expect(200)).body.status).toBe("mfa_required");
       expect((await accountRow()).mfa_enabled).toBe(true);

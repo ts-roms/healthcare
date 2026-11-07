@@ -158,3 +158,128 @@ export function eventInstants(
   const endsAt = zonedLocalToIso(`${form.endDate}T${form.endTime}`, timeZone);
   return endsAt > startsAt ? { startsAt, endsAt } : null;
 }
+
+// ---- The day view's timeline ---------------------------------------------------------------------------------------------
+
+/** The hours the day timeline shows at least; it grows to hold earlier or later entries. */
+export const DAY_START_HOUR = 7;
+export const DAY_END_HOUR = 19;
+/** An entry shorter than this is drawn this long so that it can be read and pressed. */
+const MIN_BLOCK_MINUTES = 30;
+
+/** "9:00 AM" in the facility's time zone. */
+export function timeLabel(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-PH", { timeZone, hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(iso)).replace(/\s/g, " ");
+}
+
+/** "1 h 30 min", "45 min": a length of time for a person to read. */
+export function durationLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}
+
+function minutesOfLocalTime(hhmm: string): number {
+  const [h, m] = hhmm.split(":").map(Number) as [number, number];
+  return h * 60 + m;
+}
+
+/** The minutes after local midnight of `date` that an entry occupies, cut to that day. */
+export function daySpan(entry: Pick<CalendarEntry, "startsAt" | "endsAt">, date: string, timeZone: string): { start: number; end: number } {
+  const start = localDay(entry.startsAt, timeZone) < date ? 0 : minutesOfLocalTime(localTimeOf(entry.startsAt, timeZone));
+  const end = localDay(entry.endsAt, timeZone) > date ? 24 * 60 : minutesOfLocalTime(localTimeOf(entry.endsAt, timeZone));
+  return { start, end: Math.max(end, start + 1) };
+}
+
+/** An entry placed on the timeline: its minutes, and the side-by-side lane it takes when others overlap it. */
+export interface DayBlock {
+  entry: CalendarEntry;
+  start: number;
+  /** As drawn: never shorter than a readable block. */
+  end: number;
+  lane: number;
+  /** How many lanes the cluster of overlapping entries needs; the block is 1/lanes of the width. */
+  lanes: number;
+}
+
+/** Lays timed entries out for one day: overlapping entries sit side by side instead of on top of each other. */
+export function layoutDay(entries: CalendarEntry[], date: string, timeZone: string): DayBlock[] {
+  const spans = entries
+    .filter((e) => !e.allDay)
+    .map((entry) => {
+      const { start, end } = daySpan(entry, date, timeZone);
+      return { entry, start, end: Math.max(end, start + MIN_BLOCK_MINUTES) };
+    })
+    .sort((a, b) => a.start - b.start || b.end - a.end || a.entry.key.localeCompare(b.entry.key));
+
+  const blocks: DayBlock[] = [];
+  let cluster: DayBlock[] = [];
+  let laneEnds: number[] = [];
+  let clusterEnd = -1;
+  const close = () => {
+    for (const block of cluster) block.lanes = laneEnds.length;
+    blocks.push(...cluster);
+    cluster = [];
+    laneEnds = [];
+  };
+  for (const span of spans) {
+    if (cluster.length > 0 && span.start >= clusterEnd) close();
+    let lane = laneEnds.findIndex((end) => end <= span.start);
+    if (lane === -1) lane = laneEnds.length;
+    laneEnds[lane] = span.end;
+    clusterEnd = cluster.length === 0 ? span.end : Math.max(clusterEnd, span.end);
+    cluster.push({ ...span, lane, lanes: 1 });
+  }
+  close();
+  return blocks;
+}
+
+/** The first and last hour the timeline draws: the usual working hours, widened to hold every entry. */
+export function dayHourRange(blocks: DayBlock[]): { startHour: number; endHour: number } {
+  let startHour = DAY_START_HOUR;
+  let endHour = DAY_END_HOUR;
+  for (const b of blocks) {
+    startHour = Math.min(startHour, Math.floor(b.start / 60));
+    endHour = Math.max(endHour, Math.ceil(b.end / 60));
+  }
+  return { startHour: Math.max(0, startHour), endHour: Math.min(24, endHour) };
+}
+
+export interface DaySummary {
+  appointments: number;
+  events: number;
+  cancelled: number;
+  appointmentMinutes: number;
+  eventMinutes: number;
+}
+
+/** The figures of one day: what is scheduled (cancelled entries counted apart, never in the hours). */
+export function daySummary(entries: CalendarEntry[], date: string, timeZone: string): DaySummary {
+  const summary: DaySummary = { appointments: 0, events: 0, cancelled: 0, appointmentMinutes: 0, eventMinutes: 0 };
+  for (const entry of entries) {
+    if (entry.cancelled) {
+      summary.cancelled += 1;
+      continue;
+    }
+    const minutes = entry.allDay
+      ? 0
+      : (() => {
+          const span = daySpan(entry, date, timeZone);
+          return span.end - span.start;
+        })();
+    if (entry.source === "appointment") {
+      summary.appointments += 1;
+      summary.appointmentMinutes += minutes;
+    } else {
+      summary.events += 1;
+      summary.eventMinutes += minutes;
+    }
+  }
+  return summary;
+}
+
+/** Minutes after local midnight of `date` for an instant, or null when the instant is on another day. */
+export function minuteOfDay(iso: string, date: string, timeZone: string): number | null {
+  return localDay(iso, timeZone) === date ? minutesOfLocalTime(localTimeOf(iso, timeZone)) : null;
+}

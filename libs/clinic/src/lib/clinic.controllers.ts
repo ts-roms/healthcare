@@ -10,6 +10,12 @@ import {
   AvailabilityQueryDto,
   BookAppointmentDto,
   CallVisitDto,
+  NoShowVisitDto,
+  QueueDisplaySettingsQueryDto,
+  UpdateQueueDisplaySettingsDto,
+  RecallVisitDto,
+  RequeueVisitDto,
+  SkipVisitDto,
   CancelAppointmentDto,
   CheckInDto,
   CloseWaitlistDto,
@@ -65,6 +71,7 @@ import { BookingRulesService } from "./config/booking-rules.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { ClinicConfigService } from "./config/clinic-config.service";
 import { RouteTemplateService } from "./config/route-template.service";
+import { QueueDisplaySettingService } from "./config/queue-display-setting.service";
 import { ServicePointService } from "./config/service-point.service";
 import { ClinicDashboardService } from "./dashboard/clinic-dashboard.service";
 import { EncounterService } from "./encounters/encounter.service";
@@ -93,6 +100,7 @@ export class ClinicConfigController {
     private readonly waitlistRules: WaitlistRulesService,
     private readonly servicePoints: ServicePointService,
     private readonly routeTemplates: RouteTemplateService,
+    private readonly displaySettings: QueueDisplaySettingService,
   ) {}
 
   // ---- service points (migration 0113) ---------------------------------------------------------------------
@@ -130,6 +138,20 @@ export class ClinicConfigController {
   @ApiOperation({ summary: "Set a facility's routing settings (audited)" })
   updateServicePointSettings(@CurrentActor() actor: Actor, @Body() body: UpdateServicePointSettingsDto) {
     return this.servicePoints.updateSettings(actor, body);
+  }
+
+  @Get("queue-display-settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "A facility's waiting-room display wording and layout (migration 0139)" })
+  queueDisplaySettings(@CurrentActor() actor: Actor, @Query() query: QueueDisplaySettingsQueryDto) {
+    return this.displaySettings.get(actor, query.facilityId);
+  }
+
+  @Put("queue-display-settings")
+  @RequirePermissions("clinic.configure")
+  @ApiOperation({ summary: "Set a facility's waiting-room display wording, colour and grouping (audited)" })
+  updateQueueDisplaySettings(@CurrentActor() actor: Actor, @Body() body: UpdateQueueDisplaySettingsDto) {
+    return this.displaySettings.update(actor, body);
   }
 
   // ---- route templates (migration 0116) --------------------------------------------------------------------
@@ -454,6 +476,35 @@ export class QueueController {
   @RequirePermissions("clinic.queue.manage")
   move(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: MoveVisitDto) {
     return this.visits.move(actor, id, body);
+  }
+
+  @Post("visits/:visitId/skip")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  skip(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: SkipVisitDto) {
+    return this.visits.skip(actor, id, body);
+  }
+
+  @Post("visits/:visitId/recall")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  recall(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: RecallVisitDto) {
+    return this.visits.recall(actor, id, body);
+  }
+
+  @Post("visits/:visitId/no-show")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  noShow(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: NoShowVisitDto) {
+    return this.visits.noShow(actor, id, body);
+  }
+
+  @Post("visits/:visitId/requeue")
+  @HttpCode(200)
+  @RequirePermissions("clinic.queue.manage")
+  @RequireFacility()
+  requeue(@CurrentActor() actor: Actor, @Param("visitId", ParseUUIDPipe) id: string, @Body() body: RequeueVisitDto) {
+    return this.visits.requeue(actor, id, body);
   }
 
   @Post("visits/:visitId/call")

@@ -15,22 +15,34 @@ are therefore covered without a step to remember. Nothing in the application cha
 withholds.
 
 The login role the processes use is created once, by hand, with its own password, because a password never belongs
-in the repository and Railway's Terraform provider does not manage PostgreSQL roles. Until it exists, everything runs
-as the owner exactly as before.
+in the repository and Railway's Terraform provider does not manage PostgreSQL roles.
+
+**Production refuses the owner.** With `NODE_ENV=production` the API and both workers check the connected role at
+start-up (`libs/core/src/lib/database/database-privileges.ts`) and refuse to start when it is a superuser, has
+`BYPASSRLS` or owns the application's tables, because row-level security and the revoked privileges do not bind such a
+role. Only for the first deploy, before the restricted role exists, set `DATABASE_ALLOW_OWNER=true` (Terraform:
+`allow_owner_database = true`, which also lets the plan proceed without `secrets.app_database_url`); the processes then
+start and log `event: "db.owner_connection"`. Remove it as soon as step 5 below is done.
+
+**The owner's URL is in one service only.** Migrations run in the one-off `migrate` service (ADR-0016,
+`tools/db/railway.json`), the only service holding `MIGRATION_DATABASE_URL`; the API and both workers hold only the
+restricted role's `DATABASE_URL`, so code execution in them cannot reach the owner. (The API still deletes the variable
+from `process.env` at start-up, should it ever be set there by hand.) The API's readiness answers `503` (`schema:
+behind`) while a migration it ships is not applied, so it never serves against an older schema.
 
 ## Who connects as what
 
 | Process                                      | Variable                 | Role                                          |
 | -------------------------------------------- | ------------------------ | --------------------------------------------- |
 | API, notification worker, integration worker | `DATABASE_URL`           | `healthcare_api` (member of `healthcare_app`) |
-| API pre-deploy migration (`pnpm db:migrate`) | `MIGRATION_DATABASE_URL` | the owner (`${{Postgres.DATABASE_URL}}`)      |
+| `migrate` service (`pnpm db:migrate`)        | `MIGRATION_DATABASE_URL` | the owner (`${{Postgres.DATABASE_URL}}`)      |
 | `pnpm db:seed`, restores, manual repairs     | given explicitly         | the owner                                     |
 
 `pnpm db:migrate` uses the URL given as its argument, else `MIGRATION_DATABASE_URL`, else `DATABASE_URL`.
 
 ## Set it up (once per environment)
 
-1. Deploy a release that contains migration `0109` (its pre-deploy migration creates `healthcare_app` and grants it).
+1. Deploy a release that contains migration `0109` (the `migrate` service creates `healthcare_app` and grants it).
 2. Generate a password: `openssl rand -base64 32 | tr -d '/+=' | cut -c1-32`.
 3. As the owner (Railway: the Postgres service's **Data** tab or `psql "$DATABASE_URL"` from a shell with the owner's
    URL), create the login role:
@@ -51,17 +63,18 @@ as the owner exactly as before.
 5. Switch the variables, then redeploy the three services:
    - **Terraform** (`infrastructure/terraform/railway/`): set `secrets.app_database_url` to
      `postgresql://healthcare_api:<password>@<private host>:<port>/<database>` (the owner's URL with the user and
-     password replaced). The module then sets it as `DATABASE_URL` on the API and both workers, and
-     `MIGRATION_DATABASE_URL = ${{Postgres.DATABASE_URL}}` on the API only. Apply.
-   - **By hand** (Railway dashboard): on `api`, add `MIGRATION_DATABASE_URL = ${{Postgres.DATABASE_URL}}`; on `api`,
-     `notification-worker` and `integration-worker`, set `DATABASE_URL` to the `healthcare_api` URL.
-6. Verify: the API's deploy log shows the migration ran ("0 applied"), `GET /api/v1/health/ready` answers `200`, a
+     password replaced). The module then sets it as `DATABASE_URL` on the API and both workers; `MIGRATION_DATABASE_URL =
+${{Postgres.DATABASE_URL}}` is on the `migrate` service only. Apply.
+   - **By hand** (Railway dashboard): on `migrate`, set `MIGRATION_DATABASE_URL = ${{Postgres.DATABASE_URL}}`; on `api`,
+     `notification-worker` and `integration-worker`, set `DATABASE_URL` to the `healthcare_api` URL (and remove any
+     `MIGRATION_DATABASE_URL` from `api`).
+6. Verify: the `migrate` service's log shows the migration ran ("0 applied"), `GET /api/v1/health/ready` answers `200`, a
    sign-in works and appears on `/admin/audit`.
 
 ## Roll back
 
-Set `DATABASE_URL` on the three services back to `${{Postgres.DATABASE_URL}}` (Terraform: remove
-`secrets.app_database_url`) and redeploy. The role can stay; to remove it: `DROP ROLE healthcare_api;`.
+Set `DATABASE_URL` on the three services back to `${{Postgres.DATABASE_URL}}` and `DATABASE_ALLOW_OWNER=true`
+(Terraform: remove `secrets.app_database_url`, set `allow_owner_database = true`) and redeploy. The role can stay; to remove it: `DROP ROLE healthcare_api;`.
 
 ## Rotate the password
 
@@ -94,7 +107,10 @@ guard the patient's; a platform administrator route takes the platform scope. A 
 any organization is known declares it with `@PlatformScope("reason")` (`libs/core` access decorators; the access guard
 applies it): staff and MyHealth sign-in, two-step verification and passkey answers at sign-in, session refresh,
 activation, password resets by link, the payment provider's notifications and the outreach opt-out link. Never on a
-route the MyHealth guard protects. Background work declares its scope: every scheduler tick (and the immediate run a
+route the MyHealth guard protects. The platform scope covers only the lookup that finds the organization (by its code,
+or the owner of a token, session or payment reference): MyHealth sign-in, activation, activation from a card, refresh,
+both reset routes, the opt-out and the payment notification then run the rest under that organization with
+`withinOrganization(id, …)` (`libs/core`), so their writes are held by row-level security too (zero trust, D9). Background work declares its scope: every scheduler tick (and the immediate run a
 request asks for), the outbox relay, the three BullMQ workers, start-up checks, readiness probes and the realtime
 socket's session lookup run under `asPlatform(reason, …)` because they act on rows of every organization by id; the
 session lookups in both guards run under it too. `ContextPool` stamps each

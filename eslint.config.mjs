@@ -10,9 +10,6 @@ import prettier from "eslint-config-prettier";
  *
  *   scope:* — who owns it.
  *     staff / portal       app-specific code
- *     mobile               the patient app (React Native): an API client, so only
- *                          platform-neutral `type:domain` libraries (today
- *                          @healthcare/domain) — never backend or web-only code
  *     shared               usable by everyone
  *     clinic, laboratory…  a clinical domain: it may use its own scope and
  *                          `shared`, and reach another domain ONLY through
@@ -60,10 +57,11 @@ export const depConstraints = [
   ...Object.entries(LAYERS).map(([sourceTag, onlyDependOnLibsWithTags]) => ({ sourceTag, onlyDependOnLibsWithTags })),
   { sourceTag: "scope:shared", onlyDependOnLibsWithTags: ["scope:shared"] },
   { sourceTag: "scope:staff", onlyDependOnLibsWithTags: ["scope:staff", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
+  // The kiosk shows no clinical record: it needs only the design system and the shared web session code.
+  { sourceTag: "scope:kiosk", onlyDependOnLibsWithTags: ["scope:kiosk", "scope:shared"] },
   { sourceTag: "scope:portal", onlyDependOnLibsWithTags: ["scope:portal", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
-  // The patient mobile app is an API client: only platform-neutral types and wording (type:domain), never backend
-  // libraries (NestJS) or web-only ones (ui, web-session).
-  { sourceTag: "scope:mobile", onlyDependOnLibsWithTags: ["type:domain"] },
+  // The kiosk print agent is a standalone tool on a machine in the clinic: an API client that shares no code with the platform.
+  { sourceTag: "scope:agent", onlyDependOnLibsWithTags: ["scope:agent"] },
   // The API is the composition root: it wires domains together through adapters.
   { sourceTag: "scope:api", onlyDependOnLibsWithTags: ["scope:api", "scope:shared", ...DOMAIN_SCOPES.map((s) => `scope:${s}`)] },
   // Workers use platform services; the integration worker also the interoperability layer (adapters). Never clinical domains.

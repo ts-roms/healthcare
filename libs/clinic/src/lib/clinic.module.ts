@@ -50,11 +50,13 @@ import { PractitionerSignatureService } from "./signatures/practitioner-signatur
 import { ConsentSignatureService } from "./procedures/consent-signature.service";
 import { ClinicProcedureService } from "./procedures/procedure.service";
 import { RouteTemplateService } from "./config/route-template.service";
+import { QueueDisplaySettingService } from "./config/queue-display-setting.service";
 import { ServicePointService } from "./config/service-point.service";
 import { VisitRouteService } from "./queue/visit-route.service";
 import { WaitlistRulesService } from "./config/waitlist-rules.service";
 import { WaitlistOffersService } from "./appointments/waitlist-offers.service";
 import { HISTORY_STAFF_NAMES } from "./history/ports";
+import { APPOINTMENT_STAFF_NAMES } from "./appointments/ports";
 import { VisitService } from "./queue/visit.service";
 import { TriageService } from "./triage/triage.service";
 
@@ -117,6 +119,7 @@ export class ClinicModule {
         WaitlistOffersService,
         WaitlistNotices,
         ServicePointService,
+        QueueDisplaySettingService,
         RouteTemplateService,
         VisitRouteService,
         TriageService,
@@ -130,6 +133,8 @@ export class ClinicModule {
         PatientHistoryPortalService,
         // The history reads staff names through the same adapter (it answers from the auth domain).
         { provide: HISTORY_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
+        // The schedule names the staff member who cancelled an appointment through the same adapter.
+        { provide: APPOINTMENT_STAFF_NAMES, useExisting: IMMUNIZATION_CONTEXT },
         ClinicProcedureService,
         ConsentSignatureService,
         PractitionerSignatureService,
@@ -139,6 +144,7 @@ export class ClinicModule {
       ],
       exports: [
         AutomaticNoShows,
+        VisitService,
         ClinicQueries,
         ClinicReportingQueries,
         ExternalRecordsService,

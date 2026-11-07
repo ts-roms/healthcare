@@ -1,5 +1,5 @@
 import { BREACHED_PASSWORD_CHECKER, type BreachedPasswordChecker, PasswordCheckUnavailable } from "@healthcare/auth";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, PASSWORD, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, PASSWORD, type Tenant, type TestContext, openedVariable } from "./harness";
 
 const ORG = "screening-org";
 const NEW_PASSWORD = "Fresh-Passphrase-2026";
@@ -83,7 +83,7 @@ describe("breached-password screening", () => {
       "SELECT variables FROM notification WHERE recipient_user_id = $1 AND template_key = 'staff.password-reset'",
       [clerkId],
     );
-    const token = rows[0]!.variables.link.split("#token=")[1]!;
+    const token = openedVariable(ctx, rows[0]!.variables.link).split("#token=")[1]!;
 
     const calls = checker.calls;
     checker.mode = "breached";
@@ -168,7 +168,7 @@ describe("breached-password screening", () => {
         "SELECT variables FROM notification WHERE recipient_patient_id = $1 AND template_key = 'portal.password-reset'",
         [patientId],
       );
-      const token = rows[0]!.variables.link.split("#token=")[1]!;
+      const token = openedVariable(ctx, rows[0]!.variables.link).split("#token=")[1]!;
       const confirm = () => api().post("/portal/auth/password-reset/confirm", { token, birthDate, password: "Patient-Passphrase-88" });
 
       await refused(confirm, "breached");

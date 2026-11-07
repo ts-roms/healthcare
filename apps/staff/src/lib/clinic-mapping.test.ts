@@ -20,6 +20,8 @@ import {
   upcomingAppointments,
   zonedLocalToIso,
   toQueueEntry,
+  filterQueue,
+  nowServing,
   queueFigures,
 } from "./clinic-mapping";
 
@@ -48,6 +50,9 @@ const visit: QueueVisit = {
   patient: { patientNumber: "P00000001", displayName: "DELA CRUZ, Juan", sex: "male", age: 46 },
   servicePointId: null,
   servicePoint: null,
+  skippedCount: 0,
+  noShowAt: null,
+  requeuedCount: 0,
 };
 
 describe("queueFigures", () => {
@@ -75,8 +80,36 @@ describe("queueFigures", () => {
     expect(figures.longestWait).toEqual({ minutes: 30, patientName: "SANTOS, Maria", ticket: "A-007", priority: "routine" });
   });
 
+  it("counts who is being called, who was seen, who was skipped and who did not show", () => {
+    const calledAt = "2026-09-27T01:50:00Z";
+    const figures = queueFigures(
+      [
+        { ...at(10, "waiting"), calledAt },
+        { ...at(20, "awaiting_consultation"), skippedCount: 2 },
+        { ...at(30, "in_consultation"), calledAt },
+        at(90, "completed"),
+        { ...at(80, "left_without_being_seen"), noShowAt: calledAt },
+        at(70, "left_without_being_seen"),
+      ],
+      now,
+    );
+    // A patient already with the provider is no longer being called.
+    expect(figures).toMatchObject({ serving: 1, completed: 1, skipped: 1, noShow: 1, done: 3 });
+  });
+
   it("has no waits when nobody is waiting", () => {
-    expect(queueFigures([], now)).toEqual({ inQueue: 0, done: 0, waiting: 0, withProvider: 0, averageWaitMinutes: null, longestWait: null });
+    expect(queueFigures([], now)).toEqual({
+      inQueue: 0,
+      done: 0,
+      waiting: 0,
+      withProvider: 0,
+      serving: 0,
+      completed: 0,
+      skipped: 0,
+      noShow: 0,
+      averageWaitMinutes: null,
+      longestWait: null,
+    });
     expect(queueFigures([at(5, "in_consultation")], now).longestWait).toBeNull();
   });
 });
@@ -232,6 +265,7 @@ const visitTypes = new Map<string, VisitType>([
       status: "active",
       requiresTriage: true,
       onlineBooking: true,
+      kioskEnabled: false,
       version: 1,
     },
   ],
@@ -246,6 +280,7 @@ const visitTypes = new Map<string, VisitType>([
       status: "active",
       requiresTriage: false,
       onlineBooking: false,
+      kioskEnabled: false,
       version: 1,
     },
   ],
@@ -408,5 +443,60 @@ describe("zonedLocalToIso", () => {
     ]);
     expect(columns[1]!.items.map((i) => i.startsAt)).toEqual([at(1), at(3)]);
     expect(groupByRoom([], rooms).map((c) => c.name)).toEqual(["Room 1", "Room 2"]);
+  });
+});
+
+describe("searching and filtering the queue", () => {
+  const calledAt = "2026-09-27T01:50:00Z";
+  const ana = {
+    ...visit,
+    id: "1",
+    ticket: "A-001",
+    patient: { patientNumber: "P00000011", displayName: "REYES, Ana", sex: "female" as const, age: 30 },
+    status: "waiting" as const,
+  };
+  const ben = {
+    ...ana,
+    id: "2",
+    ticket: "A-002",
+    patient: { patientNumber: "P00000022", displayName: "SANTOS, Ben", sex: "male" as const, age: 40 },
+    calledAt,
+    calledTo: "Room 4",
+    checkedInVia: "kiosk" as const,
+  };
+  const cara = {
+    ...ana,
+    id: "3",
+    ticket: "A-003",
+    patient: { patientNumber: "P00000033", displayName: "CRUZ, Cara", sex: "female" as const, age: 50 },
+    chiefComplaint: "Cough",
+    status: "in_consultation" as const,
+    calledAt,
+  };
+  const all = [ana, ben, cara];
+
+  it("finds a ticket by number, name, patient number, complaint or place", () => {
+    const ids = (query: string) => filterQueue(all, { query, view: "all" }).map((v) => v.id);
+    expect(ids("a-002")).toEqual(["2"]);
+    expect(ids("reyes")).toEqual(["1"]);
+    expect(ids("P00000033")).toEqual(["3"]);
+    expect(ids("cough")).toEqual(["3"]);
+    expect(ids("room 4")).toEqual(["2"]);
+    expect(ids("   ")).toEqual(["1", "2", "3"]);
+    expect(ids("nobody")).toEqual([]);
+  });
+
+  it("narrows to the tickets being called, or to those who checked in themselves", () => {
+    // A patient with the provider is no longer being called.
+    expect(filterQueue(all, { query: "", view: "called" }).map((v) => v.id)).toEqual(["2"]);
+    expect(filterQueue(all, { query: "", view: "self" }).map((v) => v.id)).toEqual(["2"]);
+    expect(filterQueue(all, { query: "santos", view: "called" }).map((v) => v.id)).toEqual(["2"]);
+    expect(filterQueue(all, { query: "reyes", view: "called" })).toEqual([]);
+  });
+
+  it("lists who is being called now, newest call first", () => {
+    const later = { ...ben, id: "4", ticket: "A-004", calledAt: "2026-09-27T01:55:00Z" };
+    expect(nowServing([ana, ben, later, cara]).map((v) => v.id)).toEqual(["4", "2"]);
+    expect(nowServing([ana])).toEqual([]);
   });
 });

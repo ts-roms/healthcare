@@ -5,6 +5,7 @@ import { OutsideResultService, OutsideResultSubmissionService } from "@healthcar
 import { DohReportsService } from "@healthcare/interoperability";
 import { LabResultService } from "@healthcare/laboratory";
 import { PatientMessageService, RecordsRequestService } from "@healthcare/patient";
+import { KioskRegistrationService } from "./kiosk/kiosk-registration.service";
 
 /** What the staff navigation shows a number for; null when the user may not see that module or no facility is selected. */
 export interface StaffBadges {
@@ -21,6 +22,8 @@ export interface StaffBadges {
   outsideResultsUnreviewed: number | null;
   /** Results patients sent that wait for the records office (`outside-result.submission.manage`). */
   outsideResultSubmissions: number | null;
+  /** New-patient registrations typed at a kiosk, waiting for reception at the selected facility (`kiosk.registration.review`). */
+  kioskRegistrations: number | null;
 }
 
 /**
@@ -39,13 +42,23 @@ export class BadgesController {
     private readonly doh: DohReportsService,
     private readonly outsideResults: OutsideResultService,
     private readonly submissions: OutsideResultSubmissionService,
+    private readonly kiosk: KioskRegistrationService,
   ) {}
 
   @Get()
   @ApiOperation({ summary: "Counts for the navigation: messages awaiting and overdue, critical results, records requests, case reports" })
   async badges(@CurrentActor() actor: Actor): Promise<StaffBadges> {
     const may = (permission: string) => actor.permissions.has(permission);
-    const [messagesAwaiting, messagesOverdue, criticalResults, recordsRequests, caseReports, outsideResultsUnreviewed, outsideResultSubmissions] = await Promise.all([
+    const [
+      messagesAwaiting,
+      messagesOverdue,
+      criticalResults,
+      recordsRequests,
+      caseReports,
+      outsideResultsUnreviewed,
+      outsideResultSubmissions,
+      kioskRegistrations,
+    ] = await Promise.all([
       may("patient.message.read") ? this.messages.awaitingCount(actor) : null,
       may("patient.message.read") ? this.messages.overdueCount(actor) : null,
       may("lab.result.read") ? this.results.countUnacknowledgedCritical(actor) : null,
@@ -53,7 +66,17 @@ export class BadgesController {
       may("doh.report.manage") ? this.doh.countPendingReview(actor) : null,
       may("outside-result.review") ? this.outsideResults.countUnreviewed(actor) : null,
       may("outside-result.submission.manage") ? this.submissions.countOpen(actor) : null,
+      may("kiosk.registration.review") ? this.kiosk.countPending(actor) : null,
     ]);
-    return { messagesAwaiting, messagesOverdue, criticalResults, recordsRequests, caseReports, outsideResultsUnreviewed, outsideResultSubmissions };
+    return {
+      messagesAwaiting,
+      messagesOverdue,
+      criticalResults,
+      recordsRequests,
+      caseReports,
+      outsideResultsUnreviewed,
+      outsideResultSubmissions,
+      kioskRegistrations,
+    };
   }
 }

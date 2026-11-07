@@ -5,7 +5,17 @@ import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
 import { visitTypeFormSchema, type VisitTypeFormInput } from "@/lib/visit-type-form";
-import type { AppointmentItem, Availability, FacilityBookingRules, Visit, VisitType, WaitlistOffer, WaitlistRule } from "@/lib/api/types";
+import type {
+  AppointmentItem,
+  Availability,
+  FacilityBookingRules,
+  PatientDetail,
+  PatientTimelinePage,
+  Visit,
+  VisitType,
+  WaitlistOffer,
+  WaitlistRule,
+} from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 const idVersion = { appointmentId: z.uuid(), version: z.number().int().positive() };
@@ -121,6 +131,17 @@ export async function setOnlineBooking(input: z.input<typeof onlineBookingSchema
   return result;
 }
 
+const kioskEnabledSchema = z.object({ visitTypeId: z.uuid(), kioskEnabled: z.boolean(), version: z.number().int().positive() });
+/** Offers or withdraws a visit type at the patient kiosk (needs clinic.configure; audited). */
+export async function setKioskEnabled(input: z.input<typeof kioskEnabledSchema>): Promise<ActionResult<VisitType>> {
+  const parsed = kioskEnabledSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { visitTypeId, ...body } = parsed.data;
+  const result = await actionResult(() => api<VisitType>(`/clinic/visit-types/${visitTypeId}`, { method: "PATCH", body }));
+  if (result.ok) revalidatePath("/appointments/visit-types");
+  return result;
+}
+
 /** Adds a visit type for the organization (needs clinic.configure; audited). The API refuses a code already in use (409). */
 export async function createVisitType(input: VisitTypeFormInput): Promise<ActionResult<VisitType>> {
   const parsed = visitTypeFormSchema.safeParse(input);
@@ -212,4 +233,32 @@ export async function withdrawWaitlistOffer(input: z.input<typeof withdrawOfferS
   const result = await actionResult(() => api<WaitlistOffer>(`/waitlist/offers/${offerId}/withdraw`, { method: "POST", body: { reason } }));
   if (result.ok) revalidatePath("/appointments/waitlist");
   return result;
+}
+
+const patientContextSchema = z.object({ patientId: z.uuid(), before: z.iso.datetime({ offset: true }) });
+/** What the appointment panel shows about the patient: the number to call and the last few visits (audited reads). */
+export interface AppointmentPatientContext {
+  contact: string | null;
+  previousVisits: { id: string; title: string; detail: string | null; occurredAt: string }[];
+  /** Consultations or laboratory requests exist in the timeline but the user's role may not see them. */
+  clinicalHidden: boolean;
+}
+export async function appointmentPatientContext(input: z.input<typeof patientContextSchema>): Promise<ActionResult<AppointmentPatientContext>> {
+  const parsed = patientContextSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: "Invalid request." };
+  const { patientId, before } = parsed.data;
+  return actionResult(async () => {
+    const [patient, timeline] = await Promise.all([
+      api<PatientDetail>(`/patients/${patientId}`),
+      // Seen appointments (every role that reads the schedule), consultations and laboratory requests (clinical roles).
+      api<PatientTimelinePage>(`/patients/${patientId}/timeline`, { query: { kinds: "appointment,encounter,lab_order", limit: 15 } }).catch(() => null),
+    ]);
+    const phones = patient.contacts.filter((c) => c.system === "mobile" || c.system === "phone");
+    const contact = (phones.find((c) => c.isPrimary) ?? phones[0])?.value ?? null;
+    const previousVisits = (timeline?.items ?? [])
+      .filter((e) => e.marker === null && Date.parse(e.occurredAt) < Date.parse(before) && (e.kind !== "appointment" || e.status === "completed"))
+      .slice(0, 3)
+      .map((e) => ({ id: e.id, title: e.title.replace(/^Appointment:\s*/, ""), detail: e.detail, occurredAt: e.occurredAt }));
+    return { contact, previousVisits, clinicalHidden: (timeline?.withheld ?? []).some((k) => k === "encounter" || k === "lab_order") };
+  });
 }

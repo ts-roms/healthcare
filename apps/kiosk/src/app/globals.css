@@ -1,0 +1,33 @@
+@import "@fontsource-variable/plus-jakarta-sans";
+@import "@healthcare/ui/styles.css";
+
+:root {
+  --font-sans-face: "Plus Jakarta Sans Variable";
+  --radius: 1rem;
+}
+
+/* A public touchscreen: large type, no accidental selection, no pinch-zoom or double-tap delays, no text cursor lingering. */
+body {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+  font-size: 1.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

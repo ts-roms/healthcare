@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   announcements,
   callAnnouncement,
+  callKeyOf,
+  callsSince,
   currentCallKey,
   displayStatusLabel,
   isDisplayOnly,
@@ -28,6 +30,35 @@ describe("waiting-room display", () => {
     expect(shouldChime(first, currentCallKey(call("A-001", "Room 1", "2026-10-09T01:09:00Z")))).toBe(true);
     expect(shouldChime(first, currentCallKey({ calls: [] }))).toBe(false);
     expect(shouldChime(null, first)).toBe(true);
+  });
+});
+
+describe("calls made while the screen was not looking", () => {
+  const at = (ticket: string, minute: number) => ({ ticket, calledTo: "Room 1", calledAt: `2026-10-09T01:0${minute}:00Z` });
+
+  it("announces each call since the one shown, oldest first, so a quick second call is not skipped", () => {
+    const first = at("A-001", 1);
+    const calls = [at("A-003", 3), at("A-002", 2), first];
+    expect(callsSince(callKeyOf(first), calls).map((c) => c.ticket)).toEqual(["A-002", "A-003"]);
+    expect(callsSince(callKeyOf(calls[1]!), calls).map((c) => c.ticket)).toEqual(["A-003"]);
+  });
+
+  it("announces only the newest call when the one shown before is no longer listed, or nothing was shown", () => {
+    const calls = [at("A-009", 9), at("A-008", 8)];
+    expect(callsSince(callKeyOf(at("A-001", 1)), calls).map((c) => c.ticket)).toEqual(["A-009"]);
+    expect(callsSince(null, calls, Date.UTC(2026, 9, 9, 3)).map((c) => c.ticket)).toEqual(["A-009"]);
+    expect(callsSince(callKeyOf(calls[0]!), calls).map((c) => c.ticket)).toEqual(["A-009"]);
+    expect(callsSince("x", [])).toEqual([]);
+  });
+
+  it("announces every call made in the last half minute when the screen showed none before, oldest first", () => {
+    const calls = [at("A-003", 3), at("A-002", 2), at("A-001", 1)];
+    const now = new Date(calls[0]!.calledAt).getTime() + 5_000;
+    // at() spaces the calls an hour apart or so: pin them close together here.
+    const close = calls.map((c, i) => ({ ...c, calledAt: new Date(now - 5_000 - i * 1_000).toISOString() }));
+    expect(callsSince(null, close, now).map((c) => c.ticket)).toEqual(["A-001", "A-002", "A-003"]);
+    // Old calls are not read out again by a screen that reloads.
+    expect(callsSince(null, close, now + 10 * 60_000).map((c) => c.ticket)).toEqual(["A-003"]);
   });
 });
 

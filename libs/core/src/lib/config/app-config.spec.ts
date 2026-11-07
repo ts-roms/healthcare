@@ -1,9 +1,22 @@
 import { randomBytes } from "node:crypto";
-import { integrationPayloadKeyring, loadAppConfig, passwordBreachCheckEnabled } from "./app-config";
+import {
+  devSecretsLogged,
+  integrationPayloadKeyring,
+  isPrivateNetworkHost,
+  loadAppConfig,
+  malwareScanRequired,
+  mfaKeyring,
+  passwordBreachCheckEnabled,
+} from "./app-config";
 
 const key = () => randomBytes(32).toString("base64");
 const mfa = key();
-const base = { DATABASE_URL: "postgres://u:p@localhost:5432/db", JWT_ACCESS_SECRET: "x".repeat(32), MFA_ENCRYPTION_KEY: mfa };
+const base = {
+  DATABASE_URL: "postgres://u:p@db.example.ph:5432/db?sslmode=verify-full",
+  REDIS_URL: "rediss://cache.example.ph:6380",
+  JWT_ACCESS_SECRET: randomBytes(32).toString("hex"),
+  MFA_ENCRYPTION_KEY: mfa,
+};
 
 describe("integration payload keys", () => {
   it("falls back to MFA_ENCRYPTION_KEY outside production only", () => {
@@ -98,6 +111,77 @@ describe("blank optional settings", () => {
   });
 });
 
+describe("transport security in production", () => {
+  const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+
+  it("refuses plain-text database, Redis, SMTP and object storage connections, and LiveKit without wss", () => {
+    expect(() => loadAppConfig({ ...production, DATABASE_URL: "postgres://u:p@db.example.ph:5432/db" })).toThrow(/DATABASE_URL: must use TLS/);
+    expect(() => loadAppConfig({ ...production, REDIS_URL: "redis://cache.example.ph:6379" })).toThrow(/REDIS_URL: must use TLS/);
+    expect(() => loadAppConfig({ ...production, SMTP_URL: "smtp://u:p@mail.example.ph:587" })).toThrow(/SMTP_URL: must use TLS/);
+    expect(() => loadAppConfig({ ...production, S3_ENDPOINT: "http://storage.example.ph" })).toThrow(/S3_ENDPOINT: must use https/);
+    expect(() => loadAppConfig({ ...production, LIVEKIT_URL: "ws://video.example.ph" })).toThrow(/LIVEKIT_URL: must use wss/);
+    expect(() =>
+      loadAppConfig({ ...production, SMTP_URL: "smtp://u:p@mail.example.ph:587?requireTLS=true", S3_ENDPOINT: "https://s3.example.ph" }),
+    ).not.toThrow();
+  });
+
+  it("exempts private-network hosts only when told to, and never a public one", () => {
+    const railway = {
+      ...production,
+      DATABASE_URL: "postgresql://u:p@postgres.railway.internal:5432/railway",
+      REDIS_URL: "redis://default:p@redis.railway.internal:6379?family=0",
+    };
+    expect(() => loadAppConfig(railway)).toThrow(/DATABASE_URL/);
+    expect(() => loadAppConfig({ ...railway, ALLOW_PLAINTEXT_PRIVATE_NETWORK: "true" })).not.toThrow();
+    expect(() => loadAppConfig({ ...railway, ALLOW_PLAINTEXT_PRIVATE_NETWORK: "true", SMTP_URL: "smtp://u:p@smtp.mailprovider.com:587" })).toThrow(/SMTP_URL/);
+    expect(() => loadAppConfig({ ...railway, ALLOW_PLAINTEXT_PRIVATE_NETWORK: "true", LIVEKIT_URL: "ws://livekit.railway.internal:7880" })).toThrow(
+      /LIVEKIT_URL/,
+    );
+  });
+
+  it("knows a private-network host", () => {
+    for (const host of ["postgres.railway.internal", "10.1.2.3", "172.20.0.5", "192.168.1.9", "127.0.0.1", "redis", "[fd12:3456::1]"])
+      expect(isPrivateNetworkHost(host)).toBe(true);
+    for (const host of ["db.example.ph", "8.8.8.8", "172.32.0.1", "smtp.mailprovider.com"]) expect(isPrivateNetworkHost(host)).toBe(false);
+  });
+
+  it("does not apply outside production", () => {
+    expect(() =>
+      loadAppConfig({ ...base, NODE_ENV: "development", DATABASE_URL: "postgres://u:p@localhost:5432/db", REDIS_URL: "redis://localhost:6379" }),
+    ).not.toThrow();
+  });
+});
+
+describe("sample credentials in production", () => {
+  const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+
+  it("refuses the development LiveKit and object-storage values, and a short LiveKit secret", () => {
+    expect(() => loadAppConfig({ ...production, LIVEKIT_API_KEY: "devkey", LIVEKIT_API_SECRET: "secret" })).toThrow(
+      /LIVEKIT_API_KEY.*sample[\s\S]*LIVEKIT_API_SECRET/,
+    );
+    expect(() => loadAppConfig({ ...production, LIVEKIT_API_KEY: "prod-key", LIVEKIT_API_SECRET: "short-but-not-sample" })).toThrow(/at least 32 characters/);
+    expect(() => loadAppConfig({ ...production, S3_ACCESS_KEY_ID: "healthcare", S3_SECRET_ACCESS_KEY: "healthcare-dev-secret" })).toThrow(
+      /S3_SECRET_ACCESS_KEY/,
+    );
+    expect(() => loadAppConfig({ ...production, LIVEKIT_API_KEY: "prod-key", LIVEKIT_API_SECRET: "x".repeat(40) })).not.toThrow();
+  });
+
+  it("keeps the samples working outside production", () => {
+    expect(() => loadAppConfig({ ...base, NODE_ENV: "development", LIVEKIT_API_KEY: "devkey", LIVEKIT_API_SECRET: "secret" })).not.toThrow();
+  });
+});
+
+describe("malware scanning", () => {
+  const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+
+  it("is required in production (fail closed) unless MALWARE_SCAN_REQUIRED=false, and optional elsewhere", () => {
+    expect(malwareScanRequired(loadAppConfig(production))).toBe(true);
+    expect(malwareScanRequired(loadAppConfig({ ...production, MALWARE_SCAN_REQUIRED: "false" }))).toBe(false);
+    expect(malwareScanRequired(loadAppConfig({ ...base, NODE_ENV: "development" }))).toBe(false);
+    expect(malwareScanRequired(loadAppConfig({ ...base, MALWARE_SCAN_REQUIRED: "true" }))).toBe(true);
+  });
+});
+
 describe("breached-password screening", () => {
   const production = { ...base, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
 
@@ -112,5 +196,60 @@ describe("breached-password screening", () => {
   it("rejects a blank or malformed PASSWORD_BREACH_CHECK", () => {
     expect(() => loadAppConfig({ ...base, PASSWORD_BREACH_CHECK: "" })).toThrow("PASSWORD_BREACH_CHECK");
     expect(() => loadAppConfig({ ...base, PASSWORD_BREACH_CHECK: "yes" })).toThrow("PASSWORD_BREACH_CHECK");
+  });
+});
+
+describe("placeholder secrets", () => {
+  const production = { DATABASE_URL: base.DATABASE_URL, REDIS_URL: base.REDIS_URL, NODE_ENV: "production", INTEGRATION_PAYLOAD_KEY: key() };
+  const strong = { JWT_ACCESS_SECRET: randomBytes(32).toString("hex"), MFA_ENCRYPTION_KEY: key() };
+
+  it("refuses the examples from .env.example and guessable secrets in production", () => {
+    const load = (env: Record<string, string>) => () => loadAppConfig({ ...production, ...strong, ...env });
+    expect(load({})).not.toThrow();
+    expect(load({ JWT_ACCESS_SECRET: "change-me-change-me-change-me-change-me" })).toThrow("JWT_ACCESS_SECRET");
+    expect(load({ JWT_ACCESS_SECRET: "a".repeat(40) })).toThrow("JWT_ACCESS_SECRET");
+    expect(load({ MFA_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=" })).toThrow("MFA_ENCRYPTION_KEY");
+  });
+
+  it("keeps the examples usable in development", () => {
+    expect(() =>
+      loadAppConfig({
+        DATABASE_URL: "postgres://u:p@localhost:5432/db",
+        JWT_ACCESS_SECRET: "change-me-change-me-change-me-change-me",
+        MFA_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+      }),
+    ).not.toThrow();
+  });
+});
+
+describe("devSecretsLogged", () => {
+  const load = (env: Record<string, string>) =>
+    loadAppConfig({ DATABASE_URL: "postgres://u:p@localhost:5432/db", JWT_ACCESS_SECRET: randomBytes(32).toString("hex"), MFA_ENCRYPTION_KEY: key(), ...env });
+
+  it("is off unless DEV_LOG_SECRETS is set, and never outside development", () => {
+    expect(devSecretsLogged(load({}))).toBe(false);
+    expect(devSecretsLogged(load({ DEV_LOG_SECRETS: "true" }))).toBe(true);
+    expect(devSecretsLogged(load({ DEV_LOG_SECRETS: "true", NODE_ENV: "test" }))).toBe(false);
+  });
+});
+
+describe("two-step verification key ring", () => {
+  it("is MFA_ENCRYPTION_KEY alone by default, under the id default", () => {
+    const ring = mfaKeyring(loadAppConfig(base));
+    expect(ring.currentKeyId).toBe("default");
+    expect([...ring.keys.keys()]).toEqual(["default"]);
+  });
+
+  it("adds keys for rotation and makes the named one current", () => {
+    const next = key();
+    const ring = mfaKeyring(loadAppConfig({ ...base, MFA_ENCRYPTION_KEYS: JSON.stringify({ "2026-11": next }), MFA_ENCRYPTION_KEY_ID: "2026-11" }));
+    expect(ring.currentKeyId).toBe("2026-11");
+    expect(ring.keys.get("2026-11")).toBe(next);
+    expect(ring.keys.get("default")).toBe(base.MFA_ENCRYPTION_KEY);
+  });
+
+  it("refuses a current key that is not configured, or a default that is not MFA_ENCRYPTION_KEY", () => {
+    expect(() => loadAppConfig({ ...base, MFA_ENCRYPTION_KEY_ID: "missing" })).toThrow("MFA_ENCRYPTION_KEY_ID");
+    expect(() => loadAppConfig({ ...base, MFA_ENCRYPTION_KEYS: JSON.stringify({ default: key() }) })).toThrow("MFA_ENCRYPTION_KEYS");
   });
 });

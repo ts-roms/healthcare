@@ -35,6 +35,7 @@ import { appointment, type AppointmentRecord, practitionerSchedule, room, schedu
 import { assertVersion, found, publicView } from "../clinic-support";
 import { ClinicConfigService } from "../config/clinic-config.service";
 import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
+import { APPOINTMENT_STAFF_NAMES, type AppointmentStaffNames } from "./ports";
 import { canApply, noShowAllowed } from "../domain/appointment-state";
 import { availableSlots, type Interval, type ScheduleBlock } from "../domain/availability";
 
@@ -43,7 +44,11 @@ const BLOCKING_STATUSES = ["cancelled", "no_show"] as const;
 export type AppointmentView = Omit<AppointmentRecord, "organizationId">;
 
 /** List rows carry minimal patient identification for schedules (no contact or clinical details). */
-export type AppointmentListItem = AppointmentView & { patient: PatientBrief | null };
+/**
+ * A schedule row: the appointment, the patient's brief and, when staff cancelled it, the staff member's display name
+ * (`cancelledBy` is the user id; a cancellation by the patient in MyHealth has none and `updatedByPatient` set).
+ */
+export type AppointmentListItem = AppointmentView & { patient: PatientBrief | null; cancelledByName: string | null };
 
 @Injectable()
 export class AppointmentService {
@@ -54,6 +59,7 @@ export class AppointmentService {
     private readonly organizations: OrganizationService,
     private readonly config: ClinicConfigService,
     @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
+    @Inject(APPOINTMENT_STAFF_NAMES) private readonly staff: AppointmentStaffNames,
   ) {}
 
   /** Free slots for a practitioner at a facility on a local date. */
@@ -178,6 +184,8 @@ export class AppointmentService {
           ).map((r) => [r.id, r.name]),
         )
       : new Map<string, string>();
+    const cancellerIds = [...new Set(page.items.map((a) => a.cancelledBy).filter((id): id is string => Boolean(id)))];
+    const cancellers = cancellerIds.length ? await this.staff.staffNames(actor.organizationId, cancellerIds) : new Map<string, string>();
     if (!query.patientId && page.items.length > 0) {
       // A schedule shows who is booked: record that patients were listed.
       await this.audit.recordStandalone(actor, {
@@ -192,6 +200,7 @@ export class AppointmentService {
         ...publicView(a),
         patient: patients.get(a.patientId) ?? null,
         room: a.roomId ? { id: a.roomId, name: rooms.get(a.roomId) ?? "" } : null,
+        cancelledByName: a.cancelledBy ? (cancellers.get(a.cancelledBy) ?? null) : null,
       })),
     };
   }
@@ -405,7 +414,8 @@ export class AppointmentService {
         reason,
         changes: { status: { from: current.status, to: row.status } },
       });
-      await this.events.record(tx, appointmentEvent(eventType, row));
+      // A cancellation names who cancelled (a user id), so the clinic's notice can say so and skip that person.
+      await this.events.record(tx, appointmentEvent(eventType, row, eventType === "AppointmentCancelled" ? { cancelledBy: row.cancelledBy } : {}));
       return publicView(row);
     });
   }

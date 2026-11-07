@@ -18,7 +18,18 @@ import {
 import { OrganizationService } from "@healthcare/organization";
 import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
-import type { assignVisitSchema, callVisitSchema, checkInSchema, moveVisitSchema, routeVisitSchema, walkInSchema } from "../clinic.dto";
+import type {
+  assignVisitSchema,
+  callVisitSchema,
+  checkInSchema,
+  moveVisitSchema,
+  noShowVisitSchema,
+  recallVisitSchema,
+  requeueVisitSchema,
+  routeVisitSchema,
+  skipVisitSchema,
+  walkInSchema,
+} from "../clinic.dto";
 import {
   appointment,
   encounter,
@@ -33,10 +44,11 @@ import {
 import { assertVersion, found, publicView } from "../clinic-support";
 import { BookingRulesService } from "../config/booking-rules.service";
 import { ClinicConfigService } from "../config/clinic-config.service";
+import { QueueDisplaySettingService } from "../config/queue-display-setting.service";
 import { type ServicePointBrief, ServicePointService } from "../config/service-point.service";
 import { loadRouteSteps, type RouteStepView, toRouteStepViews } from "./visit-route.queries";
 import type { PatientBookingContext } from "../appointments/patient-booking.service";
-import { onlineCheckInWindow } from "../domain/patient-booking";
+import { onlineCheckInWindow, onSiteCheckInWindow } from "../domain/patient-booking";
 import { appointmentEvent } from "../appointments/appointment.service";
 import { canApply } from "../domain/appointment-state";
 import {
@@ -44,11 +56,17 @@ import {
   canRouteVisit,
   canTransition,
   compareQueueOrder,
+  noShowRefusal,
+  recallRefusal,
+  requeueRefusal,
   SENIOR_AGE,
   type QueueDisplayCall,
   queueDisplay,
+  type QueueDisplayGroup,
+  queueDisplayGroups,
   queueTicket,
   requiresReason,
+  skipRefusal,
 } from "../domain/queue-state";
 import { PATIENT_DIRECTORY, type PatientBrief, type PatientDirectory } from "../ports";
 
@@ -85,6 +103,10 @@ export interface QueueDisplayView {
   timeZone: string;
   calls: QueueDisplayCall[];
   waiting: number;
+  /** The clinic's own words and colour for the screen (migration 0139); all null while it uses the defaults. */
+  branding: { headline: string | null; footerMessage: string | null; accentColor: string | null };
+  /** The same calls grouped by service point, when the facility turned that on; null otherwise. */
+  groups: Array<{ name: string; calls: QueueDisplayCall[]; waiting: number }> | null;
 }
 
 export function toVisitView(row: VisitRecord): VisitView {
@@ -123,6 +145,7 @@ export class VisitService {
     @Inject(PATIENT_DIRECTORY) private readonly patients: PatientDirectory,
     private readonly bookingRules: BookingRulesService,
     private readonly servicePoints: ServicePointService,
+    private readonly displaySettings: QueueDisplaySettingService,
   ) {}
 
   async walkIn(actor: Actor, input: z.infer<typeof walkInSchema>): Promise<VisitView> {
@@ -200,6 +223,213 @@ export class VisitService {
         });
         await this.events.record(tx, appointmentEvent("AppointmentCheckedIn", found(updated, "Appointment"), { visitId: row.id }), queueEvent(row));
         return toVisitView(row);
+      }),
+    );
+  }
+
+  /**
+   * A walk-in at a patient kiosk (migration 0137): the patient was identified in the Patient Master by the kiosk
+   * session, so `patientId` is never taken from the screen. The visit joins the queue like any arrival (same ticket
+   * counter, same one-active-visit rule), marked as checked in at a kiosk, with no staff user. Only in-person visit
+   * types the organization has switched on for kiosks are offered.
+   */
+  async kioskWalkIn(actor: Actor, input: { patientId: string; visitTypeId: string }): Promise<VisitView> {
+    const facilityId = requireFacilityId(actor);
+    const type = await this.config.requireActiveVisitType(actor.organizationId, input.visitTypeId);
+    if (!type.kioskEnabled || type.modality !== "in_person") {
+      throw new BusinessRuleError("This service is not available at the kiosk — please see the desk", "not_available_at_kiosk");
+    }
+    return this.guardArrival(input.patientId, () =>
+      this.db.transaction(async (tx) => {
+        const row = await this.insertVisit(tx, actor, facilityId, {
+          patientId: input.patientId,
+          visitTypeId: input.visitTypeId,
+          arrivalMode: "walk_in",
+          priority: "routine",
+          chiefComplaint: null,
+          assignedPractitionerId: null,
+          byKiosk: true,
+        });
+        await this.audit.record(tx, actor, {
+          action: "visit.kiosk-walk-in",
+          resourceType: "visit",
+          resourceId: row.id,
+          patientId: row.patientId,
+          metadata: { queueNumber: row.queueNumber },
+        });
+        await this.events.record(tx, queueEvent(row));
+        return toVisitView(row);
+      }),
+    );
+  }
+
+  /**
+   * An appointment checked in at a patient kiosk (migration 0137), for the patient the kiosk session identified. The
+   * appointment must be that patient's, at this facility, bookable for check-in, in person, and within the facility's
+   * check-in window; another patient's appointment is "not found". Checking in again returns the same visit.
+   */
+  async kioskCheckInAppointment(actor: Actor, patientId: string, appointmentId: string, now = new Date()): Promise<VisitView> {
+    const facilityId = requireFacilityId(actor);
+    const row = await this.guardArrival(undefined, () =>
+      this.db.transaction(async (tx) => {
+        const [booked] = await tx
+          .select()
+          .from(appointment)
+          .where(and(eq(appointment.organizationId, actor.organizationId), eq(appointment.id, appointmentId), eq(appointment.patientId, patientId)))
+          .for("update");
+        const current = found(booked, "Appointment");
+        if (current.facilityId !== facilityId) throw new NotFoundError("Appointment");
+        if (current.status === "checked_in") {
+          const [existing] = await tx.select().from(visit).where(eq(visit.appointmentId, appointmentId));
+          if (existing) return existing;
+        }
+        const [type] = await tx.select({ modality: visitType.modality }).from(visitType).where(eq(visitType.id, current.visitTypeId));
+        if (type?.modality !== "in_person") throw new BusinessRuleError("Online consultations are joined from their own page", "not_in_person");
+        if (!canApply("check_in", current.status)) {
+          throw new BusinessRuleError(`This appointment is ${current.status.replace(/_/g, " ")}`, "invalid_appointment_status");
+        }
+        const rules = await this.bookingRules.forFacility(actor.organizationId, facilityId, tx);
+        const refusal = onSiteCheckInWindow(current.startsAt, now, rules);
+        if (refusal === "too_early") {
+          throw new BusinessRuleError(`Check-in opens ${rules.checkInOpensMinutes} minutes before your appointment`, "check_in_too_early");
+        }
+        if (refusal === "too_late") throw new BusinessRuleError("Check-in has closed for this appointment — please see the desk", "check_in_too_late");
+        const [updated] = await tx
+          .update(appointment)
+          .set({ status: "checked_in", checkedInAt: now, updatedBy: null, updatedByPatient: true, updatedAt: now, version: sql`${appointment.version} + 1` })
+          .where(eq(appointment.id, appointmentId))
+          .returning();
+        const inserted = await this.insertVisit(tx, actor, facilityId, {
+          patientId: current.patientId,
+          appointmentId,
+          visitTypeId: current.visitTypeId,
+          arrivalMode: "appointment",
+          priority: "routine",
+          chiefComplaint: current.reason ?? null,
+          assignedPractitionerId: current.practitionerId,
+          byKiosk: true,
+        });
+        await this.audit.record(tx, actor, {
+          action: "appointment.check-in",
+          resourceType: "appointment",
+          resourceId: appointmentId,
+          patientId: inserted.patientId,
+          metadata: { visitId: inserted.id, via: "kiosk" },
+        });
+        await this.events.record(
+          tx,
+          appointmentEvent("AppointmentCheckedIn", found(updated, "Appointment"), { visitId: inserted.id, byPatient: true }),
+          queueEvent(inserted),
+        );
+        return inserted;
+      }),
+    );
+    return toVisitView(row);
+  }
+
+  /**
+   * A called patient did not come forward: the call is withdrawn and the visit goes back into the line behind those
+   * who arrived since (same priority). The arrival time is unchanged, so waiting-time figures stay true. After
+   * `MAX_SKIPS` the visit must be closed (left without being seen) by staff instead.
+   */
+  async skip(actor: Actor, visitId: string, input: z.infer<typeof skipVisitSchema>): Promise<VisitView> {
+    return this.update(actor, visitId, input.version, (current) => {
+      const refusal = skipRefusal(current);
+      if (refusal) {
+        const message = {
+          visit_closed: "The visit is closed",
+          not_waiting: "The patient is with the provider",
+          not_called: "Only a patient who was called can be skipped",
+          skip_limit_reached: "This patient has been skipped too often — close the visit instead",
+        }[refusal];
+        throw new BusinessRuleError(message, refusal);
+      }
+      return {
+        changes: { calledAt: null, calledTo: null, queuedAt: new Date(), skippedCount: current.skippedCount + 1 },
+        action: "visit.skip",
+        reason: input.reason,
+      };
+    });
+  }
+
+  /**
+   * The desk calls a patient again, to the same place: `called_at` moves to now, so the waiting-room display announces
+   * the ticket once more. Nothing else about the visit changes.
+   */
+  async recall(actor: Actor, visitId: string, input: z.infer<typeof recallVisitSchema>): Promise<VisitView> {
+    return this.update(actor, visitId, input.version, (current) => {
+      const refusal = recallRefusal(current);
+      if (refusal) {
+        throw new BusinessRuleError(refusal === "visit_closed" ? "The visit is closed" : "Only a patient who was called can be called again", refusal);
+      }
+      return { changes: { calledAt: new Date() }, action: "visit.recall" };
+    });
+  }
+
+  /**
+   * A called patient never came forward: the visit is closed as left-without-being-seen and marked a no-show, so the
+   * figures tell it apart from a patient who walked out. The patient can be put back in line with `requeue`.
+   */
+  async noShow(actor: Actor, visitId: string, input: z.infer<typeof noShowVisitSchema>): Promise<VisitView> {
+    return this.update(actor, visitId, input.version, (current) => {
+      const refusal = noShowRefusal(current);
+      if (refusal) {
+        const message = {
+          visit_closed: "The visit is closed",
+          not_waiting: "The patient is with the provider",
+          not_called: "Call the patient before marking a no-show",
+        }[refusal];
+        throw new BusinessRuleError(message, refusal);
+      }
+      const now = new Date();
+      return {
+        changes: {
+          status: "left_without_being_seen",
+          calledAt: null,
+          calledTo: null,
+          completedAt: now,
+          noShowAt: now,
+          closedReason: input.reason ?? "No-show after being called",
+        },
+        action: "visit.no-show",
+        reason: input.reason,
+      };
+    });
+  }
+
+  /**
+   * A visit closed as left-without-being-seen (a no-show, or someone who stepped out) goes back in line behind those who
+   * arrived since, the same day and a limited number of times (`MAX_REQUEUES`). The ticket and arrival time are kept.
+   * A patient already in the queue again cannot be put back (`already_in_queue`).
+   */
+  async requeue(actor: Actor, visitId: string, input: z.infer<typeof requeueVisitSchema>): Promise<VisitView> {
+    const facility = await this.organizations.getFacility(actor.organizationId, requireFacilityId(actor));
+    const today = localDate(new Date(), facility.timezone);
+    return this.guardArrival(undefined, () =>
+      this.update(actor, visitId, input.version, (current) => {
+        const refusal = requeueRefusal(current, today);
+        if (refusal) {
+          const message = {
+            not_left: "Only a visit closed as left without being seen can be put back in line",
+            not_today: "Only today’s visits can be put back in line",
+            requeue_limit_reached: "This visit has been put back in line too often",
+          }[refusal];
+          throw new BusinessRuleError(message, refusal);
+        }
+        return {
+          changes: {
+            status: "waiting",
+            calledAt: null,
+            calledTo: null,
+            completedAt: null,
+            closedReason: null,
+            noShowAt: null,
+            queuedAt: new Date(),
+            requeuedCount: current.requeuedCount + 1,
+          },
+          action: "visit.requeue",
+          reason: input.reason,
+        };
       }),
     );
   }
@@ -378,7 +608,12 @@ export class VisitService {
     const isSenior = (patientId: string) => seniorsFirst && (patients.get(patientId)?.age ?? 0) >= SENIOR_AGE;
     return rows
       .map((row) => ({ row, senior: isSenior(row.patientId) }))
-      .sort((a, b) => compareQueueOrder({ ...a.row, senior: a.senior }, { ...b.row, senior: b.senior }))
+      .sort((a, b) =>
+        compareQueueOrder(
+          { ...a.row, checkedInAt: a.row.queuedAt ?? a.row.checkedInAt, senior: a.senior },
+          { ...b.row, checkedInAt: b.row.queuedAt ?? b.row.checkedInAt, senior: b.senior },
+        ),
+      )
       .map(({ row }) => ({
         ...toVisitView(row),
         patient: patients.get(row.patientId) ?? null,
@@ -402,7 +637,14 @@ export class VisitService {
     const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
     const date = localDate(new Date(), facility.timezone);
     const rows = await this.db
-      .select({ queueNumber: visit.queueNumber, status: visit.status, calledAt: visit.calledAt, calledTo: visit.calledTo, modality: visitType.modality })
+      .select({
+        queueNumber: visit.queueNumber,
+        status: visit.status,
+        calledAt: visit.calledAt,
+        calledTo: visit.calledTo,
+        servicePointId: visit.servicePointId,
+        modality: visitType.modality,
+      })
       .from(visit)
       .innerJoin(visitType, and(eq(visitType.organizationId, visit.organizationId), eq(visitType.id, visit.visitTypeId)))
       .where(
@@ -413,8 +655,27 @@ export class VisitService {
           inArray(visit.status, [...ACTIVE_VISIT_STATUSES]),
         ),
       );
-    const { calls, waiting } = queueDisplay(rows.map((r) => ({ ...r, inPerson: r.modality === "in_person" })));
-    return { facilityName: facility.name, date, timeZone: facility.timezone, calls, waiting };
+    const displayRows = rows.map((r) => ({ ...r, inPerson: r.modality === "in_person" }));
+    const { calls, waiting } = queueDisplay(displayRows);
+    const settings = await this.displaySettings.forFacility(actor.organizationId, facilityId);
+    let groups: QueueDisplayView["groups"] = null;
+    if (settings.groupByServicePoint) {
+      const grouped: QueueDisplayGroup[] = queueDisplayGroups(displayRows);
+      const names = await this.servicePoints.briefs(
+        actor.organizationId,
+        grouped.flatMap((g) => (g.servicePointId ? [g.servicePointId] : [])),
+      );
+      groups = grouped.map((g) => ({ name: (g.servicePointId && names.get(g.servicePointId)?.name) || "General", calls: g.calls, waiting: g.waiting }));
+    }
+    return {
+      facilityName: facility.name,
+      date,
+      timeZone: facility.timezone,
+      calls,
+      waiting,
+      branding: { headline: settings.headline, footerMessage: settings.footerMessage, accentColor: settings.accentColor },
+      groups,
+    };
   }
 
   /** One visit, with the modality of its visit type and its consultation (as the queue board rows carry them). */
@@ -660,6 +921,8 @@ export class VisitService {
       viaPortal?: boolean;
       /** In-person appointment checked in by the patient in MyHealth: no staff user, waiting for triage like any arrival. */
       byPatient?: boolean;
+      /** Checked in at a patient kiosk (migration 0137): no staff user, waiting for triage like any arrival. */
+      byKiosk?: boolean;
     },
   ): Promise<VisitRecord> {
     const facility = await this.organizations.getFacility(actor.organizationId, facilityId);
@@ -673,7 +936,7 @@ export class VisitService {
         set: { nextValue: sql`${facilityQueueCounter.nextValue} + 1` },
       })
       .returning({ value: facilityQueueCounter.nextValue });
-    const { viaPortal, byPatient, ...fields } = values;
+    const { viaPortal, byPatient, byKiosk, ...fields } = values;
     const patientCheckedIn = viaPortal || byPatient;
     const [row] = await tx
       .insert(visit)
@@ -683,8 +946,8 @@ export class VisitService {
         facilityId,
         queueDate,
         queueNumber: found(counter, "Queue counter").value,
-        checkedInBy: patientCheckedIn ? null : actor.userId,
-        checkedInVia: patientCheckedIn ? "patient_portal" : "staff",
+        checkedInBy: patientCheckedIn || byKiosk ? null : actor.userId,
+        checkedInVia: byKiosk ? "kiosk" : patientCheckedIn ? "patient_portal" : "staff",
         status: viaPortal ? "awaiting_consultation" : "waiting",
       })
       .returning();

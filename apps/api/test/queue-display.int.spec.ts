@@ -71,7 +71,7 @@ describe("waiting-room display", () => {
     await call(0, "Triage 1");
     await call(2, "Room 2");
     const body = (await display(screen).expect(200)).body;
-    expect(Object.keys(body).sort()).toEqual(["calls", "date", "facilityName", "timeZone", "waiting"]);
+    expect(Object.keys(body).sort()).toEqual(["branding", "calls", "date", "facilityName", "groups", "timeZone", "waiting"]);
     expect(body.calls).toEqual([
       { ticket: visits[2]!.ticket, calledTo: "Room 2", calledAt: expect.any(String) },
       { ticket: visits[0]!.ticket, calledTo: "Triage 1", calledAt: expect.any(String) },
@@ -137,6 +137,7 @@ describe("waiting-room display", () => {
         reject(new Error(JSON.stringify(payload)));
       });
     });
-    expect(ready).toEqual({ facilityId: tenant.facilityId, channels: ["queue"] });
+    // Its own room (zero trust): told only that the queue changed, never a visit's details.
+    expect(ready).toEqual({ facilityId: tenant.facilityId, channels: ["display", "notices"] });
   });
 });

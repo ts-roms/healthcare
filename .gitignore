@@ -45,3 +45,9 @@ Thumbs.db
 npm-debug.log
 
 ui-*/*
+
+# Mobile app builds: the MyHealth app is its own project (myhealth-mobile) and its APKs are signed by EAS with the
+# organization's key, never committed here (zero-trust finding F4: a debug-signed APK was).
+*.apk
+*.aab
+apps/portal/public/downloads/

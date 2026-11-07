@@ -1,4 +1,4 @@
-import { ASTM, AstmLinkSession, hl7Ack, MllpDecoder, mllpFrame } from "./instrument-links";
+import { ASTM, AstmLinkSession, hl7Ack, LinkOverflowError, MllpDecoder, mllpFrame } from "./instrument-links";
 import { parseAstmMessage } from "./instrument-messages";
 
 const ORU = "MSH|^~\\&|ANALYZER|LAB-A|LIS|CLINIC|20260930101500||ORU^R01^ORU_R01|CTRL-0001|P|2.5.1\rOBR|1|2600000123\rOBX|1|NM|GLU^Glucose||6.1|mmol/L";
@@ -18,6 +18,23 @@ describe("instrument links", () => {
     expect(messages).toHaveLength(2);
     expect(messages[0]).toBe(ORU);
     expect(messages[1]).toContain("CTRL-0002");
+  });
+
+  it("refuses to hold an unterminated message beyond the limit", () => {
+    const decoder = new MllpDecoder(64);
+    expect(decoder.push(mllpFrame("x".repeat(64)))).toEqual(["x".repeat(64)]);
+    decoder.push(Buffer.from([0x0b]));
+    expect(() => decoder.push(Buffer.alloc(80, 0x41))).toThrow(LinkOverflowError);
+    // Bytes outside a frame are dropped, never kept.
+    expect(new MllpDecoder(64).push(Buffer.alloc(1000, 0x41))).toEqual([]);
+  });
+
+  it("refuses an ASTM frame or transmission beyond the limit", () => {
+    expect(() => new AstmLinkSession(32).push(Buffer.concat([Buffer.from([ASTM.ENQ, ASTM.STX]), Buffer.alloc(64, 0x41)]))).toThrow(LinkOverflowError);
+    const session = new AstmLinkSession(ASTM_FRAME.length + 10);
+    session.push(Buffer.from([ASTM.ENQ]));
+    expect(session.push(ASTM_FRAME).replies).toEqual([ASTM.ACK]);
+    expect(() => session.push(ASTM_FRAME)).toThrow(LinkOverflowError);
   });
 
   it("acknowledges with sender and receiver swapped and the original control id", () => {

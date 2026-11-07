@@ -33,6 +33,14 @@ If any detail does not match, you see "Activation details are incorrect, or the 
 page does not say which detail was wrong. Clinic staff can see why the last attempt failed, so ask them. After too many wrong attempts the code stops
 working and you need a new one.
 
+## How to use the clinic's check-in kiosk
+
+When the clinic has a self-service kiosk in service, your Home page shows a notice, **Skip the front desk line**, naming where it is. On arrival, at the
+kiosk: touch the screen and choose **Yes, I am a patient here**; enter your patient number (or mobile number), your date of birth and your first name;
+then choose your appointment, or the service you came for, and take your queue number. Choose the **×** on the notice to hide it; it stays hidden in that
+browser. The notice appears only while a kiosk is in service, and shows places only: nothing about you or your visit. If you are not sure, ask the front
+desk.
+
 ## How to sign in and sign out
 
 1. Open MyHealth. On **Sign in**, enter your **Email** and **Password**.

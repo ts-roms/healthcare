@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService, type PatientAuditContext } from "@healthcare/audit";
 import {
   APP_CONFIG,
+  asOrganization,
   BadRequestError,
   type AppConfig,
   BusinessRuleError,
@@ -145,92 +146,96 @@ export class OnlinePaymentService {
       .where(and(eq(billingPaymentIntent.provider, this.gateway.specification.provider), eq(billingPaymentIntent.providerReference, event.providerReference)));
     if (!intent) throw new NotFoundError("Payment");
     const actor = systemActor(intent.organizationId, intent.facilityId, SYSTEM);
-    await this.db.transaction(async (tx) => {
-      const invoice = await this.invoices.lock(tx, actor, intent.invoiceId);
-      const [current] = await tx.select().from(billingPaymentIntent).where(eq(billingPaymentIntent.id, intent.id)).for("update");
-      if (!current || current.status !== "pending") return;
-      const now = new Date();
-      if (event.outcome !== "succeeded") {
+    // The lookup above crosses organizations (the provider's reference is all there is); everything it changes runs
+    // in the intent's organization only, so row-level security applies to the provider-reachable route (zero trust, D9).
+    await asOrganization(intent.organizationId, () =>
+      this.db.transaction(async (tx) => {
+        const invoice = await this.invoices.lock(tx, actor, intent.invoiceId);
+        const [current] = await tx.select().from(billingPaymentIntent).where(eq(billingPaymentIntent.id, intent.id)).for("update");
+        if (!current || current.status !== "pending") return;
+        const now = new Date();
+        if (event.outcome !== "succeeded") {
+          await tx
+            .update(billingPaymentIntent)
+            .set({ status: event.outcome, failureCode: event.failureCode ?? null, completedAt: now, updatedAt: now })
+            .where(eq(billingPaymentIntent.id, intent.id));
+          await this.audit.record(tx, actor, {
+            action: "billing.online-payment.complete",
+            resourceType: "billing_payment_intent",
+            resourceId: intent.id,
+            patientId: intent.patientId,
+            metadata: { outcome: event.outcome, failureCode: event.failureCode ?? null },
+          });
+          return;
+        }
+        const collected = event.amount ?? intent.amount;
+        const method = event.method ?? "other";
+        const balance = invoice.status === "issued" ? invoiceBalance(invoice.patientTotal, await this.invoices.settlement(tx, intent.invoiceId)) : 0;
+        const split = onlinePaymentSplit(collected, balance);
+        const facility = await this.organizations.getFacility(intent.organizationId, intent.facilityId);
+        const year = Number(localDate(now, facility.timezone).slice(0, 4));
+        let paymentId: string | null = null;
+        if (split.payment > 0) {
+          const series = await this.catalog.nextNumber(tx, intent.organizationId, "receipt");
+          const [payment] = await tx
+            .insert(billingPayment)
+            .values({
+              organizationId: intent.organizationId,
+              facilityId: intent.facilityId,
+              invoiceId: intent.invoiceId,
+              patientId: intent.patientId,
+              kind: "payment",
+              amount: split.payment,
+              method,
+              reference: event.externalReference ?? event.providerReference,
+              receiptNumber: documentNumber(series.prefix, year, series.value),
+              idempotencyKey: `online:${intent.id}`,
+              recordedBy: null,
+              paymentIntentId: intent.id,
+            })
+            .returning();
+          const row = found(payment, "Payment");
+          paymentId = row.id;
+          await this.events.record(tx, {
+            type: "PaymentCompleted",
+            organizationId: row.organizationId,
+            aggregateType: "billing_payment",
+            aggregateId: row.id,
+            facilityId: row.facilityId,
+            patientId: row.patientId,
+            payload: { invoiceId: row.invoiceId, amount: row.amount, method: row.method, balance: balance - row.amount, online: true },
+          });
+        }
+        if (split.deposit > 0) {
+          await lockPatientAccount(tx, intent.organizationId, intent.patientId);
+          const series = await this.catalog.nextNumber(tx, intent.organizationId, "receipt");
+          await tx.insert(billingAccountEntry).values({
+            organizationId: intent.organizationId,
+            facilityId: intent.facilityId,
+            patientId: intent.patientId,
+            kind: "deposit",
+            amount: split.deposit,
+            method,
+            reference: event.externalReference ?? event.providerReference,
+            receiptNumber: documentNumber(series.prefix, year, series.value),
+            idempotencyKey: `online-excess:${intent.id}`,
+            recordedBy: null,
+            paymentIntentId: intent.id,
+          });
+        }
         await tx
           .update(billingPaymentIntent)
-          .set({ status: event.outcome, failureCode: event.failureCode ?? null, completedAt: now, updatedAt: now })
+          .set({ status: "succeeded", paidAmount: collected, completedAt: now, updatedAt: now })
           .where(eq(billingPaymentIntent.id, intent.id));
         await this.audit.record(tx, actor, {
           action: "billing.online-payment.complete",
           resourceType: "billing_payment_intent",
           resourceId: intent.id,
           patientId: intent.patientId,
-          metadata: { outcome: event.outcome, failureCode: event.failureCode ?? null },
+          metadata: { outcome: "succeeded", collected, paymentId, toDeposit: split.deposit, provider: intent.provider },
         });
-        return;
-      }
-      const collected = event.amount ?? intent.amount;
-      const method = event.method ?? "other";
-      const balance = invoice.status === "issued" ? invoiceBalance(invoice.patientTotal, await this.invoices.settlement(tx, intent.invoiceId)) : 0;
-      const split = onlinePaymentSplit(collected, balance);
-      const facility = await this.organizations.getFacility(intent.organizationId, intent.facilityId);
-      const year = Number(localDate(now, facility.timezone).slice(0, 4));
-      let paymentId: string | null = null;
-      if (split.payment > 0) {
-        const series = await this.catalog.nextNumber(tx, intent.organizationId, "receipt");
-        const [payment] = await tx
-          .insert(billingPayment)
-          .values({
-            organizationId: intent.organizationId,
-            facilityId: intent.facilityId,
-            invoiceId: intent.invoiceId,
-            patientId: intent.patientId,
-            kind: "payment",
-            amount: split.payment,
-            method,
-            reference: event.externalReference ?? event.providerReference,
-            receiptNumber: documentNumber(series.prefix, year, series.value),
-            idempotencyKey: `online:${intent.id}`,
-            recordedBy: null,
-            paymentIntentId: intent.id,
-          })
-          .returning();
-        const row = found(payment, "Payment");
-        paymentId = row.id;
-        await this.events.record(tx, {
-          type: "PaymentCompleted",
-          organizationId: row.organizationId,
-          aggregateType: "billing_payment",
-          aggregateId: row.id,
-          facilityId: row.facilityId,
-          patientId: row.patientId,
-          payload: { invoiceId: row.invoiceId, amount: row.amount, method: row.method, balance: balance - row.amount, online: true },
-        });
-      }
-      if (split.deposit > 0) {
-        await lockPatientAccount(tx, intent.organizationId, intent.patientId);
-        const series = await this.catalog.nextNumber(tx, intent.organizationId, "receipt");
-        await tx.insert(billingAccountEntry).values({
-          organizationId: intent.organizationId,
-          facilityId: intent.facilityId,
-          patientId: intent.patientId,
-          kind: "deposit",
-          amount: split.deposit,
-          method,
-          reference: event.externalReference ?? event.providerReference,
-          receiptNumber: documentNumber(series.prefix, year, series.value),
-          idempotencyKey: `online-excess:${intent.id}`,
-          recordedBy: null,
-          paymentIntentId: intent.id,
-        });
-      }
-      await tx
-        .update(billingPaymentIntent)
-        .set({ status: "succeeded", paidAmount: collected, completedAt: now, updatedAt: now })
-        .where(eq(billingPaymentIntent.id, intent.id));
-      await this.audit.record(tx, actor, {
-        action: "billing.online-payment.complete",
-        resourceType: "billing_payment_intent",
-        resourceId: intent.id,
-        patientId: intent.patientId,
-        metadata: { outcome: "succeeded", collected, paymentId, toDeposit: split.deposit, provider: intent.provider },
-      });
-    });
+      }),
+    );
     return { received: true };
   }
 

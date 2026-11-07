@@ -23,7 +23,8 @@
     "implicitDependencies": [
       "api",
       "staff",
-      "portal"
+      "portal",
+      "kiosk"
     ],
     "targets": {
       "e2e": {
@@ -33,7 +34,8 @@
             "projects": [
               "api",
               "staff",
-              "portal"
+              "portal",
+              "kiosk"
             ],
             "target": "build"
           }

@@ -8,13 +8,15 @@ import { CarePlanRecallReminders } from "@healthcare/care-plan";
 import { CrmCampaignRuns } from "@healthcare/crm";
 import { AutomaticNoShows, WaitlistOffersService } from "@healthcare/clinic";
 import { telemetryStartupEvent } from "@healthcare/core/telemetry";
-import { levelsFrom, loadAppConfig, OutboxRelay } from "@healthcare/core";
+import { levelsFrom, loadAppConfig, malwareScanRequired, OutboxRelay } from "@healthcare/core";
 import { DocumentIntegrityService } from "@healthcare/documents";
 import { AuditRetentionService } from "./app/audit-retention/audit-retention.service";
 import { DohRescans, FhirImportRetention } from "@healthcare/interoperability";
 import { LabReportArchiveWorker } from "@healthcare/laboratory";
 import { AppModule } from "./app/app.module";
 import { configureApp } from "./app/configure-app";
+import { IdempotencyPurge } from "./app/idempotency-purge";
+import { KioskHousekeeping } from "./app/kiosk/kiosk-housekeeping";
 import { LaboratoryQualityReminders } from "./app/laboratory-quality-reminders";
 import { PatientMessageReminders } from "./app/portal/patient-message-reminders";
 import { CrmApprovalReminders } from "./app/outreach/crm-approval-notices";
@@ -22,6 +24,15 @@ import { ManagementReportRuns } from "./app/management-dashboard/management-repo
 
 async function bootstrap(): Promise<void> {
   const config = loadAppConfig();
+  // The owner's URL is for the pre-deploy migration only (docs/runbooks/database-roles.md). Railway gives a service's
+  // variables to its running process as well, so drop it before any module or dependency can read it.
+  delete process.env["MIGRATION_DATABASE_URL"];
+  // Fail closed: uploads from patients and other providers reach staff only after a scan (docs/domains/documents.md).
+  if (malwareScanRequired(config) && !config.CLAMAV_HOST) {
+    throw new Error(
+      "CLAMAV_HOST is unset but malware scanning is required (production): configure clamd, or set MALWARE_SCAN_REQUIRED=false to accept uploads as not scanned",
+    );
+  }
   const app = await NestFactory.create<NestExpressApplication>(AppModule.forRoot(config), {
     // One JSON object per line (docs/architecture/observability.md); plain text in development.
     logger: new ConsoleLogger({ json: config.NODE_ENV === "production", logLevels: levelsFrom(config.LOG_LEVEL) }),
@@ -30,6 +41,12 @@ async function bootstrap(): Promise<void> {
     rawBody: true,
   });
   configureApp(app, config);
+  // Keep idle connections open longer than clients and proxies reuse them (Node's default is 5 s): otherwise the API
+  // closes a kept-alive connection just as a client sends on it, and that request fails with ECONNRESET. Headers must
+  // be allowed a little longer than the keep-alive window (Node's own rule).
+  const server = app.getHttpServer() as import("node:http").Server;
+  server.keepAliveTimeout = 65_000;
+  server.headersTimeout = 66_000;
   await app.listen(config.PORT);
   // Dispatches domain events (queue updates, reminders) written by transactions.
   app.get(OutboxRelay).start();
@@ -41,6 +58,8 @@ async function bootstrap(): Promise<void> {
   app.get(WaitlistOffersService).start();
   // Hourly: laboratory temperature readings missed and competency reassessments due (in-app, quality managers).
   app.get(LaboratoryQualityReminders).start();
+  app.get(IdempotencyPurge).start();
+  app.get(KioskHousekeeping).start();
   // Hourly: MyHealth conversations past the clinic's response target (one in-app reminder per breach; docs/domains/patient-messaging.md).
   app.get(PatientMessageReminders).start();
   // Hourly: outreach campaigns still waiting for approval two days after submission (one in-app reminder to the approvers).
@@ -63,7 +82,10 @@ async function bootstrap(): Promise<void> {
   Logger.log(`API listening on http://localhost:${config.PORT}/api (docs: /api/docs)`, "Bootstrap");
   if (config.NODE_ENV === "production" && !config.CLAMAV_HOST) {
     Logger.warn(
-      { event: "documents.scanner_unconfigured", message: "CLAMAV_HOST is unset: uploaded documents are recorded as not scanned (docs/domains/documents.md)" },
+      {
+        event: "documents.scanner_unconfigured",
+        message: "CLAMAV_HOST is unset and MALWARE_SCAN_REQUIRED=false: uploaded documents are recorded as not scanned (docs/domains/documents.md)",
+      },
       "Bootstrap",
     );
   }

@@ -54,6 +54,16 @@ import { HealthController } from "./health.controller";
 import { LaboratoryNotifications } from "./laboratory-notifications";
 import { DocumentNotifications } from "./document-notifications";
 import { LaboratoryQualityNotifications } from "./laboratory-quality-notifications";
+import { IdempotencyPurge } from "./idempotency-purge";
+import { KioskAdminController } from "./kiosk/kiosk-admin.controller";
+import { KioskCheckInService } from "./kiosk/kiosk-checkin.service";
+import { KioskController } from "./kiosk/kiosk.controller";
+import { KioskDeviceService } from "./kiosk/kiosk-device.service";
+import { KioskHousekeeping } from "./kiosk/kiosk-housekeeping";
+import { KioskDisplayController, KioskPrintController } from "./kiosk/kiosk-print.controller";
+import { KioskPrintService } from "./kiosk/kiosk-print.service";
+import { KioskRegistrationService } from "./kiosk/kiosk-registration.service";
+import { KioskSessionService } from "./kiosk/kiosk-session.service";
 import { LaboratoryQualityReminders } from "./laboratory-quality-reminders";
 import { PatientSummaryController } from "./patient-360/patient-summary.controller";
 import { ManagementDashboardController } from "./management-dashboard/management-dashboard.controller";
@@ -82,6 +92,7 @@ import { StaffSecurityNotices } from "./staff-security-notices";
 import { PatientMessageReminders } from "./portal/patient-message-reminders";
 import { CrmApprovalNotices, CrmApprovalReminders } from "./outreach/crm-approval-notices";
 import { PatientMessageNotices } from "./portal/patient-message-notices";
+import { AppointmentCancellationNotices } from "./appointment-cancellation-notices";
 import { PatientResultNotices } from "./portal/patient-result-notices";
 import { PortalBillingController } from "./portal/portal-billing.controller";
 import { PortalBookingController } from "./portal/portal-booking.controller";
@@ -91,6 +102,8 @@ import { PortalDentalController } from "./portal/portal-dental.controller";
 import { PortalFormsController } from "./portal/portal-forms.controller";
 import { PortalDocumentsController } from "./portal/portal-documents.controller";
 import { PortalImmunizationsController } from "./portal/portal-immunizations.controller";
+import { PortalKioskController } from "./portal/portal-kiosk.controller";
+import { PortalPreRegistrationController } from "./portal/portal-pre-registration.controller";
 import { PortalOutsideResultsController } from "./portal/portal-outside-results.controller";
 import { PortalQrController } from "./portal/portal-qr.controller";
 import { PortalHistoryController } from "./portal/portal-history.controller";
@@ -268,6 +281,8 @@ export class AppModule implements NestModule {
         PortalFormsController,
         PortalDocumentsController,
         PortalImmunizationsController,
+        PortalKioskController,
+        PortalPreRegistrationController,
         PortalOutsideResultsController,
         PortalQrController,
         PortalHistoryController,
@@ -279,6 +294,10 @@ export class AppModule implements NestModule {
         BadgesController,
         StaffPushController,
         ControlledRegisterController,
+        KioskController,
+        KioskAdminController,
+        KioskPrintController,
+        KioskDisplayController,
       ],
       providers: [
         FhirRecordComposer,
@@ -293,6 +312,13 @@ export class AppModule implements NestModule {
         LaboratoryNotifications,
         LaboratoryQualityNotifications,
         DocumentNotifications,
+        IdempotencyPurge,
+        KioskDeviceService,
+        KioskSessionService,
+        KioskCheckInService,
+        KioskPrintService,
+        KioskRegistrationService,
+        KioskHousekeeping,
         LaboratoryQualityReminders,
         PatientResultNotices,
         PatientDentalNotices,
@@ -304,6 +330,7 @@ export class AppModule implements NestModule {
         PortalMfaPolicyNotices,
         StaffSecurityNotices,
         PatientMessageNotices,
+        AppointmentCancellationNotices,
         PatientMessageReminders,
         CrmApprovalNotices,
         CrmApprovalReminders,

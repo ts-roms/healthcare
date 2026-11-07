@@ -3,7 +3,13 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
 import { AuditService } from "@healthcare/audit";
 import { type Actor, APP_CONFIG, type AppConfig, BusinessRuleError, CurrentActor, systemActor } from "@healthcare/core";
-import { NotificationService, PushSubscriptionService, StaffPushPreferencesDto, StaffPushPreferenceService } from "@healthcare/notification";
+import {
+  NotificationService,
+  PushSubscriptionService,
+  StaffPushPreferencesDto,
+  StaffPushPreferenceService,
+  webPushEndpointSchema,
+} from "@healthcare/notification";
 import { OrganizationService } from "@healthcare/organization";
 import { createZodDto } from "nestjs-zod";
 import type { Request } from "express";
@@ -12,7 +18,7 @@ import { z } from "zod";
 
 const base64url = z.string().regex(/^[A-Za-z0-9_-]+={0,2}$/);
 class RegisterStaffDeviceDto extends createZodDto(
-  z.object({ endpoint: z.url().max(2048).startsWith("https://"), keys: z.object({ p256dh: base64url.min(40).max(200), auth: base64url.min(10).max(100) }) }),
+  z.object({ endpoint: webPushEndpointSchema, keys: z.object({ p256dh: base64url.min(40).max(200), auth: base64url.min(10).max(100) }) }),
 ) {}
 class StaffPushStatusQueryDto extends createZodDto(z.object({ endpoint: z.url().max(2048).optional() })) {}
 

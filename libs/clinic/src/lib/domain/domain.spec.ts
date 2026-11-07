@@ -6,9 +6,14 @@ import {
   canTransition,
   compareQueueOrder,
   currentRouteStep,
+  MAX_REQUEUES,
   nextRouteStep,
+  noShowRefusal,
   queueDisplay,
+  queueDisplayGroups,
   queueTicket,
+  recallRefusal,
+  requeueRefusal,
   requiresReason,
   routeComplete,
   routeInPlan,
@@ -208,5 +213,67 @@ describe("vital signs", () => {
   it("computes BMI for display", () => {
     expect(bodyMassIndex(70, 170)).toBe(24.2);
     expect(bodyMassIndex(null, 170)).toBeNull();
+  });
+});
+
+describe("reception queue actions", () => {
+  const called = new Date("2026-11-03T01:00:00Z");
+
+  it("recalls only an open visit that was called", () => {
+    expect(recallRefusal({ status: "waiting", calledAt: called })).toBeNull();
+    expect(recallRefusal({ status: "waiting", calledAt: null })).toBe("not_called");
+    expect(recallRefusal({ status: "completed", calledAt: called })).toBe("visit_closed");
+  });
+
+  it("marks a no-show only for a called patient who is still waiting for care", () => {
+    expect(noShowRefusal({ status: "awaiting_consultation", calledAt: called })).toBeNull();
+    expect(noShowRefusal({ status: "waiting", calledAt: null })).toBe("not_called");
+    expect(noShowRefusal({ status: "in_consultation", calledAt: called })).toBe("not_waiting");
+    expect(noShowRefusal({ status: "left_without_being_seen", calledAt: called })).toBe("visit_closed");
+  });
+
+  it("puts back in line only today's left-without-being-seen visits, a limited number of times", () => {
+    const left = { status: "left_without_being_seen" as const, queueDate: "2026-11-03", requeuedCount: 0 };
+    expect(requeueRefusal(left, "2026-11-03")).toBeNull();
+    expect(requeueRefusal(left, "2026-11-04")).toBe("not_today");
+    expect(requeueRefusal({ ...left, status: "cancelled" }, "2026-11-03")).toBe("not_left");
+    expect(requeueRefusal({ ...left, status: "completed" }, "2026-11-03")).toBe("not_left");
+    expect(requeueRefusal({ ...left, requeuedCount: MAX_REQUEUES - 1 }, "2026-11-03")).toBeNull();
+    expect(requeueRefusal({ ...left, requeuedCount: MAX_REQUEUES }, "2026-11-03")).toBe("requeue_limit_reached");
+  });
+});
+
+describe("the waiting-room display by service point", () => {
+  const at = (minute: number) => new Date(Date.UTC(2026, 10, 4, 1, minute));
+  const row = (queueNumber: number, servicePointId: string | null, calledMinute: number | null, over: Record<string, unknown> = {}) => ({
+    queueNumber,
+    status: "waiting" as const,
+    calledAt: calledMinute === null ? null : at(calledMinute),
+    calledTo: calledMinute === null ? null : "Room 1",
+    inPerson: true,
+    servicePointId,
+    ...over,
+  });
+
+  it("groups calls and the waiting by service point, the ones being called first, newest call first", () => {
+    const groups = queueDisplayGroups([row(1, "xray", 5), row(2, "xray", 9), row(3, null, 7), row(4, null, null), row(5, null, null), row(6, "lab", null)]);
+    expect(groups.map((g) => g.servicePointId)).toEqual(["xray", null, "lab"]);
+    expect(groups[0]).toMatchObject({ servicePointId: "xray", waiting: 2 });
+    expect(groups[0]?.calls.map((c) => c.ticket)).toEqual(["A-002", "A-001"]);
+    expect(groups[1]).toMatchObject({ servicePointId: null, waiting: 3 });
+    // A group that is only waiting comes last.
+    expect(groups[2]).toMatchObject({ servicePointId: "lab", calls: [], waiting: 1 });
+  });
+
+  it("leaves out online visits and closed ones, and keeps to the few latest calls of a group", () => {
+    const rows = [
+      ...Array.from({ length: 6 }, (_, i) => row(i + 1, "xray", i)),
+      row(7, "xray", 20, { inPerson: false }),
+      row(8, "xray", 21, { status: "completed" as const }),
+    ];
+    const [group] = queueDisplayGroups(rows);
+    expect(group?.calls).toHaveLength(4);
+    expect(group?.calls[0]?.ticket).toBe("A-006");
+    expect(queueDisplayGroups([row(9, "lab", 1, { inPerson: false })])).toEqual([]);
   });
 });

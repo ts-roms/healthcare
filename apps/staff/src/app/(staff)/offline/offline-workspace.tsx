@@ -7,6 +7,7 @@ import { registerPatient } from "@/app/(staff)/patients/new/actions";
 import { registerWalkIn } from "@/app/(staff)/queue/actions";
 import { recordTriage } from "@/app/(staff)/queue/visits/[id]/triage/actions";
 import { nextReplayable, type OfflineAction, outboxCounts, parkOrphans, pruneDone, resolvePatient, resolveVisit } from "@/lib/offline/outbox";
+import { takeOfflineSnapshot } from "@/lib/offline/snapshot";
 import { clearActions, loadActions, offlineStorageAvailable, saveActions } from "@/lib/offline/store";
 import { type RegistrationForm, registrationFormSchema } from "@/lib/patient-registration";
 import { EMPTY_VITALS, parseVitals, VITAL_FIELDS, type VitalField, type VitalsForm } from "@/lib/triage-form";
@@ -55,6 +56,11 @@ export function OfflineWorkspace({
   const persist = React.useCallback(async (next: OfflineAction[]) => {
     setActions(next);
     await saveActions(next);
+  }, []);
+
+  // Opened while connected by a signed-in person: the service worker keeps a copy for when the connection goes.
+  React.useEffect(() => {
+    if (navigator.onLine) void takeOfflineSnapshot();
   }, []);
 
   React.useEffect(() => {

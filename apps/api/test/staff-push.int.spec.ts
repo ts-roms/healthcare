@@ -16,7 +16,7 @@ import { as, auditRows, createStaff, createTenant, createTestApp, login, type Te
 
 const ORG = "staff-push";
 const vapid = webpush.generateVAPIDKeys();
-const endpoint = (n: number) => `https://push.example.test/staff/device-${n}`;
+const endpoint = (n: number) => `https://fcm.googleapis.com/staff/device-${n}`;
 const keys = { p256dh: "B".repeat(87), auth: "a".repeat(22) };
 const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36 Edg/126.0";
 const REQUEST_ID = "4e5a2a3c-6f1f-4d2a-9b3e-1c2d3e4f5a6b";
@@ -106,8 +106,20 @@ describe("staff push notifications", () => {
       .expect((r) => expect(r.body.error.code).toBe("no_push_device"));
   });
 
+  it("refuses a push address that is not a public push service", async () => {
+    for (const bad of [
+      "https://127.0.0.1/push",
+      "https://169.254.169.254/latest",
+      "https://localhost/push",
+      "https://db.railway.internal/push",
+      "https://fcm.googleapis.com:8443/x",
+    ]) {
+      await ctx.http().post("/api/v1/me/push/subscriptions").set(as(nurse, tenant.facilityId)).send({ endpoint: bad, keys }).expect(400);
+    }
+  });
+
   it("registers a browser for the member, keeps five at most, and lets them remove one", async () => {
-    await me(nurse).post("/subscriptions", { endpoint: "http://push.example.test/x", keys }).expect(400);
+    await me(nurse).post("/subscriptions", { endpoint: "http://fcm.googleapis.com/x", keys }).expect(400);
     const created = (await register(nurse, 1).expect(201)).body;
     expect(created).toMatchObject({ label: "Edge on Windows", kind: "web", lastSuccessAt: null });
     expect((await register(nurse, 1).expect(201)).body.id).toBe(created.id);

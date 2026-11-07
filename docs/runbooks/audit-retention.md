@@ -44,11 +44,22 @@ need a larger API instance for the duration.
 
 1. Set `AUDIT_RETENTION_MONTHS` on the API (whole months, 1–1200; Railway variable or Terraform `api_settings`) to the
    period the organization decided, and redeploy. Unset, nothing is removable and the screen says so.
+   **And** set the floor as the database owner (migration `0144`); the application can read it but never change it:
+
+   ```sql
+   INSERT INTO audit_retention_floor (minimum_months, note) VALUES (84, 'Decided by <who>, <date>')
+   ON CONFLICT (singleton) DO UPDATE SET minimum_months = EXCLUDED.minimum_months, note = EXCLUDED.note, set_at = now();
+   ```
+
+   Without a floor the database removes nothing; with one it never removes a month inside the longer of the floor and
+   `AUDIT_RETENTION_MONTHS`. Stolen application credentials therefore cannot shorten retention: only the owner can.
+
 2. A month becomes removable when its archive is verified and its whole range ended at least that many whole months
    before the current month began (Asia/Manila). Example: with 12, September 2025 is removable from 1 October 2026.
 3. **Remove from database…**, give the reason (5–500 characters), **Remove** (`POST
 /audit/retention/partitions/<name>/remove`). The database function `remove_audit_partition()` checks again that
-   the archive is verified, covers the same range and still has the same row count, that the period has passed,
+   the archive is verified (an archive always starts pending and is verified only from running, by the run that wrote
+   it), covers the same range and still has the same row count, that the period and the owner's floor have passed,
    then detaches and drops the partition and records who removed it, when and why on the archive (once; the archive
    row never changes again and is never deleted). Audited `audit.partition-remove` with the event count and checksum.
 

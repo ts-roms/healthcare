@@ -222,6 +222,7 @@ export class UsersService {
   async updateMembership(actor: Actor, userId: string, input: z.infer<typeof updateMembershipSchema>): Promise<StaffUserView> {
     if (userId === actor.userId) throw new BusinessRuleError("You cannot change your own membership status", "self_modification");
     await this.db.transaction(async (tx) => {
+      await this.assertOutranks(tx, actor, userId);
       const [updated] = await tx
         .update(organizationMembership)
         .set({ status: input.status, updatedAt: new Date() })
@@ -301,12 +302,14 @@ export class UsersService {
         throw new BusinessRuleError("This account is also used outside your organization; a platform administrator resets it", "account_shared");
       }
     }
+    await this.assertOutranks(tx, actor, userId);
     return user;
   }
 
   async grantRole(actor: Actor, userId: string, input: z.infer<typeof grantRoleSchema>): Promise<StaffUserView> {
     const targetRole = await this.findUsableRole(actor.organizationId, input.roleId);
     await this.assertCanDelegate(actor, targetRole.permissions);
+    await this.assertGrantWithinScope(actor, userId, input.facilityId);
     if (input.facilityId) {
       const facility = await this.organizations.findFacility(actor.organizationId, input.facilityId);
       if (!facility) throw new NotFoundError("Facility");
@@ -345,6 +348,7 @@ export class UsersService {
 
   async revokeRole(actor: Actor, userId: string, assignmentId: string, reason: string | undefined): Promise<StaffUserView> {
     await this.db.transaction(async (tx) => {
+      await this.assertOutranks(tx, actor, userId);
       const [revoked] = await tx
         .update(roleAssignment)
         .set({ revokedAt: new Date(), revokedBy: actor.userId })
@@ -477,6 +481,63 @@ export class UsersService {
     const updated = (await this.listRoles(actor.organizationId)).find((r) => r.id === roleId);
     if (!updated) throw new NotFoundError("Role");
     return updated;
+  }
+
+  /**
+   * Roles are granted for the whole organization or one facility. Someone who manages users at certain facilities only
+   * may grant at those facilities (never organization-wide or elsewhere), and nobody grants roles to themselves, so
+   * `user.manage` cannot be used to widen one's own reach. Platform administrators are exempt.
+   */
+  private async assertGrantWithinScope(actor: Actor, userId: string, facilityId: string | undefined): Promise<void> {
+    if (actor.isPlatformAdmin) return;
+    if (userId === actor.userId) throw new BusinessRuleError("You cannot grant roles to yourself", "self_modification");
+    const held = await this.db
+      .selectDistinct({ facilityId: roleAssignment.facilityId })
+      .from(roleAssignment)
+      .innerJoin(rolePermission, eq(rolePermission.roleId, roleAssignment.roleId))
+      .where(
+        and(
+          eq(roleAssignment.organizationId, actor.organizationId),
+          eq(roleAssignment.userId, actor.userId),
+          isNull(roleAssignment.revokedAt),
+          eq(rolePermission.permissionKey, "user.manage"),
+        ),
+      );
+    if (held.some((h) => h.facilityId === null)) return;
+    if (facilityId && held.some((h) => h.facilityId === facilityId)) return;
+    await this.audit.recordStandalone(actor, {
+      action: "access.deny",
+      resourceType: "role_assignment",
+      outcome: "denied",
+      reason: "grant_outside_actor_scope",
+      metadata: { facilityId: facilityId ?? null },
+    });
+    throw new ForbiddenError("You can only grant roles at the facilities you manage", "grant_outside_actor_scope");
+  }
+
+  /**
+   * A member may only be suspended, have their sign-in reset or lose a role at the hands of someone who holds every
+   * permission the member holds in this organization — otherwise `user.manage` would let a lower role take over or
+   * lock out an administrator. Platform administrators are exempt.
+   */
+  private async assertOutranks(tx: DbExecutor, actor: Actor, userId: string): Promise<void> {
+    if (actor.isPlatformAdmin) return;
+    const held = await tx
+      .selectDistinct({ permissionKey: rolePermission.permissionKey })
+      .from(roleAssignment)
+      .innerJoin(rolePermission, eq(rolePermission.roleId, roleAssignment.roleId))
+      .where(and(eq(roleAssignment.organizationId, actor.organizationId), eq(roleAssignment.userId, userId), isNull(roleAssignment.revokedAt)));
+    const beyond = held.map((h) => h.permissionKey).filter((p) => !actor.permissions.has(p));
+    if (beyond.length === 0) return;
+    await this.audit.recordStandalone(actor, {
+      action: "access.deny",
+      resourceType: "app_user",
+      resourceId: userId,
+      outcome: "denied",
+      reason: "target_outranks_actor",
+      metadata: { permissions: beyond },
+    });
+    throw new ForbiddenError("This account holds permissions you do not hold", "target_outranks_actor");
   }
 
   private async assertCanDelegate(actor: Actor, permissions: readonly string[]): Promise<void> {

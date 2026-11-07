@@ -48,6 +48,7 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
   ]);
   return (
     <QueueWorkspace
+      renderedAt={new Date().toISOString()}
       visits={visits}
       servicePoints={servicePoints}
       templates={templates}

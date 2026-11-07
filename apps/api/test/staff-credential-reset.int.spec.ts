@@ -88,4 +88,44 @@ describe("staff credential resets by an administrator", () => {
     const outsider = (await login(ctx, "admin@reset-other.ph")).accessToken;
     await ctx.http().post(`/api/v1/users/${nurseId}/password-reset`).set(as(outsider)).send({ temporaryPassword: TEMPORARY, reason: "x y z" }).expect(404);
   });
+
+  it("refuses user administration over an account that holds permissions the administrator does not", async () => {
+    const managerId = await createStaff(ctx.pool, tenant, "manager@reset.ph", []);
+    const targetAdminId = await createStaff(ctx.pool, tenant, "boss@reset.ph", ["org_admin"]);
+    const plainId = await createStaff(ctx.pool, tenant, "plain@reset.ph", []);
+    await ctx.pool.query(`INSERT INTO role (organization_id, key, name) VALUES ($1, 'user_manager', 'User manager')`, [tenant.organizationId]);
+    await ctx.pool.query(
+      `INSERT INTO role_permission (role_id, permission_key)
+       SELECT r.id, p FROM role r, unnest(ARRAY['user.read', 'user.manage']) AS p WHERE r.key = 'user_manager' AND r.organization_id = $1`,
+      [tenant.organizationId],
+    );
+    await ctx.pool.query(
+      `INSERT INTO role_assignment (organization_id, user_id, role_id)
+       SELECT $1, $2, id FROM role WHERE key = 'user_manager' AND organization_id = $1`,
+      [tenant.organizationId, managerId],
+    );
+    const manager = (await login(ctx, "manager@reset.ph")).accessToken;
+    const denied = (res: { body: { error: { code: string } } }) => expect(res.body.error.code).toBe("target_outranks_actor");
+    await ctx
+      .http()
+      .post(`/api/v1/users/${targetAdminId}/password-reset`)
+      .set(as(manager))
+      .send({ temporaryPassword: TEMPORARY, reason: "Takeover" })
+      .expect(403)
+      .expect(denied);
+    await ctx
+      .http()
+      .patch(`/api/v1/users/${targetAdminId}/membership`)
+      .set(as(manager))
+      .send({ status: "suspended", reason: "Lock out" })
+      .expect(403)
+      .expect(denied);
+    // Someone with nothing the manager lacks can still be reset.
+    await ctx
+      .http()
+      .post(`/api/v1/users/${plainId}/password-reset`)
+      .set(as(manager))
+      .send({ temporaryPassword: TEMPORARY, reason: "Forgot password" })
+      .expect(200);
+  });
 });

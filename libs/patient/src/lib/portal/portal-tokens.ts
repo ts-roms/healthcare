@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Inject, Injectable } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { APP_CONFIG, type AppConfig, UnauthenticatedError } from "@healthcare/core";
@@ -55,14 +56,28 @@ export class PortalTokenService {
   sign(claims: Omit<PatientAccessClaims, "typ">): Promise<string> {
     return this.jwt.signAsync(
       { ...claims, typ: "patient_access" },
-      { secret: this.config.JWT_ACCESS_SECRET, algorithm: "HS256", issuer: ISSUER, audience: AUDIENCE, expiresIn: this.config.JWT_ACCESS_TTL_SECONDS },
+      {
+        secret: this.config.JWT_ACCESS_SECRET,
+        algorithm: "HS256",
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        expiresIn: this.config.JWT_ACCESS_TTL_SECONDS,
+        jwtid: randomUUID(),
+      },
     );
   }
 
   signRealtimeTicket(claims: Omit<PatientRealtimeTicketClaims, "typ">): Promise<string> {
     return this.jwt.signAsync(
       { ...claims, typ: "patient_realtime" },
-      { secret: this.config.JWT_ACCESS_SECRET, algorithm: "HS256", issuer: ISSUER, audience: AUDIENCE, expiresIn: PATIENT_REALTIME_TICKET_TTL_SECONDS },
+      {
+        secret: this.config.JWT_ACCESS_SECRET,
+        algorithm: "HS256",
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        expiresIn: PATIENT_REALTIME_TICKET_TTL_SECONDS,
+        jwtid: randomUUID(),
+      },
     );
   }
 
@@ -85,7 +100,14 @@ export class PortalTokenService {
   signMfaChallenge(claims: Omit<PatientMfaChallengeClaims, "typ">): Promise<string> {
     return this.jwt.signAsync(
       { ...claims, typ: "patient_mfa_challenge" },
-      { secret: this.config.JWT_ACCESS_SECRET, algorithm: "HS256", issuer: ISSUER, audience: AUDIENCE, expiresIn: MFA_CHALLENGE_TTL_SECONDS },
+      {
+        secret: this.config.JWT_ACCESS_SECRET,
+        algorithm: "HS256",
+        issuer: ISSUER,
+        audience: AUDIENCE,
+        expiresIn: MFA_CHALLENGE_TTL_SECONDS,
+        jwtid: randomUUID(),
+      },
     );
   }
 

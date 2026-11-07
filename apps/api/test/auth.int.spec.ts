@@ -1,3 +1,4 @@
+import { encryptSecret } from "@healthcare/core";
 import { currentTotp } from "@healthcare/auth";
 import { as, auditRows, createStaff, createTenant, createTestApp, login, PASSWORD, type Tenant, type TestContext } from "./harness";
 
@@ -43,7 +44,10 @@ describe("authentication", () => {
       await ctx.http().post("/api/v1/auth/login").send({ email: "locked@example.ph", password: "wrong-password-123" }).expect(401);
     }
     const response = await ctx.http().post("/api/v1/auth/login").send({ email: "locked@example.ph", password: PASSWORD }).expect(401);
-    expect(response.body.error.code).toBe("account_locked");
+    // The same answer as a wrong password: sign-in never reveals that the account exists or is locked; the audit does.
+    expect(response.body.error.code).toBe("invalid_credentials");
+    const { rows } = await ctx.pool.query("SELECT 1 FROM audit_event WHERE action = 'auth.login' AND reason = 'account_locked'");
+    expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 
   it("rotates refresh tokens and revokes the session when an old token is replayed", async () => {
@@ -57,6 +61,20 @@ describe("authentication", () => {
     await ctx.http().get("/api/v1/auth/me").set(as(rotated.body.accessToken)).expect(401);
     const reuse = await auditRows(ctx.pool, `reason = 'refresh_token_reuse'`);
     expect(reuse).toHaveLength(1);
+  });
+
+  it("ends a session left idle past the server-side limit at its next refresh", async () => {
+    const session = await login(ctx, "nurse@example.ph");
+    // Not refreshed for 13 hours (the default limit is 12).
+    await ctx.pool.query(
+      "UPDATE auth_session SET last_used_at = now() - interval '13 hours' WHERE refresh_token_hash = encode(sha256(convert_to($1, 'UTF8')), 'hex')",
+      [session.refreshToken],
+    );
+    await ctx.http().post("/api/v1/auth/refresh").send({ refreshToken: session.refreshToken }).expect(401);
+    const ended = await ctx.http().get("/api/v1/auth/me").set(as(session.accessToken)).expect(401);
+    expect(ended.body.error.code).toBe("session_ended");
+    const { rows } = await ctx.pool.query("SELECT 1 FROM auth_session WHERE revoked_reason = 'idle'");
+    expect(rows).toHaveLength(1);
   });
 
   it("ends access immediately on logout", async () => {
@@ -99,6 +117,8 @@ describe("authentication", () => {
 
       const stored = await ctx.pool.query(`SELECT mfa_secret_encrypted FROM app_user WHERE email = 'doctor@example.ph'`);
       expect(stored.rows[0].mfa_secret_encrypted).not.toContain(secret);
+      // Sealed with the current key and bound to this account's row.
+      expect(stored.rows[0].mfa_secret_encrypted).toMatch(/^v3\.default\./);
       const hashes = await ctx.pool.query(
         `SELECT code_hash FROM staff_recovery_code r JOIN app_user u ON u.id = r.user_id WHERE u.email = 'doctor@example.ph'`,
       );
@@ -115,6 +135,16 @@ describe("authentication", () => {
       expect(verified.body.status).toBe("authenticated");
       // Replaying it with a new challenge fails too.
       await verify(await signIn(), next).expect(401);
+      // The used challenge opens no second session, even with a code that would otherwise be accepted.
+      const replay = await verify(challenge.body.challengeToken, await freshCode()).expect(401);
+      expect(replay.body.error.code).toBe("invalid_token");
+      // A secret stored before binding (the v1 format) still works, and is sealed again, bound, when it is used.
+      await ctx.pool.query(`UPDATE app_user SET mfa_secret_encrypted = $1 WHERE email = 'doctor@example.ph'`, [
+        encryptSecret(secret, ctx.config.MFA_ENCRYPTION_KEY),
+      ]);
+      await verify(await signIn(), await freshCode()).expect(200);
+      const resealed = await ctx.pool.query(`SELECT mfa_secret_encrypted FROM app_user WHERE email = 'doctor@example.ph'`);
+      expect(resealed.rows[0].mfa_secret_encrypted).toMatch(/^v3\.default\./);
       // A challenge token is not an access token.
       await ctx.http().get("/api/v1/auth/me").set(as(challenge.body.challengeToken)).expect(401);
       const me = await ctx.http().get("/api/v1/auth/me").set(as(verified.body.accessToken)).expect(200);

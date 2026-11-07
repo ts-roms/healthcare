@@ -4,7 +4,7 @@ import IORedis from "ioredis";
 import type { AppConfig } from "../config/app-config";
 import { DATABASE, type Database } from "../database/database";
 import { asPlatform } from "../database/database-context";
-import { type HealthCheck, startHealthServer } from "./health-server";
+import { type HealthCheck, healthDetailsVisible, startHealthServer } from "./health-server";
 
 /**
  * `GET /live` and `/ready` on `HEALTH_PORT` for a queue worker (docs/architecture/observability.md): the database is
@@ -21,7 +21,7 @@ export function startWorkerHealth(app: INestApplicationContext, config: AppConfi
     { name: "database", required: true, probe: () => asPlatform("readiness check", async () => db.execute(sql`SELECT 1`)).then(() => "ok" as const) },
     { name: "redis", required: false, probe: () => redis.ping().then((answer) => (answer === "PONG" ? "ok" : "unreachable")) },
   ];
-  const server = startHealthServer(config.HEALTH_PORT, checks);
+  const server = startHealthServer(config.HEALTH_PORT, checks, (presented) => healthDetailsVisible(config, presented));
   const stop = () => {
     server.close();
     redis.disconnect();

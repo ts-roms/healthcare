@@ -1,15 +1,61 @@
 /* Staff app service worker (ADR-0013): keeps the Offline page and the app's static files available without a
- * connection. It touches nothing else: every other request goes to the network as before. No patient data is cached
- * here — the Offline page's snapshot is whatever the page showed the last time it loaded online, and the outbox lives
- * encrypted in IndexedDB, not in this cache. */
+ * connection. It touches nothing else: every other request goes to the network as before.
+ *
+ * The Offline page's snapshot is the page as it last loaded online, and that page lists today's queue (patient numbers,
+ * names, complaints): patient data on the device. It is therefore kept as little as possible (zero trust in a shared
+ * clinic computer): deleted whenever the browser signs out or reaches the sign-in page (src/lib/offline/snapshot.ts and
+ * below), and never served once older than SNAPSHOT_MAX_AGE_MS. The outbox lives encrypted in IndexedDB, not here. */
 const CACHE = "healthcare-staff-offline-v1";
 const OFFLINE_PATH = "/offline";
+/** A snapshot older than a working day is never served (and is deleted). */
+const SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const SNAPSHOT_HEADER = "x-offline-snapshot-at";
+
+function deleteSnapshot() {
+  return caches.open(CACHE).then((cache) => cache.delete(OFFLINE_PATH));
+}
+
+/** The copy to keep: the same page, stamped with when it was taken. */
+function stamped(response) {
+  return response.blob().then((body) => {
+    const headers = new Headers(response.headers);
+    headers.set(SNAPSHOT_HEADER, String(Date.now()));
+    return new Response(body, { status: response.status, statusText: response.statusText, headers });
+  });
+}
+
+function freshSnapshot() {
+  return caches.match(OFFLINE_PATH).then((cached) => {
+    if (!cached) return undefined;
+    const at = Number(cached.headers.get(SNAPSHOT_HEADER));
+    if (!Number.isFinite(at) || Date.now() - at > SNAPSHOT_MAX_AGE_MS) return deleteSnapshot().then(() => undefined);
+    return cached;
+  });
+}
+
+/** Fetches the Offline page with the person's session and keeps it, unless the answer is the sign-in page. */
+function takeSnapshot() {
+  return fetch(new Request(OFFLINE_PATH, { credentials: "same-origin" }))
+    .then((response) => {
+      if (!response.ok || response.redirected) return deleteSnapshot();
+      return stamped(response).then((copy) => caches.open(CACHE).then((cache) => cache.put(OFFLINE_PATH, copy)));
+    })
+    .catch(() => undefined);
+}
+
+// The Offline page asks for its copy once it is open (src/lib/offline/snapshot.ts); sign-out asks for it to go.
+self.addEventListener("message", (event) => {
+  const type = event.data && event.data.type;
+  if (type === "take-offline-snapshot") event.waitUntil(takeSnapshot());
+  if (type === "clear-offline-snapshot") event.waitUntil(deleteSnapshot());
+});
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.add(new Request(OFFLINE_PATH, { credentials: "same-origin" })).catch(() => undefined))
+      // Nothing is fetched ahead: the snapshot is taken only when a signed-in person opens the Offline page.
+      .then(() => deleteSnapshot())
       .then(() => self.skipWaiting()),
   );
 });
@@ -29,21 +75,30 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // The Offline page: the network when it answers (and the copy is refreshed), the last copy otherwise.
+  // Reaching the sign-in page (signed out, idle sign-out, session ended): the snapshot goes.
+  if (request.mode === "navigate" && url.pathname === "/login") {
+    event.waitUntil(deleteSnapshot());
+    return;
+  }
+
+  // The Offline page: the network when it answers (and the copy is refreshed), a recent copy otherwise.
   if (request.mode === "navigate" && url.pathname === OFFLINE_PATH) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) caches.open(CACHE).then((cache) => cache.put(OFFLINE_PATH, response.clone()));
+          // Only the page itself: a redirect to sign-in (no session) is never kept as the snapshot.
+          if (response.ok && !response.redirected) {
+            event.waitUntil(stamped(response.clone()).then((copy) => caches.open(CACHE).then((cache) => cache.put(OFFLINE_PATH, copy))));
+          } else if (response.redirected) {
+            event.waitUntil(deleteSnapshot());
+          }
           return response;
         })
         .catch(() =>
-          caches
-            .match(OFFLINE_PATH)
-            .then(
-              (cached) =>
-                cached || new Response("Offline page not available: open it once while connected.", { status: 503, headers: { "content-type": "text/plain" } }),
-            ),
+          freshSnapshot().then(
+            (cached) =>
+              cached || new Response("Offline page not available: open it once while connected.", { status: 503, headers: { "content-type": "text/plain" } }),
+          ),
         ),
     );
     return;

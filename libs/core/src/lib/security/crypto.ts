@@ -11,6 +11,7 @@ export function randomToken(bytes = 32): string {
 
 const ALGORITHM = "aes-256-gcm";
 const IV_BYTES = 12;
+const TAG_BYTES = 16;
 const FORMAT_VERSION = "v1";
 
 /**
@@ -93,16 +94,53 @@ export function openWithKeyring(sealed: string, keyring: Keyring): string {
   return open(iv, tag, ciphertext, decodeKey(key), `${KEYED_FORMAT_VERSION}.${keyId}`);
 }
 
+// ---- Bound secrets: keyed like v2, and tied to the row they belong to (zero-trust audit, two-step verification keys) ----
+
+const BOUND_FORMAT_VERSION = "v3";
+
+/**
+ * Seals with the key ring's current key and binds the value to `binding` (e.g. "app_user:<id>"):
+ * "v3.<keyId>.<iv>.<tag>.<ciphertext>", with "v3.<keyId>:<binding>" as authenticated data. A value copied onto another
+ * row, or relabelled with another key id, no longer opens.
+ */
+export function sealBound(plaintext: string, keyring: Keyring, binding: string): string {
+  const keyId = keyring.currentKeyId;
+  const key = keyring.keys.get(keyId);
+  if (!key) throw new EncryptionKeyUnavailableError(keyId);
+  const header = `${BOUND_FORMAT_VERSION}.${keyId}`;
+  return [header, ...seal(plaintext, decodeKey(key), `${header}:${binding}`)].join(".");
+}
+
+/**
+ * Opens a bound value for `binding`. Values sealed before binding existed ("v2" keyed, or "v1" with a single key) still
+ * open; `current` is false for them and for a value sealed with a key other than the current one, so the caller can seal
+ * it again in the current form (re-sealing on use is how keys rotate without a batch job).
+ */
+export function openBound(sealed: string, keyring: Keyring, binding: string): { plaintext: string; current: boolean } {
+  const [version, keyId, iv, tag, ciphertext, extra] = sealed.split(".");
+  if (version === BOUND_FORMAT_VERSION) {
+    if (!keyId || !ENCRYPTION_KEY_ID_PATTERN.test(keyId) || !iv || !tag || !ciphertext || extra !== undefined) {
+      throw new Error("Unsupported encrypted secret format");
+    }
+    const key = keyring.keys.get(keyId);
+    if (!key) throw new EncryptionKeyUnavailableError(keyId);
+    const header = `${BOUND_FORMAT_VERSION}.${keyId}`;
+    return { plaintext: open(iv, tag, ciphertext, decodeKey(key), `${header}:${binding}`), current: keyId === keyring.currentKeyId };
+  }
+  return { plaintext: openWithKeyring(sealed, keyring), current: false };
+}
+
 function seal(plaintext: string, key: Buffer, additionalData?: string): string[] {
   const iv = randomBytes(IV_BYTES);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+  const cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
   if (additionalData) cipher.setAAD(Buffer.from(additionalData, "utf8"));
   const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
   return [iv, cipher.getAuthTag(), ciphertext].map((part) => part.toString("base64url"));
 }
 
 function open(iv: string, tag: string, ciphertext: string, key: Buffer, additionalData?: string): string {
-  const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(iv, "base64url"));
+  // The tag length is pinned: without it Node accepts a truncated tag, which weakens GCM authentication.
+  const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(iv, "base64url"), { authTagLength: TAG_BYTES });
   if (additionalData) decipher.setAAD(Buffer.from(additionalData, "utf8"));
   decipher.setAuthTag(Buffer.from(tag, "base64url"));
   return Buffer.concat([decipher.update(Buffer.from(ciphertext, "base64url")), decipher.final()]).toString("utf8");

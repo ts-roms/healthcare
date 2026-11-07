@@ -1,7 +1,7 @@
 /**
  * Where patients get MyHealth on a phone, per deployment (one organization per deployment, its own store listings):
- * `MOBILE_APP_IOS_URL` (App Store), `MOBILE_APP_ANDROID_URL` (Google Play, or an APK the organization serves itself:
- * a path such as `/downloads/myhealth.apk` under MyHealth's `public` folder, resolved against `PORTAL_BASE_URL`) and
+ * `MOBILE_APP_IOS_URL` (App Store), `MOBILE_APP_ANDROID_URL` (Google Play, or an https link to an APK the organization
+ * serves itself, signed by EAS with its own key; a path is resolved against `PORTAL_BASE_URL`) and
  * `PORTAL_BASE_URL` (MyHealth on the web, used as the code while no app link is set). Absolute links must be http(s);
  * anything else is ignored.
  */

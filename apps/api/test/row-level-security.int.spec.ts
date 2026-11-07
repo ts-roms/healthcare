@@ -47,6 +47,35 @@ describe("row-level security", () => {
       WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition`);
     expect(rows.length).toBeGreaterThan(200);
     expect(rows.filter((r) => !r.rls || !r.policy).map((r) => r.relname)).toEqual([]);
+    // The child tables that had no organization (migration 0149) are covered too.
+    for (const table of ["care_plan_goal", "care_plan_problem", "care_plan_progress_note", "prescription_item", "notification_attempt", "idempotency_record"]) {
+      expect(rows.map((r) => r.relname)).toContain(table);
+    }
+  });
+
+  it("never answers a member of two organizations with the other organization's stored response for a reused key", async () => {
+    await createStaff(ctx.pool, a, "both@rls.ph", ["org_admin"]);
+    await createStaff(ctx.pool, b, "both@rls.ph", ["org_admin"]);
+    const inA = (await login(ctx, "both@rls.ph", a.organizationId)).accessToken;
+    const inB = (await login(ctx, "both@rls.ph", b.organizationId)).accessToken;
+    const key = "same-key-in-two-organizations";
+    // A patient of its own: the shared one is already registered in both organizations (duplicate detection would refuse).
+    const lorna = {
+      familyName: "Villareal",
+      givenName: "Lorna",
+      sex: "female",
+      birthDate: "1975-08-19",
+      contacts: [{ system: "mobile", value: "0918 765 4321" }],
+    };
+    const first = await ctx.http().post("/api/v1/patients").set(as(inA, a.facilityId)).set("Idempotency-Key", key).send(lorna).expect(201);
+    // A retry in the same organization is replayed…
+    const retry = await ctx.http().post("/api/v1/patients").set(as(inA, a.facilityId)).set("Idempotency-Key", key).send(lorna).expect(201);
+    expect(retry.headers["idempotent-replayed"]).toBe("true");
+    expect(retry.body.id).toBe(first.body.id);
+    // …the same key in the other organization runs there, and never sees the first organization's patient.
+    const other = await ctx.http().post("/api/v1/patients").set(as(inB, b.facilityId)).set("Idempotency-Key", key).send(lorna).expect(201);
+    expect(other.headers["idempotent-replayed"]).toBeUndefined();
+    expect(other.body.id).not.toBe(first.body.id);
   });
 
   it("shows one organization's rows to its context, every row to the platform scope, and refuses a query without a context", async () => {

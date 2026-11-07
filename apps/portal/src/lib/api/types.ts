@@ -78,6 +78,12 @@ export interface PortalAppointment {
   queueTicket: string | null;
 }
 
+/** `GET /portal/kiosk`: whether the clinic has self-service kiosks in service, and the places (names only). */
+export interface PortalKiosk {
+  available: boolean;
+  locations: string[];
+}
+
 export interface PortalAppointments {
   upcoming: PortalAppointment[];
   past: PortalAppointment[];

@@ -1,6 +1,9 @@
 /** Posts instrument messages to the platform API as the integration account (bearer token, refreshed when it expires). */
 export type SubmitOutcome = { kind: "accepted"; duplicate: boolean } | { kind: "refused"; code: string } | { kind: "failed"; reason: string };
 
+/** The one permission the gateway's account may hold (migration 0145). */
+export const GATEWAY_PERMISSION = "lab.instrument.message.submit";
+
 export class PlatformClient {
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
@@ -61,6 +64,31 @@ export class PlatformClient {
       const status =
         (body as { status?: string; error?: { code?: string } }).status ?? (body as { error?: { code?: string } }).error?.code ?? `http_${login.status}`;
       throw new Error(`The integration account could not sign in (${status}); use an account without MFA that holds lab.instrument.message.submit`);
+    }
+    await this.assertLeastPrivilege();
+  }
+
+  /**
+   * Zero trust for a machine identity: the gateway's password sits on an on-site computer, so the account must hold
+   * nothing but the right to submit analyzer messages (the built-in role instrument_gateway). A broader account is
+   * refused here, and every message then fails with the reason in the log, until the account is fixed.
+   */
+  private async assertLeastPrivilege(): Promise<void> {
+    const me = await this.fetchFn(`${this.config.apiUrl}/auth/me`, {
+      headers: { authorization: `Bearer ${this.accessToken}` },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!me.ok) throw new Error(`The integration account's permissions could not be read (http_${me.status})`);
+    const { permissions = [] } = (await me.json().catch(() => ({}))) as { permissions?: string[] };
+    const extra = permissions.filter((permission) => permission !== GATEWAY_PERMISSION);
+    if (extra.length > 0 || !permissions.includes(GATEWAY_PERMISSION)) {
+      this.accessToken = null;
+      this.refreshToken = null;
+      throw new Error(
+        extra.length > 0
+          ? `The integration account must hold only ${GATEWAY_PERMISSION} (role instrument_gateway); it also holds ${extra.length} other permission(s)`
+          : `The integration account does not hold ${GATEWAY_PERMISSION} (role instrument_gateway)`,
+      );
     }
   }
 

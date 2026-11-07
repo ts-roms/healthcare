@@ -181,6 +181,8 @@ export interface PatientDetail {
   contacts: PatientContact[];
   addresses: PatientAddress[];
   identifiers: PatientIdentifier[];
+  /** The numbers above are masked: this member may not see them in full (`patient.identifier.reveal`). */
+  identifiersMasked?: boolean;
   relationships: PatientRelationship[];
   consents: PatientConsent[];
   communicationPreferences: Array<{ channel: string; category: string; optedIn: boolean }>;
@@ -430,6 +432,10 @@ export interface QueueDisplay {
   /** Called tickets, newest first: the first is the one being called now. */
   calls: Array<{ ticket: string; calledTo: string; calledAt: string }>;
   waiting: number;
+  /** The clinic's own words and colour for the screen (migration 0139); all null while it uses the defaults. */
+  branding: { headline: string | null; footerMessage: string | null; accentColor: string | null };
+  /** The same calls grouped by service point (department), when the facility turned that on; null otherwise. */
+  groups: Array<{ name: string; calls: Array<{ ticket: string; calledTo: string; calledAt: string }>; waiting: number }> | null;
 }
 
 /** GET /queue row. */
@@ -440,7 +446,7 @@ export interface QueueVisit {
   appointmentId: string | null;
   arrivalMode: "walk_in" | "appointment";
   /** The patient checked in from MyHealth (an online consultation's waiting room, or online check-in for an in-person visit). */
-  checkedInVia: "staff" | "patient_portal";
+  checkedInVia: "staff" | "patient_portal" | "kiosk";
   ticket: string;
   queueNumber: number;
   queueDate: string;
@@ -463,6 +469,12 @@ export interface QueueVisit {
   servicePoint: ServicePointBrief | null;
   /** The visit's route (migration 0115), in order; empty when none was planned. */
   route: RouteStep[];
+  /** How many times the desk sent a called patient who did not come forward back into the line (migration 0137). */
+  skippedCount: number;
+  /** When a called patient never came forward and the visit was closed as a no-show (migration 0138). */
+  noShowAt: string | null;
+  /** How many times a closed visit was put back in line (migration 0138). */
+  requeuedCount: number;
 }
 
 /** A visit as returned by the queue commands (walk-in, check-in, move, call, route). */
@@ -567,7 +579,15 @@ export interface AppointmentItem {
   bookingChannel: string;
   /** Booked by the patient in MyHealth (no staff user). */
   bookedByPatient?: boolean;
+  /** The last change was the patient's own, in MyHealth (e.g. they cancelled it). */
+  updatedByPatient?: boolean;
   reason: string | null;
+  cancelledAt?: string | null;
+  /** The staff member who cancelled (user id); null when the patient cancelled in MyHealth. */
+  cancelledBy?: string | null;
+  /** Their display name, for the schedule's "cancelled by" note. */
+  cancelledByName?: string | null;
+  cancellationReason?: string | null;
   version: number;
   patient: PatientBrief | null;
   /** The room, when the booking names one (migration 0096 views). */
@@ -593,6 +613,8 @@ export interface VisitType {
   requiresTriage: boolean;
   /** Patients may book this visit type themselves in MyHealth. */
   onlineBooking: boolean;
+  /** A patient kiosk offers this visit type for a walk-in check-in (in-person types only). */
+  kioskEnabled: boolean;
   version: number;
 }
 
@@ -5373,6 +5395,8 @@ export interface StaffBadges {
   caseReports: number | null;
   outsideResultsUnreviewed: number | null;
   outsideResultSubmissions: number | null;
+  /** New-patient registrations typed at a kiosk, waiting for reception at the selected facility. */
+  kioskRegistrations: number | null;
 }
 
 // ---- procedures performed at the clinic (docs/domains/clinic.md, "Procedures") ------------------------------------
@@ -5623,4 +5647,117 @@ export interface OutreachSeriesOccurrence {
   status: OutreachCampaignStatus;
   sendAt: string | null;
   completedAt: string | null;
+}
+
+// ---- kiosk registrations (docs/domains/kiosk.md) --------------------------------------------------------------------
+
+/** `GET /kiosk/admin/registrations`: a registration waiting for reception; no personal data (that is behind the detail). */
+export interface KioskRegistrationItem {
+  id: string;
+  reference: string;
+  submittedAt: string;
+  expiresAt: string;
+  /** Typed at a kiosk (named), or sent from MyHealth before a first visit (migration 0150). */
+  source: "kiosk" | "myhealth";
+  kiosk: string | null;
+  possibleDuplicates: number;
+}
+
+/** `GET /kiosk/admin/pre-registration-settings` (migration 0150). */
+export interface PreRegistrationSettings {
+  enabled: boolean;
+  noticeText: string | null;
+  noticeVersion: number;
+  retentionDays: number;
+  version: number;
+}
+
+/** What a new patient typed at the kiosk (the registration's own shape), as `GET /kiosk/admin/registrations/:id` returns it. */
+export interface KioskRegistrationForm {
+  familyName: string;
+  givenName: string;
+  middleName?: string;
+  suffix?: string;
+  sex: string;
+  birthDate: string;
+  civilStatus?: string;
+  contacts: Array<{ system: "mobile" | "phone" | "email"; value: string; use?: string; isPrimary?: boolean }>;
+  addresses: Array<{ line1?: string; barangay?: string; cityMunicipality: string; province?: string; postalCode?: string }>;
+  identifiers: Array<{ type: string; value: string; issuer?: string }>;
+  emergencyContact: { name: string; contactNumber: string; relationship: string };
+}
+
+export interface KioskDuplicateCandidate {
+  patient: { id: string; patientNumber: string; displayName: string; sex: string; birthDate: string; age: number; primaryMobileMasked: string | null };
+  /** The Patient Master's own assessment of how likely it is the same person. */
+  level?: string;
+  score?: number;
+  reasons?: string[];
+}
+
+export interface KioskRegistrationDetail {
+  id: string;
+  reference: string;
+  submittedAt: string;
+  expiresAt: string;
+  registration: KioskRegistrationForm;
+  possibleDuplicates: KioskDuplicateCandidate[];
+}
+
+// ---- kiosk devices, printing and the waiting-room display (docs/domains/kiosk.md) ------------------------------------------
+
+/** `GET /kiosk/admin/devices`: a kiosk or a waiting-room display of the facility. */
+export interface KioskDevice {
+  id: string;
+  code: string;
+  name: string;
+  kind: "kiosk" | "display";
+  facilityId: string;
+  status: "active" | "maintenance" | "disabled";
+  /** From its last report: online while it keeps reporting; an operator's status wins. */
+  health: "online" | "offline" | "maintenance" | "disabled";
+  heartbeatAt: string | null;
+  appVersion: string | null;
+  /** Staff turned ticket printing on for this kiosk; off until it has a printer and a print agent. */
+  printsTickets: boolean;
+  /** The print agent account that serves this kiosk; null = any print agent of the facility. */
+  printAgentUserId: string | null;
+  /** Where the printer is: on the print agent's own computer, or on the clinic's network at `printerHost` (migration 0143). */
+  printerConnection: "agent_local" | "network";
+  printerHost: string | null;
+  printerPort: number | null;
+  /** The ticket roll's width in millimetres. */
+  paperMm: 58 | 80;
+  printerStatus: "unknown" | "none" | "ok" | "paper_out" | "offline" | "error";
+  /** Whether the printer is known to be working: its last report and how recent it is (kiosks only). */
+  printer: "available" | "attention" | "unavailable" | "unknown" | "none";
+  printerHeartbeatAt: string | null;
+  /** Where this kiosk may be used: addresses or CIDR ranges; empty = anywhere (migration 0148). */
+  allowedNetworks: string[];
+  version: number;
+}
+
+/** `GET /kiosk/admin/print-jobs`: a kiosk ticket's print, with nothing about the patient. */
+export interface KioskPrintJob {
+  id: string;
+  device: string;
+  ticket: string;
+  serviceName: string;
+  status: "queued" | "printing" | "printed" | "failed" | "cancelled";
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+  printedAt: string | null;
+  reprint: boolean;
+  canReprint: boolean;
+}
+
+/** `GET /clinic/queue-display-settings`; `version` is null while the facility uses the defaults. */
+export interface QueueDisplaySettings {
+  facilityId: string;
+  headline: string | null;
+  footerMessage: string | null;
+  accentColor: string | null;
+  groupByServicePoint: boolean;
+  version: number | null;
 }

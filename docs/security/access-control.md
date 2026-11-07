@@ -6,9 +6,16 @@
   (below).
 - Lockout: 5 consecutive failures lock the account for 15 minutes (MFA failures count too).
 - Login responses do not reveal whether an email exists; unknown emails still
-  run a password verification for similar timing.
+  run a password verification for similar timing. A locked account answers the
+  same (`invalid_credentials`, also after a password verification), staff and
+  MyHealth alike, so sign-in is not a way to learn that an account exists or
+  is locked; the audit trail records the real reason (`account_locked` /
+  `locked`). The second step (an authenticator code, a passkey), reached only
+  after the password, still says `account_locked`.
 - TOTP MFA (RFC 6238), optional unless the organization requires it (below).
-  Secrets are encrypted at rest with AES-256-GCM (`MFA_ENCRYPTION_KEY`).
+  Secrets are encrypted at rest with AES-256-GCM, bound to their account's row and sealed with a key ring
+  (`MFA_ENCRYPTION_KEY`, `MFA_ENCRYPTION_KEYS`, `MFA_ENCRYPTION_KEY_ID`; older values re-sealed on use;
+  `docs/runbooks/mfa-key-rotation.md`).
   Enrollment requires confirming a code. Each code works once: the last
   accepted time step is kept (`app_user.mfa_last_used_step`, migration
   `0092`) and a code for that step or an earlier one is refused, checked with
@@ -58,6 +65,14 @@ have no internet access). A production API with it off logs a warning at start-u
 proxy refuses every new password until that is arranged.
 
 ### Idle sign-out (staff app)
+
+**On the server too:** a staff session not refreshed for `SESSION_IDLE_MINUTES` (API, default 720 = 12 hours; `0` off)
+is ended at its next refresh (`revoked_reason = 'idle'`; `sessionIdle` in `libs/auth/src/lib/session.service.ts`), so
+a browser closed or abandoned without signing out does not keep a live session for the full refresh lifetime. A tab
+left open and polling still refreshes, which is what the browser's own idle sign-out below is for.
+MyHealth sessions (browser and phone) follow the same rule with their own setting, `PORTAL_SESSION_IDLE_MINUTES`
+(default 720; `0` off): a patient whose app or browser has not refreshed for that long signs in again (with a remembered
+browser and two-step verification as before). A longer window suits a phone app opened once a day.
 
 A staff browser left alone is signed out after `STAFF_IDLE_MINUTES` without keyboard, pointer or touch activity
 (default 20; `0` turns it off; `apps/staff/src/components/idle-sign-out.tsx`, rules in `apps/staff/src/lib/idle.ts`):
@@ -133,6 +148,12 @@ User ──membership──▶ Organization
 - Nobody can grant a role or create a role containing permissions they do not
   hold themselves (privilege-escalation guard, audited).
 - Platform administrators (`is_platform_admin`) can create organizations.
+  Their routes (`@RequirePlatformAdmin`: organizations, rate limits, audit
+  retention, payload keys) act across every organization, so in production they
+  answer only when the administrator has two-step verification on
+  (`PLATFORM_ADMIN_MFA_REQUIRED`, unset = required in production only);
+  otherwise `403 platform_admin_mfa_required`, audited `access.deny`. Their own
+  account routes still answer, so they can turn it on.
 - Authorization is enforced server-side on every route; tenant isolation is
   enforced again in every query and by composite foreign keys.
 
@@ -282,9 +303,18 @@ sub-records / consent / preferences, document create / upload / list / download
   with none). Browsers present a ticket from
   `POST /auth/realtime-tickets`: a JWT typed `realtime`, valid 60 seconds,
   bound to one session and facility, and refused as an access token (and vice
-  versa). A ticket is not single-use: replayed within its minute it opens a
-  socket for the same user and facility only, and never after the session ends.
+  versa). A ticket is single-use (migration `0147`, `ConsumedTokens` in
+  `libs/core`: its SHA-256 is recorded when its socket opens and a second use is
+  refused), and so is the sign-in challenge between the password and the second
+  step, staff and MyHealth alike: a wrong code leaves it usable for another try,
+  a successful second step spends it, so it never opens a second session.
   Server-side clients may still connect with an access token and facility id.
+  Every open socket is checked again every minute (`RealtimeGateway.revalidateAll`,
+  `REALTIME_REVALIDATE_MS`) with the identity it was opened with: an ended
+  session, a suspended account, a revoked membership or no permission left at
+  the facility disconnects it (`unauthorized`), and a channel whose permission
+  was removed is left; a MyHealth socket is checked for its session, account
+  and portal consent the same way.
 
 ## Two-step verification policy
 
@@ -344,3 +374,12 @@ Details in [portal-app.md](../architecture/portal-app.md#two-step-verification).
 
 Nothing here constitutes a claim of Data Privacy Act compliance; compliance
 must be assessed against current official requirements (CLAUDE.md §36).
+
+## Browser script policy (staff app and MyHealth)
+
+Both apps send a Content Security Policy with a fresh nonce on every page (`buildAppCsp` in `libs/web-session`, applied
+in each app's `proxy.ts`; zero-trust audit F2): scripts run only when they carry the request's nonce (`'strict-dynamic'`),
+so markup that got through cannot run script; connections go only to the app itself, the live-update socket
+(`REALTIME_URL`) and `CSP_CONNECT_ORIGINS` (the video service); signed document links may be shown as images or in a
+frame (`https:`), never run; no plugins, no other site may frame the apps. A nonce needs a page rendered per request, so
+each root layout calls `connection()`. The kiosk has its own, stricter policy (`apps/kiosk/src/lib/csp.ts`).

@@ -2,6 +2,7 @@ import { Logger } from "@nestjs/common";
 import type { AppConfig } from "@healthcare/core";
 import { PermanentDeliveryError } from "../notification.dispatcher";
 import type { ChannelSender, SendContext, SendResult } from "../ports";
+import { isPublicPushEndpoint } from "./push-endpoint";
 import type { RenderedMessage } from "../templates";
 import { type ExpoPushTransport, expoTokenIsGone } from "./expo-push.transport";
 import { PushSubscriptionService } from "./push-subscription.service";
@@ -84,6 +85,13 @@ export class WebPushSender implements ChannelSender {
     if (!this.web) return;
     const payload = pushPayload(message);
     for (const s of subscriptions) {
+      // Checked again at sending: a subscription stored before the push-service list (or edited in the database) is
+      // never sent to an address outside it, and is dropped like a gone device.
+      if (!isPublicPushEndpoint(s.endpoint)) {
+        await this.devices.recordResult(s.id, "gone");
+        this.logger.warn(`Push device ${s.id} has an endpoint outside the browser push services; it was dropped`);
+        continue;
+      }
       try {
         const { statusCode } = await this.web.send({ endpoint: s.endpoint, keys: { p256dh: s.p256dh ?? "", auth: s.auth ?? "" } }, payload, {
           ttlSeconds: 86_400,

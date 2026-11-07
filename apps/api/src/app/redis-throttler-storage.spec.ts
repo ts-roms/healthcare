@@ -124,14 +124,25 @@ describe("RedisThrottlerStorage", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it("lets requests through while Redis is unreachable, warning at most once a minute", async () => {
+  it("keeps counting in memory while Redis is unreachable, warning at most once a minute", async () => {
     const warn = jest.spyOn(storage["logger"], "warn").mockImplementation(() => undefined);
     redis.down = true;
-    for (let i = 0; i < 5; i += 1) expect(await hit()).toMatchObject({ totalHits: 0, isBlocked: false, timeToExpire: 60 });
+    const hits: number[] = [];
+    for (let i = 0; i < 5; i += 1) hits.push((await hit()).totalHits);
+    expect(hits).toEqual([1, 2, 3, 4, 5]);
     expect(redis.evals).toBe(5);
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn.mock.calls[0]?.[0]).toMatchObject({ event: "rate_limit.redis_unreachable" });
     redis.down = false;
     expect(await hit()).toMatchObject({ totalHits: 1, isBlocked: false });
+  });
+
+  it("refuses over the limit from its own count while Redis is unreachable", async () => {
+    jest.spyOn(storage["logger"], "warn").mockImplementation(() => undefined);
+    redis.down = true;
+    const results = [];
+    for (let i = 0; i < 4; i += 1) results.push(await storage.increment("client", 60_000, 3, 0, "default"));
+    expect(results.map((r) => r.isBlocked)).toEqual([false, false, false, true]);
+    expect(results[3]?.timeToBlockExpire).toBeGreaterThan(0);
   });
 });

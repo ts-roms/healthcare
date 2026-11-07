@@ -502,6 +502,9 @@ export default async function PatientPage({ params, searchParams }: { params: Pr
                         {i.validUntil ? <span className="ml-2 text-meta text-muted-foreground">until {clinicalDate(i.validUntil)}</span> : null}
                       </Row>
                     ))}
+                    {p.identifiersMasked ? (
+                      <p className="col-span-2 text-meta text-muted-foreground">Numbers are shown masked; your role does not include seeing them in full.</p>
+                    ) : null}
                   </dl>
                 ) : (
                   <p className="text-body text-muted-foreground">No identifiers recorded (PhilHealth PIN, PhilSys, SC/PWD ID, HMO).</p>

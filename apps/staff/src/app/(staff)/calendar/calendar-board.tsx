@@ -36,6 +36,7 @@ import {
   weekdayOf,
 } from "@/lib/calendar";
 import { cancelCalendarEvent, createCalendarEvent, updateCalendarEvent } from "./actions";
+import { DayView } from "./calendar-day";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_CHIP_LIMIT = 3;
@@ -93,6 +94,7 @@ export function CalendarBoard({
   view,
   date,
   today,
+  nowIso,
   events,
   appointments,
   appointmentsTruncated,
@@ -105,6 +107,8 @@ export function CalendarBoard({
   view: CalendarView;
   date: string;
   today: string;
+  /** The server's time at render (the day view's current-time line starts from it). */
+  nowIso: string;
   events: CalendarEventItem[];
   appointments: AppointmentItem[];
   appointmentsTruncated: boolean;
@@ -133,22 +137,6 @@ export function CalendarBoard({
   );
   const byDay = React.useMemo(() => entriesByDay(entries, timeZone), [entries, timeZone]);
   const days = viewDays(view, date);
-  const roomColumns = React.useMemo(() => {
-    if (view !== "day" || !byRoom) return null;
-    const items = byDay.get(date) ?? [];
-    const columns = new Map<string, { name: string; items: typeof items }>();
-    for (const entry of items) {
-      const room = entry.appointment?.room ?? null;
-      const key = room ? room.id : "none";
-      const name = room ? room.name : entry.source === "event" ? "Events and no room" : "No room";
-      const column = columns.get(key) ?? { name: key === "none" ? "Events and no room" : name, items: [] };
-      column.items.push(entry);
-      columns.set(key, column);
-    }
-    return [...columns.entries()]
-      .map(([key, c]) => ({ key, ...c }))
-      .sort((a, b) => (a.key === "none" ? 1 : b.key === "none" ? -1 : a.name.localeCompare(b.name)));
-  }, [view, byRoom, byDay, date]);
   const month = date.slice(0, 7);
 
   const run = (call: () => Promise<ActionResult<unknown>>, success: string, done: () => void) =>
@@ -167,7 +155,7 @@ export function CalendarBoard({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        {canManage ? (
+        {canManage && view !== "day" ? (
           <Button size="sm" onClick={() => setEditing({ event: null, date })}>
             <CalendarPlusIcon /> New event
           </Button>
@@ -240,24 +228,23 @@ export function CalendarBoard({
             })}
           </div>
         </div>
-      ) : roomColumns ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {roomColumns.length === 0 ? <p className="text-meta text-muted-foreground">Nothing scheduled.</p> : null}
-          {roomColumns.map((column) => (
-            <Card key={column.key} className="p-3">
-              <h2 className="text-table font-medium">{column.name}</h2>
-              <ul className="mt-2 flex flex-col gap-1">
-                {column.items.map((entry) => (
-                  <li key={entry.key}>
-                    <EntryChip entry={entry} timeZone={timeZone} onOpenEvent={setViewing} />
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ))}
-        </div>
+      ) : view === "day" ? (
+        <DayView
+          date={date}
+          today={today}
+          nowIso={nowIso}
+          entries={byDay.get(date) ?? []}
+          timeZone={timeZone}
+          byRoom={byRoom}
+          canManage={canManage}
+          canOpenAppointments={canOpenAppointments}
+          practitionerNames={practitionerNames}
+          onEditEvent={(event) => setEditing({ event, date })}
+          onCancelEvent={setViewing}
+          onNewEvent={() => setEditing({ event: null, date })}
+        />
       ) : (
-        <div className={`grid gap-3 ${view === "week" ? "md:grid-cols-2 xl:grid-cols-7" : ""}`}>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           {days.map((day) => {
             const items = byDay.get(day) ?? [];
             return (

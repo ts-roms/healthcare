@@ -416,6 +416,11 @@ describe("laboratory journey", () => {
     const events = await get(`/specimens/${specimen.id}/events`, medtech).expect(200);
     expect(events.body.map((e: { event: string }) => e.event)).toEqual(["collected", "rejected", "recollection_requested"]);
 
+    // Acting in another facility, not even an organization-wide grant changes this facility's order.
+    const elsewhere = (path: string) =>
+      ctx.http().post(`/api/v1/laboratory${path}`).set(as(doctor, tenant.otherFacilityId)).send({ reason: "Patient declined" });
+    await elsewhere(`/orders/${order.body.id}/cancel`).expect(404);
+    await elsewhere(`/orders/${order.body.id}/items/${item}/cancel`).expect(404);
     await post(`/orders/${order.body.id}/cancel`, doctor, { reason: "Patient declined" }).expect(200);
     const cancelled = await get(`/orders/${order.body.id}`, doctor).expect(200);
     expect(cancelled.body).toMatchObject({ status: "cancelled", cancellationReason: "Patient declined" });

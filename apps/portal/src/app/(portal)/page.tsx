@@ -15,11 +15,12 @@ import {
 } from "lucide-react";
 import { Callout } from "@healthcare/ui/primitives";
 import { EmptyState } from "@/components/empty-state";
+import { KioskPromo } from "@/components/kiosk-promo";
 import { ResultMeaning } from "@/components/result-meaning";
 import { VisitCard } from "@/components/visit-card";
 import { portalApi } from "@/lib/api/client";
 import { getMe } from "@/lib/api/session";
-import type { PortalAppointments, PortalResult } from "@/lib/api/types";
+import type { PortalAppointments, PortalKiosk, PortalResult } from "@/lib/api/types";
 import { greeting } from "@/lib/greeting";
 import { latestPerTest, resultDate, resultValue } from "@/lib/records";
 
@@ -39,11 +40,13 @@ const RECORDS: { label: string; hint: string; href: string; icon: LucideIcon }[]
 ];
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ welcome?: string }> }) {
-  const [me, { welcome }, appointments, results] = await Promise.all([
+  const [me, { welcome }, appointments, results, kiosk] = await Promise.all([
     getMe(),
     searchParams,
     portalApi<PortalAppointments>("/portal/appointments"),
     portalApi<PortalResult[]>("/portal/results"),
+    // A notice must never stop the home page: without an answer it is simply not shown.
+    portalApi<PortalKiosk>("/portal/kiosk").catch(() => null),
   ]);
   const recent = latestPerTest(results).slice(0, 3);
   // Home shows what is still going to happen; cancelled visits stay listed under Visits.
@@ -81,6 +84,8 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           </EmptyState>
         )}
       </section>
+
+      {kiosk?.available ? <KioskPromo locations={kiosk.locations} /> : null}
 
       <nav aria-label="Quick actions" className="grid grid-cols-4 gap-2">
         {QUICK.map(({ label, href, icon: Icon, tone }) => (

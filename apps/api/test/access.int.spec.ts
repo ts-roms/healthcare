@@ -103,6 +103,41 @@ describe("access control", () => {
     expect(escalation).toHaveLength(1);
   });
 
+  it("keeps a facility-scoped user manager to their own facility and away from themselves", async () => {
+    const branchManagerId = await createStaff(ctx.pool, tenant, "branch-manager@example.ph", []);
+    const targetId = await createStaff(ctx.pool, tenant, "branch-target@example.ph", []);
+    await ctx.pool.query(
+      `INSERT INTO role (organization_id, key, name) VALUES ($1, 'branch_user_manager', 'Branch user manager'), ($1, 'user_viewer', 'User viewer')`,
+      [tenant.organizationId],
+    );
+    await ctx.pool.query(
+      `INSERT INTO role_permission (role_id, permission_key)
+       SELECT r.id, p FROM role r, unnest(ARRAY['user.read', 'user.manage']) AS p WHERE r.key = 'branch_user_manager' AND r.organization_id = $1
+       UNION ALL SELECT r.id, 'user.read' FROM role r WHERE r.key = 'user_viewer' AND r.organization_id = $1`,
+      [tenant.organizationId],
+    );
+    await ctx.pool.query(
+      `INSERT INTO role_assignment (organization_id, user_id, role_id, facility_id)
+       SELECT $1, $2, id, $3 FROM role WHERE key = 'branch_user_manager' AND organization_id = $1`,
+      [tenant.organizationId, branchManagerId, tenant.otherFacilityId],
+    );
+    const viewerId = (await ctx.pool.query(`SELECT id FROM role WHERE key = 'user_viewer' AND organization_id = $1`, [tenant.organizationId])).rows[0].id;
+    const { accessToken } = await login(ctx, "branch-manager@example.ph");
+    const grant = (userId: string, body: object) =>
+      ctx.http().post(`/api/v1/users/${userId}/role-assignments`).set(as(accessToken, tenant.otherFacilityId)).send(body);
+
+    await grant(targetId, { roleId: viewerId, facilityId: tenant.otherFacilityId }).expect(201);
+    await grant(targetId, { roleId: viewerId })
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe("grant_outside_actor_scope"));
+    await grant(targetId, { roleId: viewerId, facilityId: tenant.facilityId })
+      .expect(403)
+      .expect((r) => expect(r.body.error.code).toBe("grant_outside_actor_scope"));
+    await grant(branchManagerId, { roleId: viewerId, facilityId: tenant.otherFacilityId })
+      .expect(422)
+      .expect((r) => expect(r.body.error.code).toBe("self_modification"));
+  });
+
   it("lets an administrator add staff, grant a scoped role and suspend them", async () => {
     const admin = await login(ctx, "admin@example.ph");
     const created = await ctx
@@ -139,5 +174,24 @@ describe("access control", () => {
     await createStaff(ctx.pool, tenant, "platform@example.ph", ["org_admin"], { platformAdmin: true });
     const platform = await login(ctx, "platform@example.ph");
     await ctx.http().post("/api/v1/organizations").set(as(platform.accessToken)).send({ code: "new-org", name: "New Org" }).expect(201);
+  });
+
+  it("answers platform administrator routes only with two-step verification on, where required", async () => {
+    // Required by default in production; on here for the test (ctx.config is the running app's configuration).
+    const config = ctx.config as { PLATFORM_ADMIN_MFA_REQUIRED?: boolean };
+    config.PLATFORM_ADMIN_MFA_REQUIRED = true;
+    try {
+      const platform = await login(ctx, "platform@example.ph");
+      const refused = await ctx.http().post("/api/v1/organizations").set(as(platform.accessToken)).send({ code: "mfa-org", name: "MFA Org" }).expect(403);
+      expect(refused.body.error.code).toBe("platform_admin_mfa_required");
+      expect(await auditRows(ctx.pool, `action = 'access.deny' AND reason = 'platform_admin_mfa_required'`)).toHaveLength(1);
+      // The person's own routes still answer, so they can turn it on.
+      await ctx.http().get("/api/v1/auth/me").set(as(platform.accessToken)).expect(200);
+      // Re-checked on every request: with two-step verification on, the same session is admitted.
+      await ctx.pool.query(`UPDATE app_user SET mfa_enabled = true, mfa_secret_encrypted = 'test-not-used' WHERE email = 'platform@example.ph'`);
+      await ctx.http().post("/api/v1/organizations").set(as(platform.accessToken)).send({ code: "mfa-org", name: "MFA Org" }).expect(201);
+    } finally {
+      delete config.PLATFORM_ADMIN_MFA_REQUIRED;
+    }
   });
 });

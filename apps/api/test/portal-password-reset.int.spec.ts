@@ -1,7 +1,7 @@
 import { Test } from "@nestjs/testing";
 import { CoreModule } from "@healthcare/core";
 import { CHANNEL_SENDERS, LoggingSender, NOTIFICATION_QUEUE, NotificationDispatcher, NotificationWorkerModule } from "@healthcare/notification";
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, underPlatform, openedVariable } from "./harness";
 
 const OLD_PASSWORD = "Pahintulot-ko-2026";
 const NEW_PASSWORD = "Bagong-sikreto-2026";
@@ -40,7 +40,11 @@ describe("MyHealth password reset", () => {
     ).rows;
   const latestToken = async () => {
     const rows = await messages("portal.password-reset");
-    const link = rows[rows.length - 1]!.variables.link!;
+    const stored = rows[rows.length - 1]!.variables.link;
+    // While it waits to be sent, the link is sealed in the database (never readable there: audit L3).
+    if (rows[rows.length - 1]!.status === "queued") expect(stored).toMatch(/^sealed:v2\./);
+    expect(stored).not.toContain("#token=");
+    const link = openedVariable(ctx, stored);
     expect(link).toMatch(/^https:\/\/myhealth\.test\.invalid\/reset-password#token=[\w-]{20,}$/);
     return link.split("#token=")[1]!;
   };

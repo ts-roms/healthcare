@@ -72,6 +72,8 @@ case, after booking you return to where you started.
 
 **Calendar** in the menu shows the selected facility's month, week or day. Appointments and staff events appear together (untick **Show appointments** to see events only); click an appointment to open that day's schedule.
 
+**The day view** shows the hours of the day in the middle, with each appointment and event drawn where it falls (two that overlap sit side by side) and all-day events above the hours; on today a red line marks the current time. On the left are a small month (select a date to open that day), the **Day total** (what is scheduled, in hours, split into appointments and events) and what comes **Up next**. Select any entry to see it in full on the right: an appointment shows its status, the doctor, the room and the reason for the visit, with **Open in appointments**; an event shows its place, notes and who is invited, with **Edit event** and **Cancel event…** if you may change it. **By room** puts each room in its own column. On a phone the three parts stack, hours first.
+
 1. Choose **New event**, give it a title and a type (meeting, event, blocked time, training or reminder).
 2. Set the start and end (or tick **All day**). Times are in the facility's time zone.
 3. Choose who can see it: everyone with calendar access, or only you and the clinicians you invite.
@@ -193,6 +195,99 @@ physician signs the encounter.
 Patients who enter the MyHealth waiting room for an online consultation are checked in automatically and appear as **Ready for provider**. Their
 panel offers **Open in Telemedicine** instead of **Start consultation**; the consultation starts there (see [Telemedicine](05-telemedicine.md)).
 
+### Recall, no-show and putting a patient back in line
+
+These appear in the ticket panel next to **Call patient to**.
+
+1. **Recall** repeats the call to the same place. Use it when the patient was called and did not come: the waiting-room
+   screen announces the ticket again. It appears once the patient has been called.
+2. **No-show…** closes the visit when the patient never came forward. Add a note if you like and choose **Mark no-show**.
+   The visit leaves the waiting list and is counted as a no-show in the figures above the board. You cannot mark a
+   no-show for a patient who is already with the provider.
+3. **Put back in line** is on a visit closed as left without being seen (a no-show, or someone who stepped out and came
+   back). Say why, then choose **Put back in line**: the patient keeps their ticket but joins behind those who arrived
+   since. It works on the same day only, up to three times per visit, and not if the patient has checked in again.
+
+If you would rather keep the visit open, use **Skip** (the patient goes back behind later arrivals).
+
+### How to set up a patient kiosk
+
+A **patient kiosk** is a touch screen in the waiting area where patients check themselves in and take a queue number. Setting one up takes about ten minutes
+and is done by an administrator (`clinic.configure`, `user.manage`, `kiosk.device.manage`). Do the steps in this order.
+
+1. **Choose the services the kiosk offers.** Open **Appointments → Online booking** (`/appointments/visit-types`) and tick **Patient kiosk** on each in-person
+   visit type that patients may pick on arrival, for example "Consultation". A kiosk lists only the visit types ticked here, so with none ticked there is
+   nothing to choose. Online (video) types are never offered. **Mind the name:** the service's name is shown on the kiosk screen, printed on the ticket and grouped on the
+   waiting-room screen, where other patients can see it. Do not offer a service whose name would reveal a sensitive condition; give it a neutral name such
+   as "Consultation", or send those patients to the front desk. See [How to set up visit types](#how-to-set-up-visit-types-and-choose-which-patients-may-book-online).
+2. **Create the kiosk's own account.** Under **Settings → Staff users** create a staff account only for this device (for example `front-kiosk`), and grant it the
+   single role **Patient kiosk** at the kiosk's facility. Use a long random password. Add no other role: an account that can read patient records is refused
+   at registration. If your organization requires two-step verification for staff, exempt this account with a reason, because the kiosk signs in with a
+   password only.
+3. **Register the device.** Open **Queue → Devices**, choose **Register a device**, pick **Kiosk**, give it a **Code** (3–40 lower-case letters, digits or
+   hyphens, for example `front-1`) and a **Name**, and choose the account from step 2. Leave **Prints tickets** off for now.
+4. **Set up the screen itself.** Open the kiosk's address on the device in a full-screen kiosk-mode browser (your IT team provides the address). The first time,
+   it asks you to sign in: use the kiosk account once. After that the screen stays signed in and renews itself. In **Queue → Devices** the kiosk should show
+   **Online** within a minute.
+5. **Try it with a test patient.** Check in as a walk-in and, if you have a test appointment, for the appointment. Watch the ticket appear on the **Queue**
+   board, and a new-patient registration appear under **Queue → Registrations**. Use test data only.
+6. **Optional: ticket printing.** Add a receipt printer (80 mm or 58 mm, ESC/POS) and the **print agent** program on a computer next to it. Create the agent's own
+   account with the single role **Kiosk print agent**. The agent itself needs only how to reach the API and sign in; the rest is set here. Open **Queue → Devices →
+   Edit** on the kiosk and, under **Printer**, choose **Where is the printer?**: **On the clinic's network** (enter its **Printer address**, for example
+   `192.168.1.50`, and the **Port**, usually 9100) or **Connected to the agent's computer**; choose the **Paper width**; then check the printer as the print agent
+   runbook describes, and only then tick **Prints tickets** and **Save**. The agent picks up the change within a minute, with nothing to change on its computer.
+   An address outside the clinic's network is refused. If you run several agents, choose which one serves this kiosk under **Print agent**; with none chosen, any
+   print agent of the facility may serve it.
+7. **Keep it safe.** Put the kiosk and its printer on a network that visitors do not use, allow it to reach only the API over https, and keep the cabinet and
+   its ports locked.
+
+Until a printer is checked, the kiosk shows the queue number on screen only and says nothing about printing. To take a kiosk out of service, set it to
+**Maintenance** (it serves nobody) or **Disabled** (it is refused) under **Edit**. Patients are told about kiosks on their MyHealth home page while one is in
+service; the front desk is always the fallback.
+
+### How to see your kiosks and screens, and print a ticket again
+
+Open **Queue → Devices**. Each kiosk and waiting-room screen is listed with whether it is **Online** (it keeps reporting), when it last did, its
+version and, for a kiosk, whether its **printer is working** (it also says when the printer is out of paper or not reachable). A device you put into
+**Maintenance** serves nobody; **Disabled** is refused. An administrator can **Register a device** (create its account first in Administration → Users
+with the **Patient kiosk** or **Waiting-room display** role) and **Edit** a name or status.
+
+**Where a kiosk may be used.** If the clinic has a fixed internet address (ask your internet provider), choose **Edit** on the kiosk and enter it under
+**Allowed networks**, one per line: an address such as `203.0.113.7`, or a range such as `203.0.113.0/24`, up to 10. The kiosk then works only from
+there: if its sign-in were copied and used elsewhere, it is refused and recorded in the audit trail. Leave it empty to allow the kiosk anywhere (the
+default). If a kiosk suddenly says it cannot be used from this network, the clinic's address has probably changed: update the list.
+
+Below are the kiosk tickets of the last 24 hours and how each print went. If a patient lost a ticket or it did not print, choose **Print again…** on its
+row, say why and confirm. A ticket can be printed again twice, only after the earlier print has finished, and only while the patient is still in the queue.
+The kiosk always shows the number on its screen, so a printer problem never stops a check-in. A kiosk without a printer keeps **Prints tickets** off (Edit on the device); turn it on only after the printer has been set up and checked.
+
+### How to review a registration typed at a kiosk
+
+New patients can register on a kiosk in the waiting area. They are not patients yet: open **Queue → Registrations** (the
+number shows how many are waiting, and the list updates by itself).
+
+1. Choose **Review** on a row. You see what the person typed and any existing records that look like them.
+2. Check the person's identification against the details, tick **I checked the person's identification** and, if you
+   like, say how in the box below it (for example, "PhilHealth ID shown"). The system records that you checked, and how.
+3. Decide: **Approve and register** creates the record (choose a service under **Put in the queue for** to give them a
+   ticket at the same time); **Same person — link** closes the registration against the existing record; **Decline…**
+   needs a reason.
+4. If there are possible matches, approving needs you to confirm that this is a different person and say why.
+5. To correct a mistyped detail, approve, then use **Edit details** on the patient record.
+
+The typed details are erased as soon as you decide, and after 24 hours if nobody does.
+
+**Requests from MyHealth.** If your organization offers pre-registration, people who are not yet patients can send their
+details from the MyHealth app before their first visit. They appear in the same list with **MyHealth** under **From**,
+and you review them exactly as above: check the person's identification (usually when they arrive), then approve, link
+or decline. They wait as long as your organization chose (7 days unless changed). Approving does not give the person
+MyHealth access: invite them from the patient record as usual.
+
+**Turning it on (administrators).** At the bottom of **Queue → Registrations**, in **Pre-registration from MyHealth**,
+tick **Offer pre-registration in MyHealth**, paste your organization's own privacy notice (what it must say is your data
+protection officer's decision; changing it makes a new version) and choose how many days a request waits, then
+**Save**.
+
 ### How to work a patient's route
 
 A route is the planned sequence of service points for one visit — say **Emergency room → Laboratory → X-ray**. It is planned at triage (the
@@ -258,6 +353,12 @@ those waiting (urgent patients are seen first, so the order would seem to jump).
    allows it.
 4. Call patients from the queue board as usual (**Call patient to** → **Call**). The call appears on the display within a second while it shows
    **Live**; otherwise within 15 seconds.
+
+The clinic can give the screen its own look in **Settings → Service points → Waiting-room display**: a headline and a footer line in your own
+words, a colour (a colour that would make the white numbers hard to read is refused), and **Show calls by department**, which adds a block listing
+each service point's latest calls and how many wait there. If several tickets are called close together, the screen reads them out one after the
+other, never over each other, and never twice; if the sound or the voice stops working, the screen says so at the bottom. To see whether a screen
+is alive, open **Queue → Devices**.
 
 Receptionists and administrators can also open the display from **Queue** → **Open waiting-room display** (it opens in a new tab). A ticket
 leaves the display when the visit is closed (done, cancelled or left without being seen); the display starts empty each day.
@@ -377,12 +478,15 @@ Visit types (Consultation, Follow-up, Online consultation…) are what every app
 organization has none: until a clinic administrator adds one, **Book appointment** and **Check in walk-in** say that no visit types are set up.
 
 1. Open **Appointments** and select **Online booking** (`/appointments/visit-types`).
-2. The table lists each visit type with its code, **Where** (**In person** or **Online (video)**), **Duration**, **Status** and **Online booking**.
+2. The table lists each visit type with its code, **Where** (**In person** or **Online (video)**), **Duration**, **Status**, **Online booking** and **Patient kiosk**.
 3. To add one, select **Add a visit type…** and fill in the **Name** staff and patients see, a **Code** (2–49 letters, digits or hyphens, unique in
    your organization; it can never be changed), **Where** the visit happens, its **Usual length** in minutes (5–480; the length of the slot offered
    when booking), whether patients go through **Triage before the consultation**, and whether **Patients may book it themselves in MyHealth**. Select
    **Add visit type**.
 4. Tick the box to open a visit type for booking in MyHealth (**Patients can book**); untick it to make it **Staff only**.
+   Tick **Patient kiosk** to offer an in-person visit type on the patient kiosk for walk-in check-in (**Offered at the kiosk**); a kiosk lists only the
+   visit types ticked here, so with none ticked it has no service to offer. Online (video) visit types are never offered at a kiosk. When adding a visit
+   type, the same choice is **Offer it at the patient kiosk (walk-in check-in)**.
 5. To retire a visit type, select **Deactivate…** on its row and confirm. It is no longer offered for bookings, walk-ins or online booking;
    appointments and visits already recorded keep it, and it stays in the list as **Inactive**. Visit types are never deleted.
 

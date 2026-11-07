@@ -11,11 +11,14 @@ import {
   DATABASE,
   type Database,
   type DbExecutor,
-  decryptSecret,
-  encryptSecret,
   NotFoundError,
   type RequestMetadata,
   UnauthenticatedError,
+  ConsumedTokens,
+  tokenExpiry,
+  mfaKeyring,
+  openBound,
+  sealBound,
 } from "@healthcare/core";
 import { organization } from "@healthcare/organization";
 import { and, count, eq, isNull, sql } from "drizzle-orm";
@@ -52,6 +55,11 @@ const WRONG_CODE = "That code is not correct. Try the newest code in your authen
  * - A patient who lost both the app and the codes is helped at the clinic, which turns it off after checking identity;
  *   that ends every session and is audited.
  */
+/** What a MyHealth account's two-step verification secret is bound to: the account row. */
+export function portalMfaBinding(accountId: string): string {
+  return `patient_portal_account:${accountId}`;
+}
+
 @Injectable()
 export class PortalMfaService {
   private readonly logger = new Logger(PortalMfaService.name);
@@ -65,6 +73,7 @@ export class PortalMfaService {
     private readonly audit: AuditService,
     private readonly devices: PortalTrustedDeviceService,
     private readonly passkeys: PortalPasskeyService,
+    private readonly consumedTokens: ConsumedTokens,
   ) {}
 
   async status(principal: PortalPrincipal): Promise<PortalMfaStatusView> {
@@ -89,7 +98,7 @@ export class PortalMfaService {
     await this.db.transaction(async (tx) => {
       await tx
         .update(patientPortalAccount)
-        .set({ mfaPendingSecretEncrypted: encryptSecret(secret, this.config.MFA_ENCRYPTION_KEY), updatedAt: new Date() })
+        .set({ mfaPendingSecretEncrypted: sealBound(secret, mfaKeyring(this.config), portalMfaBinding(account.id)), updatedAt: new Date() })
         .where(eq(patientPortalAccount.id, account.id));
       await this.audit.record(tx, this.accounts.principalContext(principal), {
         action: "portal.mfa-setup-start",
@@ -109,7 +118,7 @@ export class PortalMfaService {
         if (account.mfaEnabled) throw new ConflictError("Two-step verification is already on", undefined, "mfa_already_enabled");
         if (!account.emailVerifiedAt) throw new BusinessRuleError("Verify your email address first", "email_not_verified");
         if (!account.mfaPendingSecretEncrypted) return { kind: "not_started" };
-        const secret = decryptSecret(account.mfaPendingSecretEncrypted, this.config.MFA_ENCRYPTION_KEY);
+        const secret = openBound(account.mfaPendingSecretEncrypted, mfaKeyring(this.config), portalMfaBinding(account.id)).plaintext;
         const step = verifyTotpStep(secret, code.replace(/\s+/g, ""));
         if (step === null) return { kind: "bad" };
         const now = new Date();
@@ -237,6 +246,11 @@ export class PortalMfaService {
           const checked = await this.checkSecondFactor(tx, fresh, answer.code, true);
           if (!checked.ok) return { kind: "bad" };
           result = checked;
+        }
+        // The challenge opens one session: spent now (a refusal here rolls back the spent code), so it cannot be
+        // replayed with another code or passkey answer while it lasts.
+        if (!(await this.consumedTokens.consume("patient_mfa_challenge", challengeToken, tokenExpiry(claims)))) {
+          throw new UnauthenticatedError("Invalid or expired token", "invalid_token");
         }
         const method = result.kind === "passkey" ? "password+passkey" : result.kind === "totp" ? "password+totp" : "password+recovery_code";
         const tokens = await this.accounts.completeLogin(tx, account, request, method, metadata);
@@ -381,7 +395,16 @@ export class PortalMfaService {
     const kind = secondFactorKind(code);
     if (!kind || !account.mfaSecretEncrypted) return { ok: false };
     if (kind === "totp") {
-      const step = verifyTotpStep(decryptSecret(account.mfaSecretEncrypted, this.config.MFA_ENCRYPTION_KEY), code.replace(/\s+/g, ""));
+      // Opened for this account's own row; one sealed before binding or with an older key is sealed again now (rotation on use).
+      const keyring = mfaKeyring(this.config);
+      const { plaintext, current } = openBound(account.mfaSecretEncrypted, keyring, portalMfaBinding(account.id));
+      if (!current) {
+        await tx
+          .update(patientPortalAccount)
+          .set({ mfaSecretEncrypted: sealBound(plaintext, keyring, portalMfaBinding(account.id)) })
+          .where(eq(patientPortalAccount.id, account.id));
+      }
+      const step = verifyTotpStep(plaintext, code.replace(/\s+/g, ""));
       // A step at or before the last accepted one is a code already used (or older than one used): refused.
       if (step === null || (account.mfaLastUsedStep !== null && step <= account.mfaLastUsedStep)) return { ok: false };
       await tx.update(patientPortalAccount).set({ mfaLastUsedStep: step }).where(eq(patientPortalAccount.id, account.id));

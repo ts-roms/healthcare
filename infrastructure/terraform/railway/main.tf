@@ -1,4 +1,4 @@
-# One Railway environment of the platform: the project, the five app services bound to the repository with their
+# One Railway environment of the platform: the project, the six app services bound to the repository with their
 # config-as-code files, their variables and public domains. Postgres and Redis stay Railway templates created by hand
 # (the provider has no database resource); their connection strings reach the services as Railway references.
 #
@@ -13,8 +13,12 @@ locals {
     portal                = { config_path = "apps/portal/railway.json" }
     "notification-worker" = { config_path = "apps/notification-worker/railway.json" }
     "integration-worker"  = { config_path = "apps/integration-worker/railway.json" }
+    # The patient self-service kiosk's web app (docs/domains/kiosk.md): a public address a kiosk device opens; it calls the API from its server.
+    kiosk = { config_path = "apps/kiosk/railway.json" }
+    # Migrations run once per deploy, here and nowhere else: the only service holding the owner's URL (ADR-0016). No domain.
+    migrate = { config_path = "tools/db/railway.json" }
   }
-  public_services  = ["api", "staff", "portal"]
+  public_services  = ["api", "staff", "portal", "kiosk"]
   backend_services = ["api", "notification-worker", "integration-worker"]
 
   # The public host of each public service: the custom domain when given, else the Railway-provided one.
@@ -23,8 +27,9 @@ locals {
     name => try(railway_custom_domain.public[name].domain, railway_service_domain.public[name].domain)
   }
 
-  # With secrets.app_database_url the API and workers connect as the restricted application role and only the API's
-  # pre-deploy migration uses the owner (docs/runbooks/database-roles.md); without it everything uses the owner.
+  # With secrets.app_database_url the API and workers connect as the restricted application role and only the migrate
+  # service uses the owner (docs/runbooks/database-roles.md, ADR-0016); without it everything uses the owner, which
+  # needs allow_owner_database (first deploy only) and is logged by every service at start-up.
   restricted_database = nonsensitive(var.secrets.app_database_url != null)
   owner_database_url  = "$${{Postgres.DATABASE_URL}}"
 
@@ -36,6 +41,11 @@ locals {
       PORTAL_BASE_URL = "https://${local.public_host.portal}"
       STAFF_BASE_URL  = "https://${local.public_host.staff}"
     },
+    # Railway's Postgres and Redis are reached over its private network without TLS: production refuses plain-text
+    # connections unless this exempts private-network hosts (zero-trust audit D8). Public hosts still need TLS.
+    { ALLOW_PLAINTEXT_PRIVATE_NETWORK = var.allow_plaintext_private_network ? "true" : "false" },
+    # The owner connection is never silent: the services refuse it at start-up unless this says so (first deploy only).
+    { for name, value in { DATABASE_ALLOW_OWNER = "true" } : name => value if !local.restricted_database },
     var.optional_settings,
   )
 
@@ -45,7 +55,6 @@ locals {
       TRUST_PROXY  = "true"
       CORS_ORIGINS = "https://${local.public_host.staff},https://${local.public_host.portal}"
     },
-    { for name, value in { MIGRATION_DATABASE_URL = local.owner_database_url } : name => value if local.restricted_database },
     var.api_settings,
   )
 
@@ -73,13 +82,24 @@ locals {
     paymongo_webhook_secret = "PAYMONGO_WEBHOOK_SECRET"
   }
 
+  # The kiosk's privacy notice, as a variable only when the organization gave one.
+  kiosk_notice_variable = var.kiosk_privacy_notice == null ? {} : { "kiosk/KIOSK_PRIVACY_NOTICE" = { service = "kiosk", name = "KIOSK_PRIVACY_NOTICE", value = var.kiosk_privacy_notice } }
+
   # Every (service, variable) pair this module manages. Keys never carry a value, so for_each stays non-sensitive.
   plain_variables = merge(
     { for pair in setproduct(local.backend_services, keys(local.shared_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.shared_settings[pair[1]] } },
     { for name, value in local.api_settings : "api/${name}" => { service = "api", name = name, value = value } },
-    { for pair in setproduct(["staff", "portal"], keys(local.web_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.web_settings[pair[1]] } },
+    { for pair in setproduct(["staff", "portal", "kiosk"], keys(local.web_settings)) : "${pair[0]}/${pair[1]}" => { service = pair[0], name = pair[1], value = local.web_settings[pair[1]] } },
     { "staff/REALTIME_URL" = { service = "staff", name = "REALTIME_URL", value = "https://${local.public_host.api}/realtime" } },
+    # MyHealth's live updates too: without it the address defaults to the API's private one, which a browser cannot reach.
+    { "portal/REALTIME_URL" = { service = "portal", name = "REALTIME_URL", value = "https://${local.public_host.api}/realtime" } },
+    # Origins the staff app and MyHealth may connect to besides themselves and the socket (the video service), for their script policy.
+    { for svc in ["staff", "portal"] : "${svc}/CSP_CONNECT_ORIGINS" => { service = svc, name = "CSP_CONNECT_ORIGINS", value = var.csp_connect_origins } if var.csp_connect_origins != "" },
     { "portal/PORTAL_ORGANIZATION_CODE" = { service = "portal", name = "PORTAL_ORGANIZATION_CODE", value = var.portal_organization_code } },
+    # The owner's URL, for the migrate service only: the API and workers never hold it (ADR-0016).
+    { "migrate/MIGRATION_DATABASE_URL" = { service = "migrate", name = "MIGRATION_DATABASE_URL", value = local.owner_database_url } },
+    # The organization's own privacy notice shown to a new patient at the kiosk; without it the kiosk shows a plain statement of what it does.
+    local.kiosk_notice_variable,
   )
   shared_secret_pairs = { for pair in setproduct(local.backend_services, keys(local.shared_secret_names)) : "${pair[0]}/${pair[1]}" => { service = pair[0], field = pair[1] } }
   api_secret_pairs    = { for field in keys(local.api_secret_names) : "api/${field}" => { service = "api", field = field } }
@@ -148,6 +168,13 @@ resource "railway_variable" "database_url" {
   value          = local.restricted_database ? var.secrets.app_database_url : local.owner_database_url
   environment_id = railway_project.this.default_environment.id
   service_id     = railway_service.app[each.key].id
+
+  lifecycle {
+    precondition {
+      condition     = local.restricted_database || var.allow_owner_database
+      error_message = "Set secrets.app_database_url to the restricted role's URL (docs/runbooks/database-roles.md); allow_owner_database = true is for the first deploy only."
+    }
+  }
 }
 
 # DATABASE_URL was one of the shared plain variables before the restricted role (0109): keep the existing variables.

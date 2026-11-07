@@ -1,4 +1,4 @@
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, manilaDate, type Tenant, type TestContext } from "./harness";
 
 /**
  * The facility a message was sent from, and the communication log read per facility (migration 0106,
@@ -11,7 +11,8 @@ describe("communication log per facility", () => {
   let admin: string;
   let annexDesk: string;
   let patientId: string;
-  const today = new Date().toISOString().slice(0, 10);
+  // The log counts days in Asia/Manila: a UTC date is yesterday there between midnight and 08:00.
+  const today = manilaDate(0);
   const period = `from=${today}&to=${today}`;
   const registered = { givenName: "Juan", organizationName: "Demo Health", patientNumber: "P00000001" };
 

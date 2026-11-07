@@ -22,6 +22,7 @@ import { PortalProxyService } from "./proxy/proxy.service";
 import { PatientController } from "./patient.controller";
 import { PatientRecordService } from "./patient-record.service";
 import { PatientReportingQueries } from "./patient-reporting.queries";
+import { PatientIdentityService } from "./identity/patient-identity.service";
 import { PatientRegistrationService } from "./patient-registration.service";
 import { PatientSearchService } from "./patient-search.service";
 import { PatientQrController } from "./qr/qr.controller";
@@ -57,6 +58,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PatientPortalProxyController,
   ],
   providers: [
+    PatientIdentityService,
     PatientRecordService,
     PatientTimelineQueries,
     PatientReportingQueries,
@@ -82,6 +84,7 @@ import { PatientTimelineQueries } from "./patient-timeline.queries";
     PortalProxyService,
   ],
   exports: [
+    PatientIdentityService,
     PatientRecordService,
     ConsentTextService,
     PatientTimelineQueries,

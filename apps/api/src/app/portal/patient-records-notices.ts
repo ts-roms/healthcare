@@ -45,7 +45,9 @@ export class PatientRecordsNotices implements OnModuleInit {
     });
     this.handlers.on("RecordsRequestSubmitted", "records.request-new", (event) => this.tellRecordsOffice(event));
     // A patient's own result: the answer reaches the patient without the report or the reason; the office hears of each new one.
-    this.handlers.on("OutsideResultSubmissionAnswered", "portal.outside-result-answered", (event) => this.tellPatient(event, { kind: "outside-result-answered" }));
+    this.handlers.on("OutsideResultSubmissionAnswered", "portal.outside-result-answered", (event) =>
+      this.tellPatient(event, { kind: "outside-result-answered" }),
+    );
     this.handlers.on("OutsideResultSubmitted", "records.outside-result-new", (event) => this.tellOutsideResultOffice(event));
   }
 

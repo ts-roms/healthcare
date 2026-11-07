@@ -1,6 +1,6 @@
 import { createServer, type Server, type Socket } from "node:net";
-import { AstmLinkSession, hl7Ack, MllpDecoder, mllpFrame } from "@healthcare/interoperability/instruments";
-import type { InstrumentListener } from "./config";
+import { AstmLinkSession, hl7Ack, LinkOverflowError, MllpDecoder, mllpFrame } from "@healthcare/interoperability/instruments";
+import { normalizePeer, type InstrumentListener } from "./config";
 import type { PlatformClient } from "./api-client";
 
 type Log = (event: string, detail: Record<string, unknown>) => void;
@@ -13,17 +13,52 @@ function hl7Timestamp(now = new Date()): string {
 
 let ackCounter = 0;
 
+/** One analyzer per listener; a second connection is allowed so a reconnect does not wait for a stale socket to time out. */
+export const MAX_CONNECTIONS_PER_LISTENER = 2;
+
+/**
+ * Zero trust on the clinic network: only the analyzer's own addresses may connect. Anything else is closed before a byte
+ * is read and logged (address only). Returns false when the socket was refused.
+ */
+function admit(listener: InstrumentListener, socket: Socket, log: Log, protocol: string): boolean {
+  const peer = normalizePeer(socket.remoteAddress ?? "");
+  if (listener.allowedPeers.includes(peer)) return true;
+  log(`${protocol}.peer-refused`, { instrumentId: listener.instrumentId, peer });
+  socket.destroy();
+  return false;
+}
+
+/** A peer that sends more than a message may hold without ending it is cut off (the link layers' limit). */
+function overflowed(listener: InstrumentListener, socket: Socket, log: Log, protocol: string, error: unknown): void {
+  if (!(error instanceof LinkOverflowError)) throw error;
+  log(`${protocol}.overflow`, { instrumentId: listener.instrumentId, limit: error.limit });
+  socket.destroy();
+}
+
+function limited(server: Server): Server {
+  server.maxConnections = MAX_CONNECTIONS_PER_LISTENER;
+  return server;
+}
+
 /**
  * HL7 v2 over MLLP: each message is posted to the platform, then acknowledged — AA when the platform took it (or already
  * had it), AR when the platform refused it as unreadable or unsupported, AE when it could not be delivered (the analyzer
  * may then resend it).
  */
 export function hl7Listener(listener: InstrumentListener, client: PlatformClient, log: Log): Server {
-  return createServer((socket: Socket) => {
+  const server = createServer((socket: Socket) => {
+    if (!admit(listener, socket, log, "hl7")) return;
     const decoder = new MllpDecoder();
     let queue = Promise.resolve();
     socket.on("data", (chunk: Buffer) => {
-      for (const message of decoder.push(chunk)) {
+      let messages: string[];
+      try {
+        messages = decoder.push(chunk);
+      } catch (error) {
+        overflowed(listener, socket, log, "hl7", error);
+        return;
+      }
+      for (const message of messages) {
         queue = queue.then(async () => {
           const outcome = await client.submit(listener.instrumentId, message);
           const code = outcome.kind === "accepted" ? "AA" : outcome.kind === "refused" ? "AR" : "AE";
@@ -41,6 +76,7 @@ export function hl7Listener(listener: InstrumentListener, client: PlatformClient
     });
     socket.on("error", (error) => log("hl7.socket-error", { instrumentId: listener.instrumentId, message: error.message }));
   });
+  return limited(server);
 }
 
 /**
@@ -63,13 +99,26 @@ export function astmListener(listener: InstrumentListener, client: PlatformClien
       ...(outcome.kind === "failed" ? { reason: outcome.reason } : {}),
     });
   };
-  return createServer((socket: Socket) => {
+  // Deliveries (and their retries) run one after another, so a flood of transmissions cannot start unbounded work.
+  let deliveries = Promise.resolve();
+  const server = createServer((socket: Socket) => {
+    if (!admit(listener, socket, log, "astm")) return;
     const session = new AstmLinkSession();
     socket.on("data", (chunk: Buffer) => {
-      const { replies, transmissions } = session.push(chunk);
-      if (replies.length && !socket.destroyed) socket.write(Buffer.from(replies));
-      for (const transmission of transmissions) void deliver(transmission);
+      let pushed: { replies: number[]; transmissions: string[] };
+      try {
+        pushed = session.push(chunk);
+      } catch (error) {
+        overflowed(listener, socket, log, "astm", error);
+        return;
+      }
+      if (pushed.replies.length && !socket.destroyed) socket.write(Buffer.from(pushed.replies));
+      for (const transmission of pushed.transmissions)
+        deliveries = deliveries
+          .then(() => deliver(transmission))
+          .catch((error: unknown) => log("astm.delivery-error", { instrumentId: listener.instrumentId, message: String(error) }));
     });
     socket.on("error", (error) => log("astm.socket-error", { instrumentId: listener.instrumentId, message: error.message }));
   });
+  return limited(server);
 }

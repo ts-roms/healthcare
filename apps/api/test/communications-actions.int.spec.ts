@@ -1,4 +1,4 @@
-import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext } from "./harness";
+import { as, auditRows, createStaff, createTenant, createTestApp, juan, login, type Tenant, type TestContext, manilaDate } from "./harness";
 
 /**
  * Resend and cancel from the communication log, and the navigation badges (migration 0099,
@@ -84,7 +84,8 @@ describe("communication log actions and badges", () => {
       .post(`/communications/${suppressed.id}/resend`, { reason: "Once more" })
       .expect(422)
       .expect((r) => expect(r.body.error.code).toBe("notification_already_resent"));
-    const today = new Date().toISOString().slice(0, 10);
+    // The log counts days in Asia/Manila: a UTC date is yesterday there between midnight and 08:00.
+    const today = manilaDate(0);
     const log = (await staff(admin).get(`/communications?from=${today}&to=${today}&patientId=${noContactId}`).expect(200)).body.items as Array<{
       id: string;
       resentFrom: string | null;
@@ -135,6 +136,7 @@ describe("communication log actions and badges", () => {
       caseReports: 0,
       outsideResultsUnreviewed: null,
       outsideResultSubmissions: 0,
+      kioskRegistrations: 0,
     });
     const forNurse = (await staff(nurse).get("/me/badges").expect(200)).body;
     expect(forNurse).toMatchObject({ messagesAwaiting: 0, criticalResults: 0, recordsRequests: null, caseReports: null });

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { actionResult, type ActionResult } from "@/lib/api/action-result";
 import { api } from "@/lib/api/client";
-import type { RouteTemplate, ServicePoint, ServicePointSettings } from "@/lib/api/types";
+import type { QueueDisplaySettings, RouteTemplate, ServicePoint, ServicePointSettings } from "@/lib/api/types";
 
 // Shapes are checked here only to fail fast; the API validates and authorizes every call (clinic.configure).
 
@@ -127,6 +127,40 @@ export async function updateRouteTemplate(
   if (!parsed.success || !z.uuid().safeParse(routeTemplateId).success)
     return { ok: false, message: parsed.success ? "Invalid request." : (parsed.error.issues[0]?.message ?? "Check the route template.") };
   const result = await actionResult(() => api<RouteTemplate>(`/clinic/route-templates/${routeTemplateId}`, { method: "PATCH", body: parsed.data }));
+  revalidatePath("/admin/service-points");
+  return result;
+}
+
+/** The waiting-room display's wording, colour and grouping (migration 0139): the clinic's own words, nothing about a patient. */
+export async function saveQueueDisplaySettings(input: {
+  facilityId: string;
+  headline: string;
+  footerMessage: string;
+  accentColor: string;
+  groupByServicePoint: boolean;
+  version?: number;
+}): Promise<ActionResult<QueueDisplaySettings>> {
+  const parsed = z
+    .object({
+      facilityId: z.uuid(),
+      headline: z.string().trim().max(80, "The headline is at most 80 characters."),
+      footerMessage: z.string().trim().max(160, "The footer line is at most 160 characters."),
+      accentColor: z
+        .string()
+        .trim()
+        .regex(/^(#[0-9A-Fa-f]{6})?$/, "Use a colour like #1A7F8E."),
+      groupByServicePoint: z.boolean(),
+      version: z.number().int().positive().optional(),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Invalid request." };
+  // An empty text clears a setting (the API treats an empty string as none).
+  const result = await actionResult(() =>
+    api<QueueDisplaySettings>("/clinic/queue-display-settings", {
+      method: "PUT",
+      body: { ...parsed.data, accentColor: parsed.data.accentColor || null },
+    }),
+  );
   revalidatePath("/admin/service-points");
   return result;
 }

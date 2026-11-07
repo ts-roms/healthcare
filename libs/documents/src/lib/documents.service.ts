@@ -18,7 +18,9 @@ import {
 } from "@healthcare/core";
 import { and, desc, eq, gt, inArray, isNull, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
+import { matchesDeclaredType } from "./content-signature";
 import type { ALLOWED_CONTENT_TYPES, createDocumentSchema } from "./document.dto";
+import { documentCategoryReadable } from "./document-access";
 import { blocksServing } from "./document-integrity.rules";
 import {
   document,
@@ -257,6 +259,9 @@ export class DocumentsService {
     }
     const bytes = await this.storage.get(record.storageKey);
     if (!bytes) throw new BusinessRuleError("The file has not been uploaded yet", "upload_missing");
+    if (!matchesDeclaredType(bytes, record.contentType as (typeof ALLOWED_CONTENT_TYPES)[number])) {
+      throw new BusinessRuleError("The file's contents do not match its declared type", "upload_content_mismatch", { declared: record.contentType });
+    }
     const sha256 = sha256Hex(bytes);
     if (record.declaredSha256 && record.declaredSha256 !== sha256) {
       throw new BusinessRuleError("The uploaded file does not match the declared checksum", "checksum_mismatch", {
@@ -366,8 +371,27 @@ export class DocumentsService {
     );
   }
 
-  async get(actor: Actor, documentId: string, scope: DocumentScope = {}): Promise<DocumentView> {
-    return toView(await this.find(actor.organizationId, documentId, scope));
+  async get(actor: Actor, documentId: string, scope: DocumentScope = {}, options: { byCategory?: boolean } = {}): Promise<DocumentView> {
+    const record = await this.find(actor.organizationId, documentId, scope);
+    if (options.byCategory) await this.assertCategoryReadable(actor, record);
+    return toView(record);
+  }
+
+  /**
+   * The generic routes' rule (document-access.ts): a category a domain guards needs that domain's permission too. A
+   * refusal answers "not found" (the document's existence is not disclosed) and is audited as a denial.
+   */
+  private async assertCategoryReadable(actor: Actor, record: DocumentRecord): Promise<void> {
+    if (documentCategoryReadable(record.category, actor.permissions)) return;
+    await this.audit.recordStandalone(actor, {
+      action: "document.access",
+      resourceType: "document",
+      resourceId: record.id,
+      patientId: record.patientId ?? undefined,
+      outcome: "denied",
+      metadata: { reason: "category_permission", category: record.category },
+    });
+    throw new NotFoundError("Document");
   }
 
   /**
@@ -406,7 +430,8 @@ export class DocumentsService {
     return rows.map(({ strokes: _strokes, organizationId: _org, device: _device, ...rest }) => rest);
   }
 
-  async listForPatient(actor: Actor, patientId: string, includeArchived: boolean): Promise<DocumentView[]> {
+  /** `byCategory`: only the categories the caller may open through the generic routes (document-access.ts). */
+  async listForPatient(actor: Actor, patientId: string, includeArchived: boolean, options: { byCategory?: boolean } = {}): Promise<DocumentView[]> {
     const conditions = [
       eq(document.organizationId, actor.organizationId),
       filedAsPatient(document.patientId, patientId),
@@ -419,7 +444,8 @@ export class DocumentsService {
       .select()
       .from(document)
       .where(and(...conditions))
-      .orderBy(desc(document.createdAt));
+      .orderBy(desc(document.createdAt))
+      .then((found) => (options.byCategory ? found.filter((row) => documentCategoryReadable(row.category, actor.permissions)) : found));
     await this.audit.recordStandalone(actor, {
       action: "document.list",
       resourceType: "document",
@@ -434,9 +460,10 @@ export class DocumentsService {
     actor: Actor,
     documentId: string,
     scope: DocumentScope = {},
-    options: { inline?: boolean } = {},
+    options: { inline?: boolean; byCategory?: boolean } = {},
   ): Promise<{ url: string; expiresAt: string; contentType: string; inline: boolean }> {
     const record = await this.find(actor.organizationId, documentId, scope);
+    if (options.byCategory) await this.assertCategoryReadable(actor, record);
     if (record.status !== "available") throw new BusinessRuleError("Document is not available for download", "document_unavailable");
     await this.assertIntegrity(record);
     // Shown in the page only for types a browser displays safely; anything else is still a download.

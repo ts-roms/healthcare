@@ -291,3 +291,96 @@ their condition; the display keeps ticket and place only).
 service point, kiosks and routing at check-in are separate decisions. Who may send a patient to the emergency room,
 and under what criteria, is the organization's policy (compliance register). Billing, laboratory and dental read
 nothing new; the timeline's queue entries are unchanged.
+
+## ADR-0015 Patient self-service kiosk: a restricted staff account, short sessions, staged registrations
+
+**Status:** accepted (2026-11-03). **Context:** reception is the bottleneck on busy mornings. The brief (`docs/kiosk/`)
+asked for a touchscreen kiosk, a staged new-patient registration and a thermal ticket, and proposed sixteen new queue
+tables. The platform already has the queue (`visit`, one atomic ticket counter per facility and day, one active visit
+per patient), service points, the waiting-room display, appointment check-in and patient registration with duplicate
+review; a second queue model would have duplicated all of it.
+
+**Decision.** Reuse the queue and add only what is new (migration 0137): **devices**, **sessions** and **staged
+registrations**. A kiosk is a **staff account holding only the `kiosk_device` role** (`kiosk.session.use`, no patient
+permission; the pattern of the waiting-room display, migration 0112), registered as a `kiosk_device` of one facility.
+The device's identity is its sign-in; the code in its address only routes the page. Registration refuses an account
+that holds `patient.read`. A person at the kiosk is served in a **`kiosk_session`**: an opaque token (hash stored) bound
+to the device, ended by the person, after two idle minutes, at fifteen in all, or at the third failed identification.
+Identification (`PatientIdentityService` in the patient domain) needs a patient or mobile number, the exact date of
+birth and the given name to agree on one active patient, answers every miss alike, shows initials only, and is counted
+before it is answered. **Check-in** goes through the clinic's own visit code (`VisitService.kioskWalkIn` /
+`kioskCheckInAppointment`, origin `visit.checked_in_via = 'kiosk'`, no staff user), so the ticket counter and the
+one-active-visit rule are the existing ones. Which services a kiosk offers is the organization's choice
+(`visit_type.kiosk_enabled`). A **new patient never becomes a patient on their own**: the typed registration is sealed
+with the integration key ring in `kiosk_registration`, listed to reception without personal data, and approved through
+the ordinary registration (duplicate rules intact), linked to an existing patient, or rejected; the sealed content is
+erased on any decision and after 24 hours. The orchestration lives in the API (`apps/api/src/app/kiosk`, own tables as
+ADR-0011): it spans patient and clinic, which may not import each other.
+
+**Also added.** `POST /queue/visits/:id/skip` for a called patient who did not come forward: the call is withdrawn and
+the visit goes back behind later arrivals of the same priority (`visit.queued_at`; arrival time unchanged), at most
+three times (`MAX_SKIPS`), then staff close the visit.
+
+**Alternatives rejected.** A `queue_ticket` family of tables (duplicates `visit`); a kiosk-specific token issuer (a
+second authentication system; the staff sign-in already has lockout, rotation and audit); letting the kiosk create
+patients directly (a public screen would write the Patient Master); a patient lookup returning the record for the
+screen to confirm (an enumeration oracle).
+
+**Consequences.** Not built in this decision: the kiosk web app, the print agent and print queue, the public display's
+department grouping, counters, and "requeue" of a closed visit (reopening a closed visit is a clinical-record
+decision). Hardware is verified only on the target devices. The privacy notice text and what a kiosk may collect are
+the organization's (compliance register).
+
+## ADR-0016 Migrations run by a one-off service that alone holds the owner's database URL
+
+**Status:** accepted (2026-11-07; zero-trust audit D2, `docs/security/zero-trust-audit-2026-11-06.md`). **Context:** the
+API's Railway service runs `pnpm db:migrate` as its pre-deploy command, so the owner's URL (`MIGRATION_DATABASE_URL`)
+is one of the API service's variables. Railway gives a service's variables to its pre-deploy command and to the running
+process alike: code execution in the API container can read the owner's credentials (the API deletes the variable from
+`process.env` at start-up, but `/proc/self/environ` still holds it) and with them alter or drop tables, disable the
+append-only triggers and row-level security, and rewrite the audit trail.
+
+**Decision (proposed).** A seventh Railway service, `migrate`, built from the same repository with its own
+`railway.json`: start command `pnpm db:migrate`, restart policy `NEVER`, no public or private domain, and the only
+service holding `MIGRATION_DATABASE_URL`. The API and both workers hold only the restricted role's `DATABASE_URL`.
+Order is kept by the code, not the platform: on start the API reads `schema_migration` and refuses to serve (readiness
+`503`, `db.schema_behind`) while a migration file it ships is not yet applied, so a deploy that races ahead of
+`migrate` waits instead of running against the old schema. Terraform declares `migrate` with `railway.json`; deploy
+order in the runbook becomes `migrate`, then the API and workers.
+
+**Alternatives rejected.** Keeping the pre-deploy step and scrubbing the environment (the container's environment
+cannot be scrubbed); a CI job that migrates over a public TCP proxy (exposes the database and puts the owner's URL in
+CI, which holds no Railway credential today); migrating on API start as the owner (the same exposure, plus every
+replica racing).
+
+**Consequences.** One more service to deploy; a deploy is two steps (`migrate`, then `api`); the API's readiness has a
+required `schema` check (`pendingMigrations` in `libs/core`; `MIGRATIONS_DIR`) that answers `503 behind` until the
+migrate service has applied what the API ships. Built 2026-11-07 (`tools/db/railway.json`, Terraform service
+`migrate`, `apps/api/railway.json` without a pre-deploy command and a 300-second health check).
+
+## ADR-0017 Platform scope that SQL running as the application role cannot claim
+
+**Status:** deferred (2026-11-07; zero-trust audit D5): to be built after ADR-0016. Until then the residual risk is
+accepted: row-level security stops mistakes in the application's own filters, not SQL that runs as the application role
+(an injection or a compromised dependency could claim the platform scope). The controls that limit it meanwhile: no
+`sql.raw` with request input, the restricted role (no DDL, no trigger changes, append-only tables), and audit and
+alerting on `db.context_missing`. **Context:** row-level security (migration 0111) trusts
+`current_setting('app.scope') = 'all'`. Any session of the application role may set a custom setting, so SQL that runs
+as that role (an injection, a compromised dependency) can call `set_config('app.scope', 'all', false)` and read every
+organization. The policies stop mistakes in the application's own filters; they do not stop SQL-level compromise.
+
+**Decision (proposed).** Make the platform scope a role, not a setting: a second group role `healthcare_platform`
+(member of `healthcare_app`, plus a policy clause `pg_has_role(current_user, 'healthcare_platform', 'MEMBER')`), and the
+login role `healthcare_api` a member of `healthcare_app` only, with `healthcare_platform` granted `WITH SET` to it (PG 16
+role options) so `ContextPool` takes it by `SET ROLE healthcare_platform` for `asPlatform(…)` work and `RESET ROLE`
+after. The organization stays a setting (`app.organization_id`), but `rls_organization_visible` checks it only for a
+connection that is not in the platform role, and a new trigger-free check refuses `app.scope` altogether. SQL that runs
+as `healthcare_api` can still `SET ROLE healthcare_platform`; to close that, `asPlatform` work moves to a separate pool
+whose login role is the platform one (`DATABASE_PLATFORM_URL`), and the request pool's role holds no path to it.
+
+**Alternatives rejected.** Signing the setting with an HMAC checked in a `SECURITY DEFINER` function (the key would sit
+in the same process that is assumed compromised); dropping the platform scope (schedulers, the outbox relay and the
+workers act across organizations by design).
+
+**Consequences.** Two pools and two login roles (the platform pool small); every `asPlatform` call site keeps working
+unchanged; integration tests run both roles. Built only after ADR-0016 (it changes the same deployment variables).

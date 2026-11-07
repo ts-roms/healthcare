@@ -88,6 +88,14 @@ export interface QueueFigures {
   done: number;
   waiting: number;
   withProvider: number;
+  /** Called and not yet with the provider: the tickets the desk is calling now. */
+  serving: number;
+  /** Seen by a provider today. */
+  completed: number;
+  /** Sent back into the line at least once after a call nobody answered. */
+  skipped: number;
+  /** Called patients who never came forward and were closed as a no-show. */
+  noShow: number;
   averageWaitMinutes: number | null;
   longestWait: { minutes: number; patientName: string; ticket: string; priority: VisitPriority } | null;
 }
@@ -111,6 +119,10 @@ export function queueFigures(visits: readonly QueueVisit[], now: Date): QueueFig
     done: visits.filter((v) => ["completed", "cancelled", "left_without_being_seen"].includes(v.status)).length,
     waiting: waits.length,
     withProvider: visits.filter((v) => v.status === "in_consultation").length,
+    serving: visits.filter((v) => STILL_WAITING.includes(v.status) && v.calledAt !== null).length,
+    completed: visits.filter((v) => v.status === "completed").length,
+    skipped: visits.filter((v) => v.skippedCount > 0).length,
+    noShow: visits.filter((v) => v.noShowAt !== null).length,
     averageWaitMinutes: waits.length ? Math.round(waits.reduce((sum, w) => sum + w.minutes, 0) / waits.length) : null,
     longestWait: longest,
   };
@@ -120,6 +132,9 @@ export function queueFigures(visits: readonly QueueVisit[], now: Date): QueueFig
 export function checkedInOnline(v: Pick<QueueVisit, "checkedInVia" | "modality">): boolean {
   return v.checkedInVia === "patient_portal" && v.modality === "in_person";
 }
+
+/** How many times a visit closed as left-without-being-seen may be put back in line (the API's `MAX_REQUEUES`; it decides). */
+export const MAX_REQUEUES = 3;
 
 export type QueueMove = "in_triage" | "awaiting_consultation" | "cancelled" | "left_without_being_seen";
 
@@ -430,4 +445,27 @@ export function zonedLocalToIso(local: string, timeZone: string): string {
   };
   const first = asUtc - offsetAt(asUtc);
   return new Date(asUtc - offsetAt(first)).toISOString();
+}
+
+/** What the desk can narrow the board to: everyone, the tickets being called, or those who checked in themselves. */
+export type QueueView = "all" | "called" | "self";
+
+export const QUEUE_VIEW_LABEL: Record<QueueView, string> = { all: "All", called: "Being called", self: "Self check-in" };
+
+/** The visits that match a search (ticket, name, patient number, complaint or where they were called) and a view. */
+export function filterQueue(visits: readonly QueueVisit[], { query, view }: { query: string; view: QueueView }): QueueVisit[] {
+  const needle = query.trim().toLowerCase();
+  return visits.filter((v) => {
+    if (view === "called" && !(STILL_WAITING.includes(v.status) && v.calledAt !== null)) return false;
+    if (view === "self" && v.checkedInVia === "staff") return false;
+    if (!needle) return true;
+    return [v.ticket, v.patient?.displayName, v.patient?.patientNumber, v.chiefComplaint, v.calledTo].some((field) => field?.toLowerCase().includes(needle));
+  });
+}
+
+/** Tickets the desk is calling now (called, not yet with the provider), the newest call first. */
+export function nowServing(visits: readonly QueueVisit[]): QueueVisit[] {
+  return visits
+    .filter((v) => STILL_WAITING.includes(v.status) && v.calledAt !== null)
+    .sort((a, b) => new Date(b.calledAt as string).getTime() - new Date(a.calledAt as string).getTime());
 }

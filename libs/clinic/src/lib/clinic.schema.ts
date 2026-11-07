@@ -66,6 +66,8 @@ export const visitType = pgTable("visit_type", {
   createdAt: ts("created_at").notNull().defaultNow(),
   /** Patients may book this visit type themselves in MyHealth. */
   onlineBooking: boolean("online_booking").notNull().default(false),
+  /** A patient kiosk offers this visit type for a walk-in check-in (migration 0137). */
+  kioskEnabled: boolean("kiosk_enabled").notNull().default(false),
   version: integer("version").notNull().default(1),
 });
 
@@ -276,6 +278,21 @@ export const servicePointSetting = pgTable("service_point_setting", {
 });
 export type ServicePointSettingRecord = typeof servicePointSetting.$inferSelect;
 
+/** What a facility's waiting-room display says in its own words, and whether it groups calls by service point (migration 0139). */
+export const queueDisplaySetting = pgTable("queue_display_setting", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  facilityId: uuid("facility_id").notNull(),
+  headline: text("headline"),
+  footerMessage: text("footer_message"),
+  accentColor: text("accent_color"),
+  groupByServicePoint: boolean("group_by_service_point").notNull().default(false),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: ts("updated_at").notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+export type QueueDisplaySettingRecord = typeof queueDisplaySetting.$inferSelect;
+
 export const ROUTE_STEP_STATUSES = ["planned", "current", "done", "skipped", "removed"] as const;
 export type RouteStepStatus = (typeof ROUTE_STEP_STATUSES)[number];
 
@@ -386,7 +403,7 @@ export const visit = pgTable("visit", {
   chiefComplaint: text("chief_complaint"),
   checkedInAt: ts("checked_in_at").notNull().defaultNow(),
   checkedInBy: uuid("checked_in_by"),
-  checkedInVia: text("checked_in_via").$type<"staff" | "patient_portal">().notNull().default("staff"),
+  checkedInVia: text("checked_in_via").$type<"staff" | "patient_portal" | "kiosk">().notNull().default("staff"),
   calledAt: ts("called_at"),
   calledTo: text("called_to"),
   triageStartedAt: ts("triage_started_at"),
@@ -397,6 +414,13 @@ export const visit = pgTable("visit", {
   version: integer("version").notNull().default(1),
   /** Where the visit is now (migration 0113); null = the facility's consultation line. */
   servicePointId: uuid("service_point_id"),
+  /** The time the queue orders by: null until the visit is skipped (migration 0137), then the time it went back in line. */
+  queuedAt: ts("queued_at"),
+  skippedCount: integer("skipped_count").notNull().default(0),
+  /** Set when a called patient never came forward and the visit was closed as a no-show (migration 0138). */
+  noShowAt: ts("no_show_at"),
+  /** How many times a closed visit was put back in line (migration 0138). */
+  requeuedCount: integer("requeued_count").notNull().default(0),
 });
 
 export const triageAssessment = pgTable("triage_assessment", {

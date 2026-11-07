@@ -97,6 +97,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         view={view}
         date={date}
         today={today}
+        nowIso={new Date().toISOString()}
         events={events}
         appointments={appointments.items}
         appointmentsTruncated={appointments.truncated}

@@ -22,10 +22,12 @@ export const REDIS_URL = process.env.E2E_REDIS_URL ?? "redis://localhost:6379";
 export const API_PORT = Number(process.env.E2E_API_PORT ?? 3433);
 export const STAFF_PORT = Number(process.env.E2E_STAFF_PORT ?? 3100);
 export const PORTAL_PORT = Number(process.env.E2E_PORTAL_PORT ?? 3101);
+export const KIOSK_PORT = Number(process.env.E2E_KIOSK_PORT ?? 3102);
 
 export const API_URL = `http://localhost:${API_PORT}/api/v1`;
 export const STAFF_URL = `http://localhost:${STAFF_PORT}`;
 export const PORTAL_URL = `http://localhost:${PORTAL_PORT}`;
+export const KIOSK_URL = `http://localhost:${KIOSK_PORT}`;
 
 export const ORGANIZATION_CODE = "e2e";
 /** Every seeded staff user signs in with this password (test data only). */
@@ -50,6 +52,10 @@ export const STAFF = {
   nurse: "nurse@e2e.ph",
   pharmacist: "pharmacist@e2e.ph",
   records: "records@e2e.ph",
+  /** The patient self-service kiosk's account (role kiosk_device only; journey 27). */
+  kiosk: "kiosk@e2e.ph",
+  /** The kiosk print agent's account (role kiosk_print_agent only; journey 28). */
+  agent: "agent@e2e.ph",
 } as const;
 
 export const DOCTOR_NAME = "Dr. Maria Santos";

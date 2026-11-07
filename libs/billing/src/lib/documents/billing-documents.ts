@@ -36,7 +36,7 @@ export class BillingDocuments {
   ) {}
 
   async invoicePdf(actor: Actor, invoiceId: string) {
-    const invoice = await this.invoices.detail(actor.organizationId, invoiceId);
+    const invoice = await this.invoices.detailAt(actor, invoiceId);
     const pdf = await this.renderInvoice(actor.organizationId, invoice, "staff");
     await this.audit.recordStandalone(actor, {
       action: "billing.invoice.print",
@@ -63,7 +63,9 @@ export class BillingDocuments {
       .where(and(eq(billingPayment.organizationId, actor.organizationId), eq(billingPayment.id, paymentId)));
     if (!payment) throw new NotFoundError("Payment");
     if (payment.kind !== "payment") throw new BusinessRuleError("Receipts are printed for payments, not refunds", "not_a_payment");
-    const invoice = await this.invoices.detail(actor.organizationId, payment.invoiceId);
+    const invoice = await this.invoices.detailAt(actor, payment.invoiceId).catch((error: unknown) => {
+      throw error instanceof NotFoundError ? new NotFoundError("Payment") : error;
+    });
     // The balance right after this payment (later payments and refunds are not on this receipt).
     const before = await this.db
       .select({ kind: billingPayment.kind, amount: billingPayment.amount })

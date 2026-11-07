@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { type Actor, BadRequestError, ForbiddenError, type RequestMetadata, UnauthenticatedError } from "@healthcare/core";
+import { type Actor, BadRequestError, ForbiddenError, type RequestMetadata, UnauthenticatedError, ConsumedTokens, tokenExpiry } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
 import { AccessService } from "./access.service";
 import { AuthService } from "./auth.service";
@@ -28,6 +28,7 @@ export class ActorResolver {
     private readonly access: AccessService,
     private readonly organizations: OrganizationService,
     private readonly mfaPolicy: MfaPolicyService,
+    private readonly consumedTokens: ConsumedTokens,
   ) {}
 
   async resolve(accessToken: string, context: ActorContextRequest, request: RequestMetadata): Promise<Actor> {
@@ -38,7 +39,19 @@ export class ActorResolver {
   /** For the realtime gateway: a ticket from `POST /auth/realtime-tickets`, bound to one session and facility. */
   async resolveRealtimeTicket(ticket: string, request: RequestMetadata): Promise<Actor> {
     const claims = await this.tokens.verifyRealtimeTicket(ticket);
+    // A ticket opens one socket (zero trust: not replayable within its minute).
+    if (!(await this.consumedTokens.consume("staff_realtime_ticket", ticket, tokenExpiry(claims)))) {
+      throw new UnauthenticatedError("This ticket was already used", "invalid_token");
+    }
     return this.fromSession(claims, { facilityId: claims.fac }, request);
+  }
+
+  /**
+   * For the realtime gateway's periodic re-check of an open socket (its ticket has long expired): the same session,
+   * account, membership and permissions resolution as a request, from the identity the socket was opened with.
+   */
+  async revalidate(claims: { sub: string; sid: string; org: string }, facilityId: string, request: RequestMetadata): Promise<Actor> {
+    return this.fromSession(claims, { facilityId }, request);
   }
 
   /** The session, account and membership are re-checked on every resolution, so revocation takes effect immediately. */
@@ -64,6 +77,7 @@ export class ActorResolver {
       organizationId: claims.org,
       facilityId,
       isPlatformAdmin: user.isPlatformAdmin,
+      mfaEnabled: user.mfaEnabled,
       passwordChangeRequired: user.passwordChangeRequired,
       permissions,
       mfaEnrollmentRequired,

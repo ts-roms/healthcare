@@ -63,6 +63,61 @@ export function servicePointQueue<T extends { priority: VisitPriority; checkedIn
   return rows.filter((r) => r.servicePointId === servicePointId).sort(compareQueueOrder);
 }
 
+/** How many times a called patient who did not come forward goes back in line before staff must close the visit. */
+export const MAX_SKIPS = 3;
+
+export type SkipRefusal = "visit_closed" | "not_called" | "skip_limit_reached" | "not_waiting";
+
+/**
+ * Whether a called visit may go back into the line: it is open, it was called, it is still waiting for care (not with
+ * the provider), and it has not been skipped too often.
+ */
+export function skipRefusal(visit: { status: VisitStatus; calledAt: Date | null; skippedCount: number }): SkipRefusal | null {
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status)) return "visit_closed";
+  if (visit.status === "in_consultation") return "not_waiting";
+  if (!visit.calledAt) return "not_called";
+  if (visit.skippedCount >= MAX_SKIPS) return "skip_limit_reached";
+  return null;
+}
+
+/** How many times a visit closed as left-without-being-seen may be put back in line. */
+export const MAX_REQUEUES = 3;
+
+export type RecallRefusal = "visit_closed" | "not_called";
+
+/** A recall repeats the call to the same place: the visit must be open and already called. */
+export function recallRefusal(visit: { status: VisitStatus; calledAt: Date | null }): RecallRefusal | null {
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status)) return "visit_closed";
+  if (!visit.calledAt) return "not_called";
+  return null;
+}
+
+export type NoShowRefusal = "visit_closed" | "not_called" | "not_waiting";
+
+/**
+ * A called patient who never came forward is closed as a no-show. Only a patient who was called (so the desk tried),
+ * who is still waiting for care (not with the provider), and whose visit is open.
+ */
+export function noShowRefusal(visit: { status: VisitStatus; calledAt: Date | null }): NoShowRefusal | null {
+  if (!ACTIVE_VISIT_STATUSES.includes(visit.status)) return "visit_closed";
+  if (visit.status === "in_consultation") return "not_waiting";
+  if (!visit.calledAt) return "not_called";
+  return null;
+}
+
+export type RequeueRefusal = "not_left" | "not_today" | "requeue_limit_reached";
+
+/**
+ * A visit closed as left-without-being-seen (including a no-show) may go back in line the same day, a limited number
+ * of times. Cancelled visits (checked in by mistake) and completed visits never reopen.
+ */
+export function requeueRefusal(visit: { status: VisitStatus; queueDate: string; requeuedCount: number }, today: string): RequeueRefusal | null {
+  if (visit.status !== "left_without_being_seen") return "not_left";
+  if (visit.queueDate !== today) return "not_today";
+  if (visit.requeuedCount >= MAX_REQUEUES) return "requeue_limit_reached";
+  return null;
+}
+
 /** "A-007" style ticket label shown on display boards. */
 export function queueTicket(queueNumber: number): string {
   return `A-${String(queueNumber).padStart(3, "0")}`;
@@ -78,6 +133,8 @@ export interface QueueDisplayRow {
   calledTo: string | null;
   /** Online visits never appear on a waiting-room screen. */
   inPerson: boolean;
+  /** Where the visit is (migration 0113); null = the facility's consultation line. */
+  servicePointId?: string | null;
 }
 
 export interface QueueDisplayCall {
@@ -100,6 +157,34 @@ export function queueDisplay(rows: readonly QueueDisplayRow[], limit = QUEUE_DIS
     .map((r) => ({ ticket: queueTicket(r.queueNumber), calledTo: r.calledTo, calledAt: r.calledAt }));
   const waiting = open.filter((r) => r.status === "waiting" || r.status === "awaiting_consultation").length;
   return { calls, waiting };
+}
+
+/** How many calls one service point's block lists when the display groups by service point. */
+export const QUEUE_DISPLAY_GROUP_CALLS = 4;
+
+export interface QueueDisplayGroup {
+  /** null = the facility's consultation line. */
+  servicePointId: string | null;
+  calls: QueueDisplayCall[];
+  waiting: number;
+}
+
+/**
+ * The same display grouped by service point (migration 0139): each service point with a call or someone waiting, the
+ * ones being called first (newest call first), then those only waiting (most waiting first). Same rules, same fields:
+ * ticket labels and places only, never a patient detail.
+ */
+export function queueDisplayGroups(rows: readonly QueueDisplayRow[], limit = QUEUE_DISPLAY_GROUP_CALLS): QueueDisplayGroup[] {
+  const ids = [...new Set(rows.map((r) => r.servicePointId ?? null))];
+  const groups = ids.map((servicePointId) => ({
+    servicePointId,
+    ...queueDisplay(
+      rows.filter((r) => (r.servicePointId ?? null) === servicePointId),
+      limit,
+    ),
+  }));
+  const latest = (g: QueueDisplayGroup) => g.calls[0]?.calledAt.getTime() ?? 0;
+  return groups.filter((g) => g.calls.length > 0 || g.waiting > 0).sort((a, b) => latest(b) - latest(a) || b.waiting - a.waiting);
 }
 
 // ---- Visit routes (migration 0115) ----------------------------------------------------------------------------
