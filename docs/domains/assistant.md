@@ -8,8 +8,8 @@ phases: `docs/architecture/heuristic-assistant.md`; decision: ADR-0018. Built: p
 the API, the first stock rule, the settings screen), phase 1 (operational rules on the inventory, billing, appointments
 and queue screens, and the replay behind **Try these values**) and two slices of phase 2: the doctor's workspace (the
 consultation checklist, code suggestions and the laboratory delta check) and integrity and security (unusual record
-access, compliance areas to review, invoices that may have been issued twice). Order sets, outreach suggestions and the
-staff command bar are not built.
+access, compliance areas to review, invoices that may have been issued twice), and the staff command bar (Ctrl+K). Order sets
+and outreach suggestions are not built.
 
 ## Entities
 
@@ -130,6 +130,29 @@ facility of the scope (else the one selected in the top bar) with the values in 
 would have spoken. With `assistant.insights.read` the page also shows how staff answered each rule over 90 days. Wording
 helpers in `apps/staff/src/lib/assistant-settings.ts` (unit-tested). Manual: chapter 13, "How to turn on the assistant's
 suggestions", and each screen's chapter (3, 4, 6, 9, 10).
+
+## Command bar
+
+Not a rule: a way to reach screens and patients by typing (phase 2). **Ctrl+K** (⌘K), or the top bar's **⌘** button, opens it
+anywhere in the staff app (`CommandBar` in `apps/staff/src/components/command-bar.tsx`, mounted in the shell). The words are
+read by `apps/staff/src/lib/command-bar.ts` (pure, unit-tested; fixed word lists, no model):
+
+- **Days**: today / tomorrow / yesterday (ngayon / bukas / kahapon), weekdays (the next one, today included), "Nov 25",
+  "25 Nov 2027", ISO dates, in the facility's time zone; impossible days are ignored.
+- **Patient actions** at the start or end (`PATIENT_VERBS`: book, check in / walk-in, bill, labs, visits, 360, timeline,
+  history, vaccines, edit, communications, dental, coverage, open), each behind the permissions its page checks; without
+  them a patient is offered as "Open the record".
+- **Screens**: the navigation, every module tab (`moduleTabsForPermissions`), the Settings pages and shortcuts (register,
+  walk-in, book, the lab worklist's stages, low and expiring stock, the waiting-room display, account, notifications, help),
+  all from the permissions — the same lists the menu uses — ranked by how many words they hold; screens that show a day
+  (`/appointments`, `/calendar`, `/appointments/new`) open the day named.
+- **Patients**: what is left after actions, days, filler words and screen words is searched as a name or number (three
+  characters or more, 400 ms after typing stops) through the ordinary `GET /patients` (`findPatientsForCommand`, a server
+  action; `patient.search`; audited by the API like any search; id, number, name, sex, age and status only).
+- **Help**: the two manual sections that best match the phrase, from the sections the shell already has.
+
+Every result is a link; nothing is done for the person. Patients come first when an action was named, screens otherwise.
+No API, permission or migration was added.
 
 ## Integration points and limits
 

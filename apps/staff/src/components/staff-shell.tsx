@@ -26,6 +26,7 @@ import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/nav
 import { TOUR_START_EVENT } from "@/lib/tour";
 import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigation";
 import type { ManualSection } from "@healthcare/ui/primitives";
+import { CommandBar } from "./command-bar";
 import { GuidedTour } from "./guided-tour";
 import { HelpFab, type HelpChapter } from "./help-fab";
 import { NotificationBell } from "./notification-bell";
@@ -159,6 +160,8 @@ export function StaffShell({
               ))}
             </NativeSelect>
           ) : null}
+          {/* Ctrl+K: go to a screen or a patient by typing what you want. */}
+          <CommandBar permissions={permissions} platformAdmin={platformAdmin} timeZone={timeZone} manualSections={manualSections} />
           {/* On phones the help button lives here instead of floating over the page. */}
           <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" />
           <NotificationBell unread={unread} />

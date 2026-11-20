@@ -122,6 +122,14 @@ const MODULES: ModuleDefinition[] = [
   },
 ];
 
+/** Every module tab open to someone with these permissions, with its module's name (the command bar's screens). */
+export function moduleTabsForPermissions(permissions: readonly string[]): Array<{ module: string; label: string; href: string }> {
+  const granted = new Set(permissions);
+  return MODULES.flatMap((m) =>
+    m.tabs.filter((tab) => tab.permissions.some((p) => granted.has(p))).map((tab) => ({ module: m.label, label: tab.label, href: tab.href })),
+  );
+}
+
 export interface ModuleTabsForPage {
   /** Names the navigation for assistive technology, e.g. "Billing sections". */
   label: string;

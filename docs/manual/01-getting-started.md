@@ -88,8 +88,30 @@ From left to right:
 - **Search box** ("Search patients: name, patient no. or mobile…"). Type a patient's name, patient number or mobile number and press Enter. You go to the **Patients**
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
+- **Go to** (the ⌘ button, or **Ctrl+K**; **⌘K** on a Mac) — type where you want to go or what you want to do. See below.
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).
 - **Account menu** (your initials) — shows your name, email and organization, and has **My account** (see below), **Company settings** (when you may open them) and **Log out**.
+
+## How to go to a screen or a patient by typing (Ctrl+K)
+
+Press **Ctrl+K** (**⌘K** on a Mac) anywhere, or select the **⌘** button in the top bar, and type what you want, in a few words:
+
+| You type                                 | You are offered                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `book Reyes tomorrow`                    | **Book an appointment** for each patient named Reyes, with tomorrow already chosen |
+| `Santos billing`, `check in Santos`      | That patient's billing page, or a walk-in check-in for them                        |
+| `appointments friday`, `calendar nov 25` | The day board or the calendar on that day                                          |
+| `lab verify`, `stock expiring`           | The laboratory's Verify worklist, the expiring stock                               |
+| `Reyes` or a patient number              | The patients found, to open their record                                           |
+| `settings assistant`, `audit`            | A Settings page                                                                    |
+
+Use **↑ ↓** to choose and **Enter** to open, or click; **Esc** closes it. Days can be written as _today_, _tomorrow_, _yesterday_
+(also _ngayon_, _bukas_, _kahapon_), a weekday (the next one), _Nov 25_ or _2026-11-25_. Other words it knows include _bill_, _labs_,
+_history_, _vaccines_, _dental_, _360_, _timeline_ and _edit_ for a patient.
+
+It only offers screens and actions you may open, and it changes nothing by itself: every result is a link. It reads your words with fixed word
+lists, not artificial intelligence, so if it does not understand, use **Search patients for …** at the bottom, the menu, or Help. Each search
+for patients is recorded in the audit log, as when you search from the top bar.
 
 ## How to change your password or turn on two-step verification
 

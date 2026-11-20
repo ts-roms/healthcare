@@ -1,6 +1,6 @@
 # Heuristic assistant — plan
 
-**Status:** accepted as ADR-0018 (2026-11-20). Phases 0 and 1 are built, and two slices of phase 2: the doctor's workspace (consultation checklist, code suggestions, laboratory delta check) and integrity and security (unusual record access, compliance areas to review, possible duplicate invoices). The rest of phase 2 (order sets, outreach suggestions, the command bar) and phases 3 to 4 are not (`docs/domains/assistant.md`). Phase 1's backtest is the replay behind **Try these values**; its wait estimate became a "waits longer than usual" rule. Help search and triage vital-sign hints already existed outside the assistant; discount outliers were left out (statutory discounts are fixed by rule, and manual ones need a policy first).
+**Status:** accepted as ADR-0018 (2026-11-20). Phases 0 and 1 are built, and two slices of phase 2: the doctor's workspace (consultation checklist, code suggestions, laboratory delta check) and integrity and security (unusual record access, compliance areas to review, possible duplicate invoices), and the staff command bar (Ctrl+K). The rest of phase 2 (order sets, outreach suggestions) and phases 3 to 4 are not (`docs/domains/assistant.md`). Phase 1's backtest is the replay behind **Try these values**; its wait estimate became a "waits longer than usual" rule. Help search and triage vital-sign hints already existed outside the assistant; discount outliers were left out (statutory discounts are fixed by rule, and manual ones need a policy first).
 
 ## 1. What "heuristic" means here
 
