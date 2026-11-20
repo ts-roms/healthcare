@@ -598,17 +598,20 @@ someone decides. Every rule is off until you turn it on.
 
 The rules, and the screen each speaks on:
 
-| Rule                                                 | Screen       | Who sees it                                                                          |
-| ---------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------ |
-| Stock may run out before a delivery arrives          | Inventory    | Inventory officers, nurses, organization administrators                              |
-| An item was issued much more than usual              | Inventory    | Inventory officers, nurses, organization administrators                              |
-| Stock may expire before it is used                   | Inventory    | Inventory officers, nurses, organization administrators                              |
-| Procedures with no charge                            | Billing      | Cashiers, receptionists, organization administrators                                 |
-| A patient may not come to their appointment          | Appointments | Receptionists, nurses, organization administrators                                   |
-| Patients are waiting longer than usual               | Queue        | Receptionists, nurses, organization administrators                                   |
-| Before signing: what the record does not hold yet    | Consultation | Physicians, dentists, nurses, organization administrators                            |
-| Codes your clinic has used for these words           | Consultation | Physicians, dentists, nurses, organization administrators                            |
-| A result differs sharply from the patient's last one | Laboratory   | Medical technologists, pathologists, nurses, physicians, organization administrators |
+| Rule                                                 | Screen        | Who sees it                                                                          |
+| ---------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| Stock may run out before a delivery arrives          | Inventory     | Inventory officers, nurses, organization administrators                              |
+| An item was issued much more than usual              | Inventory     | Inventory officers, nurses, organization administrators                              |
+| Stock may expire before it is used                   | Inventory     | Inventory officers, nurses, organization administrators                              |
+| Procedures with no charge                            | Billing       | Cashiers, receptionists, organization administrators                                 |
+| A patient may not come to their appointment          | Appointments  | Receptionists, nurses, organization administrators                                   |
+| Patients are waiting longer than usual               | Queue         | Receptionists, nurses, organization administrators                                   |
+| Before signing: what the record does not hold yet    | Consultation  | Physicians, dentists, nurses, organization administrators                            |
+| Codes your clinic has used for these words           | Consultation  | Physicians, dentists, nurses, organization administrators                            |
+| A result differs sharply from the patient's last one | Laboratory    | Medical technologists, pathologists, nurses, physicians, organization administrators |
+| Unusual access to patient records                    | Audit log     | Organization administrators                                                          |
+| Compliance areas to review                           | Settings home | Organization administrators                                                          |
+| Invoices that may have been issued twice             | Billing       | Cashiers, receptionists, organization administrators                                 |
 
 Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
 [Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md), [Consultations](04-consultations-and-care-plans.md),
@@ -617,6 +620,14 @@ Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-
 The consultation and laboratory rules are clinical decision support: before turning one on, have your clinicians check the rule and its
 thresholds (for example the percentage change that should prompt a second look at a result), and record who did in **Settings → Compliance**.
 They never choose a code, change a result or stop anyone signing.
+
+**Unusual access to patient records** (on **Settings → Audit log**) names a staff account whose access in the last hours stands out: many
+more patients than its usual working day, patients opened outside your working hours, or many refused requests. **Open their audit trail**
+shows what it did. It may be a busy day or a shared screen; it may also be someone else using the account. It blocks nothing and tells no one but
+administrators. Before turning it on, decide with your Data Protection Officer how staff are told that access is reviewed.
+
+**Compliance areas to review** (on the **Settings** home) lists areas nobody has recorded validating, whose last review is older than your
+interval, or whose last review found changes needed. Record reviews under **Settings → Compliance**; dismiss areas that do not apply to you.
 
 **Try these values** shows, before you save or turn anything on, how often the rule would have spoken on each of the last 14 days with the
 values in the form: for example "about 2 suggestions a day (at most 4, and nothing on 3 days)". It reads the facility you are setting, or the one

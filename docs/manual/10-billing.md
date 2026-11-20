@@ -53,6 +53,13 @@ them by procedure code and says why, never which patient:
 Select **Why?** for the code and the dates; **Dismiss** hides that code and reason for you for 14 days. Cashiers, receptionists and organization
 administrators see these suggestions.
 
+### Invoices that may have been issued twice (suggestions)
+
+When your organization has turned on **Invoices that may have been issued twice**, the **Suggestions** box at the top of the cashier's desk names
+two invoices for the same patient, with the same total and the same services, issued within the hours your organization chose. It may be two
+real visits; it may also be one visit billed twice. **Open invoice …** opens the later one: if it is one visit, void and reissue, or issue a credit
+note; otherwise **Dismiss**. Nothing is changed by the suggestion.
+
 ## How to add a charge by hand
 
 Use this for anything not captured automatically (for example a service whose visit type or test is not linked to a billable service).

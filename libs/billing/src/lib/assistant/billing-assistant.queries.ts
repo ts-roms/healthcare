@@ -1,7 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
-import { and, eq, inArray, lte } from "drizzle-orm";
+import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import { billingCharge, billingService, billingServicePrice } from "../billing.schema";
+import type { InvoicePair } from "./duplicate-invoice.rules";
 import type { UnchargedKind } from "./uncharged-work.rules";
 
 export interface ChargeStateQuery {
@@ -72,5 +73,50 @@ export class BillingAssistantQueries {
       result.set(`${item.kind}:${item.sourceId}`, { charged: charged.has(`${item.kind}:${item.sourceId}`), mapped: serviceId !== undefined, priced });
     }
     return result;
+  }
+
+  /**
+   * `billing.possible-duplicate-invoice`: pairs of the facility's invoices issued in the window and not void at the moment,
+   * for the same patient (records merged into theirs included), with the same net total and the same services, issued
+   * within `withinHours` of each other. Invoice numbers and totals only.
+   */
+  async duplicatePairs(organizationId: string, facilityId: string, window: { asOf: Date; lookbackDays: number; withinHours: number }): Promise<InvoicePair[]> {
+    const asOf = window.asOf.toISOString();
+    const since = new Date(window.asOf.getTime() - window.lookbackDays * 86_400_000).toISOString();
+    const { rows } = await this.db.execute<{
+      a_id: string;
+      a_number: string;
+      a_issued: string;
+      b_id: string;
+      b_number: string;
+      b_issued: string;
+      net_total: number;
+      services: number;
+    }>(sql`
+      WITH inv AS (
+        SELECT i.id, i.invoice_number, i.issued_at, i.net_total, patient_canonical_id(i.patient_id) AS patient,
+               (SELECT array_agg(it.service_id::text ORDER BY it.service_id) FROM billing_invoice_item it WHERE it.invoice_id = i.id) AS services
+        FROM billing_invoice i
+        WHERE i.organization_id = ${organizationId}::uuid
+          AND i.facility_id = ${facilityId}::uuid
+          AND i.issued_at IS NOT NULL
+          AND i.issued_at > ${since}::timestamptz AND i.issued_at <= ${asOf}::timestamptz
+          AND (i.voided_at IS NULL OR i.voided_at > ${asOf}::timestamptz)
+      )
+      SELECT a.id AS a_id, a.invoice_number AS a_number, to_char(a.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS a_issued,
+             b.id AS b_id, b.invoice_number AS b_number, to_char(b.issued_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS b_issued,
+             a.net_total::bigint AS net_total, coalesce(array_length(a.services, 1), 0) AS services
+      FROM inv a
+      JOIN inv b ON b.patient = a.patient AND b.net_total = a.net_total AND b.services IS NOT DISTINCT FROM a.services
+               AND (b.issued_at > a.issued_at OR (b.issued_at = a.issued_at AND b.id > a.id))
+               AND b.issued_at - a.issued_at <= make_interval(hours => ${window.withinHours})
+      ORDER BY b.issued_at
+    `);
+    return rows.map((r) => ({
+      first: { id: r.a_id, number: r.a_number, issuedAt: r.a_issued },
+      second: { id: r.b_id, number: r.b_number, issuedAt: r.b_issued },
+      netTotal: Number(r.net_total),
+      services: Number(r.services),
+    }));
   }
 }

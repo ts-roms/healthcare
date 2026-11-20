@@ -1,5 +1,14 @@
 import { Injectable } from "@nestjs/common";
-import { BillingAssistantQueries, UNCHARGED_WORK_RULE, unchargedWorkSuggestions, type UnchargedWorkInput } from "@healthcare/billing";
+import { AuditAssistantQueries, UNUSUAL_ACCESS_RULE, unusualAccessSuggestions } from "@healthcare/audit";
+import { UsersService } from "@healthcare/auth";
+import {
+  BillingAssistantQueries,
+  DUPLICATE_INVOICE_RULE,
+  duplicateInvoiceSuggestions,
+  UNCHARGED_WORK_RULE,
+  unchargedWorkSuggestions,
+  type UnchargedWorkInput,
+} from "@healthcare/billing";
 import {
   ClinicAssistantQueries,
   CODE_SUGGESTIONS_RULE,
@@ -24,6 +33,7 @@ import {
   usageSpikeSuggestions,
 } from "@healthcare/inventory";
 import { DELTA_CHECK_RULE, deltaCheckSuggestions, LabAssistantQueries } from "@healthcare/laboratory";
+import { COMPLIANCE_GAPS_RULE, complianceGapsSuggestions, OrganizationAssistantQueries } from "@healthcare/organization";
 
 /** When a rule reads its figures: now for a screen, a past moment when the settings screen replays it. */
 export interface RuleMoment {
@@ -73,6 +83,9 @@ export class AssistantRules {
     dental: DentalAssistantQueries,
     encounters: EncounterAssistantQueries,
     lab: LabAssistantQueries,
+    audit: AuditAssistantQueries,
+    organization: OrganizationAssistantQueries,
+    users: UsersService,
   ) {
     /** The consultations a consultation rule reads: the one on screen, none on a live request without one, every one open in a replay. */
     const encountersFor = async (actor: Actor, facilityId: string, moment: RuleMoment): Promise<string[]> => {
@@ -190,6 +203,50 @@ export class AssistantRules {
         run: async (actor, facilityId, raw, moment) => {
           const params = DELTA_CHECK_RULE.parametersSchema.parse(raw);
           return deltaCheckSuggestions(await lab.deltaInputs(actor.organizationId, facilityId, moment.asOf, params.lookbackDays), params);
+        },
+      },
+      {
+        definition: erase(UNUSUAL_ACCESS_RULE),
+        replayAt: "21:00",
+        run: async (actor, _facilityId, raw, moment) => {
+          const params = UNUSUAL_ACCESS_RULE.parametersSchema.parse(raw);
+          // The whole organization's trail: an account may work at several facilities. Working hours in this facility's time zone.
+          const figures = await audit.accessFigures(actor.organizationId, {
+            asOf: moment.asOf,
+            windowHours: params.windowHours,
+            historyDays: 28,
+            timeZone: moment.timeZone,
+            workStartHour: params.workStartHour,
+            workEndHour: params.workEndHour,
+          });
+          if (figures.length === 0) return [];
+          const names = await users.displayNames(
+            actor.organizationId,
+            figures.map((f) => f.userId),
+          );
+          const inputs = figures.map((f) => ({ ...f, displayName: names.get(f.userId) ?? "A staff account" }));
+          return unusualAccessSuggestions(inputs, params, moment.today);
+        },
+      },
+      {
+        definition: erase(COMPLIANCE_GAPS_RULE),
+        replayAt: "09:00",
+        run: async (actor, _facilityId, raw, moment) => {
+          const params = COMPLIANCE_GAPS_RULE.parametersSchema.parse(raw);
+          return complianceGapsSuggestions(await organization.complianceAreas(actor.organizationId, moment.asOf), params, moment.today);
+        },
+      },
+      {
+        definition: erase(DUPLICATE_INVOICE_RULE),
+        replayAt: "17:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = DUPLICATE_INVOICE_RULE.parametersSchema.parse(raw);
+          const pairs = await billing.duplicatePairs(actor.organizationId, facilityId, {
+            asOf: moment.asOf,
+            lookbackDays: params.lookbackDays,
+            withinHours: params.withinHours,
+          });
+          return duplicateInvoiceSuggestions(pairs, moment.timeZone);
         },
       },
     ];

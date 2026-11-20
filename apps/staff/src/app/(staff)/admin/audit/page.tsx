@@ -7,6 +7,8 @@ import { Badge, Button, DateInput, Input, Label, NativeSelect, Table, TableBody,
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { AuditEventRow, Page, StaffUser } from "@/lib/api/types";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { auditApiQuery, auditPageHref, readAuditFilters } from "@/lib/audit-filters";
 import { organizationDirectory } from "../users/directory";
 
@@ -40,10 +42,11 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
   const [params, session] = await Promise.all([searchParams, getSession()]);
   if (!can(session, "audit.read")) redirect("/");
   const filters = readAuditFilters(params);
-  const [page, users, directory] = await Promise.all([
+  const [page, users, directory, suggestions] = await Promise.all([
     api<Page<AuditEventRow>>("/audit-events", { query: auditApiQuery(filters) }),
     can(session, "user.read") ? api<StaffUser[]>("/users") : Promise.resolve([] as StaffUser[]),
     organizationDirectory(session),
+    loadSuggestions(session, "security"),
   ]);
   const userName = (id: string | null) => (id ? (users.find((u) => u.id === id)?.displayName ?? "A staff member") : null);
   const facilityName = (id: string | null) => (id ? (directory.facilities.find((f) => f.id === id)?.name ?? null) : null);
@@ -54,6 +57,7 @@ export default async function AuditLogPage({ searchParams }: { searchParams: Pro
       description="Who did what, when and to which record."
       details={["Each search you make here is recorded too."]}
     >
+      {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="security" suggestions={suggestions} /> : null}
       <form method="get" className="grid gap-2 rounded-md border bg-card p-3 sm:grid-cols-3 lg:grid-cols-6">
         <div className="grid gap-1">
           <Label htmlFor="audit-from">From (day)</Label>

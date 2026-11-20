@@ -5812,7 +5812,7 @@ export interface TenantDetail extends TenantSummary {
 
 // ---- Heuristic assistant (GET /assistant/suggestions; docs/domains/assistant.md) ----------------------------------------
 
-export type AssistantSurface = "inventory" | "billing" | "appointments" | "queue" | "encounter" | "laboratory";
+export type AssistantSurface = "inventory" | "billing" | "appointments" | "queue" | "encounter" | "laboratory" | "security" | "settings";
 
 export interface AssistantSuggestion {
   id: string;

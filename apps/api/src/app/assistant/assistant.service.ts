@@ -306,13 +306,17 @@ export class AssistantService {
   // ---- internals ---------------------------------------------------------------------------------------------------
 
   /** The first wrong parameter, named in the settings screen's own words. */
-  private invalidParameters(binding: RuleBinding, issues: ReadonlyArray<{ path: PropertyKey[] }>): BusinessRuleError {
+  private invalidParameters(binding: RuleBinding, issues: ReadonlyArray<{ path: PropertyKey[]; code?: string; message?: string }>): BusinessRuleError {
     const labels = binding.definition.parameterLabels as Record<string, RuleParameterLabel>;
     const first = issues[0];
     const field = first ? labels[String(first.path[0])] : undefined;
-    const message = field
-      ? `${field.label}: enter a whole number${field.min !== undefined && field.max !== undefined ? ` from ${field.min} to ${field.max}` : ""}.`
-      : "The rule's settings are not valid.";
+    // A check across fields (e.g. hours that must end after they start) says what is wrong in its own words.
+    const message =
+      field && first?.code === "custom" && first.message
+        ? `${field.label}: ${first.message}.`
+        : field
+          ? `${field.label}: enter a whole number${field.min !== undefined && field.max !== undefined ? ` from ${field.min} to ${field.max}` : ""}.`
+          : "The rule's settings are not valid.";
     return new BusinessRuleError(message, "invalid_rule_parameters", { issues });
   }
 
