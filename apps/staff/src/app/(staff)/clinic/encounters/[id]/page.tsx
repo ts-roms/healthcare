@@ -161,6 +161,7 @@ export default async function EncounterPage({
       controls={controls}
       prescriptions={prescriptions}
       prescriptionPermissions={session.permissions.filter((p) => p.startsWith("prescription."))}
+      prescribingCheck={can(session, "assistant.use")}
       carePlans={carePlans}
       followUp={{
         patientId: encounter.patientId,

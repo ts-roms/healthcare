@@ -21,7 +21,7 @@ import {
   QUEUE_WAIT_RULE,
   queueWaitSuggestions,
 } from "@healthcare/clinic";
-import { type Actor, localDate, PH_TIMEZONE, type RuleDefinition, type Suggestion } from "@healthcare/core";
+import { type Actor, localDate, NotFoundError, PH_TIMEZONE, type RuleDefinition, type Suggestion } from "@healthcare/core";
 import {
   AUDIENCE_IDEAS_RULE,
   audienceIdeas,
@@ -44,6 +44,17 @@ import {
 } from "@healthcare/inventory";
 import { DELTA_CHECK_RULE, deltaCheckSuggestions, LabAssistantQueries, LabOrderSetService, ORDER_SETS_RULE, orderSetSuggestions } from "@healthcare/laboratory";
 import { COMPLIANCE_GAPS_RULE, complianceGapsSuggestions, OrganizationAssistantQueries } from "@healthcare/organization";
+import {
+  CHECK_PROMPTS_RULE,
+  checkPromptSuggestions,
+  DOSE_LIMIT_RULE,
+  doseLimitSuggestions,
+  type DraftMedicine,
+  DUPLICATE_THERAPY_RULE,
+  duplicateTherapySuggestions,
+  type PrescribingCheck,
+  PrescriptionAssistantQueries,
+} from "@healthcare/prescription";
 
 /** When a rule reads its figures: now for a screen, a past moment when the settings screen replays it. */
 export interface RuleMoment {
@@ -60,6 +71,16 @@ export interface RuleMoment {
   live: boolean;
   /** The consultation a consultation screen shows; a replay reads every consultation open at the moment instead. */
   encounterId?: string;
+  /** A prescription being drafted (surface `prescribing`); a replay reads the prescriptions issued that day instead. */
+  prescriptionDraft?: PrescriptionDraft;
+}
+
+/** A prescription as the prescriber is writing it, checked before it is issued. */
+export interface PrescriptionDraft {
+  encounterId: string;
+  medicines: DraftMedicine[];
+  /** The prescription being replaced, left out of the patient's earlier ones. */
+  replacesPrescriptionId?: string;
 }
 
 /**
@@ -98,12 +119,67 @@ export class AssistantRules {
     users: UsersService,
     orderSets: LabOrderSetService,
     crm: CrmAssistantQueries,
+    prescriptions: PrescriptionAssistantQueries,
   ) {
     /** The consultations a consultation rule reads: the one on screen, none on a live request without one, every one open in a replay. */
     const encountersFor = async (actor: Actor, facilityId: string, moment: RuleMoment): Promise<string[]> => {
       if (moment.encounterId) return [moment.encounterId];
       if (moment.live) return [];
       return encounters.openOn(actor.organizationId, facilityId, moment.dayStart, moment.asOf);
+    };
+    /**
+     * What the prescribing rules check: the draft on screen against the patient's earlier prescriptions, or, in a replay,
+     * each prescription issued at the facility that day as it was written, against what was on record when it was issued.
+     * Read once per moment for the three rules.
+     */
+    const prescribingChecks = async (actor: Actor, facilityId: string, moment: RuleMoment): Promise<PrescribingCheck[]> => {
+      const org = actor.organizationId;
+      const draft = moment.prescriptionDraft;
+      if (draft) {
+        const consultation = await prescriptions.consultation(org, draft.encounterId);
+        if (!consultation) throw new NotFoundError("Encounter");
+        const earlier = await prescriptions.earlierPrescriptions(org, consultation.patientId, moment.asOf, draft.replacesPrescriptionId);
+        const settings = await prescriptions.settings(org);
+        return [
+          {
+            encounterId: draft.encounterId,
+            asOf: moment.asOf.toISOString(),
+            timeZone: moment.timeZone,
+            patient: consultation.patient,
+            medicines: draft.medicines,
+            earlier,
+            settings,
+          },
+        ];
+      }
+      if (moment.live) return [];
+      const issued = await prescriptions.issuedBetween(org, facilityId, moment.dayStart, moment.asOf);
+      if (issued.length === 0) return [];
+      const settings = await prescriptions.settings(org);
+      const checks: PrescribingCheck[] = [];
+      for (const p of issued) {
+        const consultation = await prescriptions.consultation(org, p.encounterId);
+        const earlier = await prescriptions.earlierPrescriptions(org, p.patientId, p.issuedAt, p.replacesPrescriptionId ?? undefined);
+        checks.push({
+          encounterId: p.encounterId,
+          asOf: p.issuedAt.toISOString(),
+          timeZone: moment.timeZone,
+          patient: consultation?.patient ?? { sex: null, age: null },
+          medicines: p.medicines,
+          earlier,
+          settings,
+        });
+      }
+      return checks;
+    };
+    const checksRead = new WeakMap<RuleMoment, Promise<PrescribingCheck[]>>();
+    const prescribingChecksFor = (actor: Actor, facilityId: string, moment: RuleMoment): Promise<PrescribingCheck[]> => {
+      let pending = checksRead.get(moment);
+      if (!pending) {
+        pending = prescribingChecks(actor, facilityId, moment);
+        checksRead.set(moment, pending);
+      }
+      return pending;
     };
     this.bindings = [
       {
@@ -323,6 +399,31 @@ export class AssistantRules {
           const load = await crm.outreachLoad(actor.organizationId, { asOf: moment.asOf, windowDays: params.windowDays, campaigns: params.campaigns });
           const { cap } = await crm.limits(actor.organizationId);
           return frequencyLoadSuggestions({ ...load, cap }, params);
+        },
+      },
+      // Prescribing: checked in the prescribing dialog before issuing; a replay reads the whole day's prescriptions.
+      {
+        definition: erase(DUPLICATE_THERAPY_RULE),
+        replayAt: "23:59",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = DUPLICATE_THERAPY_RULE.parametersSchema.parse(raw);
+          return (await prescribingChecksFor(actor, facilityId, moment)).flatMap((check) => duplicateTherapySuggestions(check, params));
+        },
+      },
+      {
+        definition: erase(DOSE_LIMIT_RULE),
+        replayAt: "23:59",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = DOSE_LIMIT_RULE.parametersSchema.parse(raw);
+          return (await prescribingChecksFor(actor, facilityId, moment)).flatMap((check) => doseLimitSuggestions(check, params));
+        },
+      },
+      {
+        definition: erase(CHECK_PROMPTS_RULE),
+        replayAt: "23:59",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = CHECK_PROMPTS_RULE.parametersSchema.parse(raw);
+          return (await prescribingChecksFor(actor, facilityId, moment)).flatMap((check) => checkPromptSuggestions(check, params));
         },
       },
     ];

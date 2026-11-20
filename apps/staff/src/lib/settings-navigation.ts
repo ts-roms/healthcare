@@ -31,6 +31,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { label: "Vaccines", href: "/clinic/vaccines", permissions: ["immunization.read"], description: "The vaccines this clinic gives." },
       { label: "Coding systems", href: "/clinic/coding-systems", permissions: ["encounter.read"], description: "The diagnosis coding systems in use." },
       {
+        label: "Prescribing checks",
+        href: "/clinic/prescribing",
+        permissions: ["clinic.configure"],
+        description: "Your own classes, maximum daily doses and checks per medicine, for checking prescriptions before they are issued.",
+      },
+      {
         label: "Referral follow-up",
         href: "/clinic/referrals/settings",
         permissions: ["clinic.configure"],

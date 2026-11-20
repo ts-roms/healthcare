@@ -7,7 +7,19 @@ import type { Permission } from "../access/permissions";
  * never writes anything; its only action is a link to the screen that does the work.
  */
 
-export const SUGGESTION_SURFACES = ["inventory", "billing", "appointments", "queue", "encounter", "laboratory", "security", "settings", "outreach"] as const;
+export const SUGGESTION_SURFACES = [
+  "inventory",
+  "billing",
+  "appointments",
+  "queue",
+  "encounter",
+  "laboratory",
+  "security",
+  "settings",
+  "outreach",
+  // A prescription being drafted, checked before it is issued (POST /assistant/suggestions/check).
+  "prescribing",
+] as const;
 /** Where a suggestion is shown. Grows with each phase; a new surface is a code change, not data. */
 export type SuggestionSurface = (typeof SUGGESTION_SURFACES)[number];
 

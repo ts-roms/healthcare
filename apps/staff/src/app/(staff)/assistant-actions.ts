@@ -17,10 +17,12 @@ const SURFACE_PATH: Record<AssistantSurface, { path: string; type?: "layout" }> 
   security: { path: "/admin/audit" },
   settings: { path: "/admin" },
   outreach: { path: "/outreach" },
+  // Checked in the prescribing dialog: the consultation refreshes.
+  prescribing: { path: "/clinic/encounters", type: "layout" },
 };
 
 const answerSchema = z.object({
-  surface: z.enum(["inventory", "billing", "appointments", "queue", "encounter", "laboratory", "security", "settings", "outreach"]),
+  surface: z.enum(["inventory", "billing", "appointments", "queue", "encounter", "laboratory", "security", "settings", "outreach", "prescribing"]),
   id: z.string().min(3).max(300),
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),
 });

@@ -7,3 +7,6 @@ export * from "./lib/dispensing/dispensing.rules";
 export * from "./lib/dispensing/prescription-dispense.service";
 export * from "./lib/prescription-list.service";
 export * from "./lib/prescription-reporting.queries";
+export * from "./lib/assistant/prescribing.rules";
+export * from "./lib/assistant/prescription-assistant.queries";
+export * from "./lib/medicines/prescribing-medicine.service";

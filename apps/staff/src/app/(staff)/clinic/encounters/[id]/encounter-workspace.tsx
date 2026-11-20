@@ -80,6 +80,7 @@ export function EncounterWorkspace({
   controls,
   prescriptions,
   prescriptionPermissions,
+  prescribingCheck,
   carePlans,
   followUp,
   canManageCarePlans,
@@ -104,6 +105,8 @@ export function EncounterWorkspace({
   /** null: the user may not read prescriptions. */
   prescriptions: Prescription[] | null;
   prescriptionPermissions: string[];
+  /** The person may see the assistant's suggestions: prescriptions are checked with the prescribing rules before issuing. */
+  prescribingCheck: boolean;
   /** Open care plans with details; null: the user may not read care plans. */
   carePlans: CarePlanDetail[] | null;
   followUp: FollowUpContext;
@@ -432,6 +435,7 @@ export function EncounterWorkspace({
                 controls={prescriptionControls(encounter.status, prescriptionPermissions)}
                 allergies={banner.allergies}
                 allergyStatus={summary ? summary.allergies.status : "unknown"}
+                canCheck={prescribingCheck}
               />
               <LabOrdersPanel
                 // A new pre-selection (another link) starts the form again.

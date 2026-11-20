@@ -518,6 +518,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Calendar events (meetings, blocked time, trainings, reminders)                                                                                         | Screen: `/calendar`                                                                               | `calendar.manage`               | [Appointments and queue](03-appointments-and-queue.md#how-to-use-the-calendar)                            |
 | Practitioners (and their link to a staff account), rooms, weekly schedules, closures                                                                   | Screen: `/appointments/schedules`                                                                 | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Diagnosis coding systems                                                                                                                               | Screen: `/clinic/coding-systems` (**Settings → Coding systems**)                                  | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
+| Prescribing checks: your own classes, maximum daily doses and checks per medicine                                                                      | Screen: `/clinic/prescribing` (**Settings → Prescribing checks**)                                 | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md#checks-before-issuing-suggestions)                     |
 | Visit types, and which patients may book online or use at a kiosk                                                                                      | Screen: `/appointments/visit-types`                                                               | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Service points of each facility (consultation line, emergency room, X-ray …) where a triaged patient can be sent                                       | Screen: `/admin/service-points` (**Settings → Service points**)                                   | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                                                      | Screen: `/clinic/vaccines` (**Settings → Vaccines**)                                              | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
@@ -616,14 +617,23 @@ The rules, and the screen each speaks on:
 | When patients use MyHealth                           | Outreach      | Organization administrators                                                          |
 | Audiences to consider                                | Outreach      | Organization administrators                                                          |
 | Patients receiving many campaigns                    | Outreach      | Organization administrators                                                          |
+| The same medicine or class is already prescribed     | Prescribing   | Physicians, dentists                                                                 |
+| Above your organization's maximum daily dose         | Prescribing   | Physicians, dentists                                                                 |
+| Checks your organization asks for before prescribing | Prescribing   | Physicians, dentists                                                                 |
 
 Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
 [Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md), [Consultations](04-consultations-and-care-plans.md),
 [Laboratory](06-laboratory.md), [Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign). The starting values are only a
 starting point: set them from how your clinic works.
 
-The consultation and laboratory rules are clinical decision support: before turning one on, have your clinicians check the rule and its
+The consultation, prescribing and laboratory rules are clinical decision support: before turning one on, have your clinicians check the rule and its
 thresholds (for example the percentage change that should prompt a second look at a result), and record who did in **Settings → Compliance**.
+
+**Prescribing checks** run when a doctor selects **Issue prescription** and read your own medicine settings: open **Settings → Prescribing checks**
+(`clinic.configure`), select **Add a medicine**, and give its generic name and any of a **Class** (two current medicines of one class are shown as a
+possible duplicate), a **Maximum daily dose** with its unit, and the checks to ask for (**Kidney function**, **Whether the patient may be pregnant**),
+with a note shown to the doctor. A setting for "metformin" also covers "Metformin HCl 500 mg". Doses are compared only in the unit you give. No
+dose, class or check is built in: decide them with your physicians or pharmacist. Turning a setting **Inactive** stops it without losing it.
 They never choose a code, change a result or stop anyone signing.
 
 **Unusual access to patient records** (on **Settings → Audit log**) names a staff account whose access in the last hours stands out: many

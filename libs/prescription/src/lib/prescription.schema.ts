@@ -1,4 +1,4 @@
-import { bigint, jsonb, numeric, pgTable, smallint, text, timestamp, uuid, integer } from "drizzle-orm/pg-core";
+import { bigint, boolean, jsonb, numeric, pgTable, smallint, text, timestamp, uuid, integer } from "drizzle-orm/pg-core";
 
 export const ROUTES = [
   "oral",
@@ -119,3 +119,29 @@ export const prescriptionDispense = pgTable("prescription_dispense", {
 });
 
 export type PrescriptionDispenseRecord = typeof prescriptionDispense.$inferSelect;
+
+/**
+ * The organization's own settings per medicine, read only by the assistant's prescribing rules (migration 0156): a
+ * class of its own, a maximum daily dose in one unit, and checks to prompt before prescribing. Nothing is shipped.
+ */
+export const prescribingMedicine = pgTable("prescribing_medicine", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  name: text("name").notNull(),
+  /** The name's words as matched against prescribed generic names (`medicineWords`); unique in the organization. */
+  nameKey: text("name_key").notNull(),
+  className: text("class_name"),
+  maxDailyDose: numeric("max_daily_dose", { precision: 12, scale: 3, mode: "number" }),
+  doseUnit: text("dose_unit"),
+  checkRenal: boolean("check_renal").notNull().default(false),
+  checkPregnancy: boolean("check_pregnancy").notNull().default(false),
+  note: text("note"),
+  status: text("status").$type<"active" | "inactive">().notNull().default("active"),
+  version: integer("version").notNull().default(1),
+  createdBy: uuid("created_by").notNull(),
+  updatedBy: uuid("updated_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type PrescribingMedicineRecord = typeof prescribingMedicine.$inferSelect;

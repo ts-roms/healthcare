@@ -4,6 +4,7 @@
 
 Issuing, cancelling and replacing prescriptions within an encounter, with drug–allergy **decision support**; and
 **dispensing** prescribed items from inventory stock (Phase 9, migration `0053_prescription_dispensing.sql`, staff `/pharmacy`).
+Also the organization's own [medicine settings](#medicine-settings) read by the assistant's prescribing checks (migration `0156`).
 
 ## Entities
 
@@ -61,7 +62,8 @@ read, prescriptions read and dispense, inventory read and move.
 ## API
 
 `POST /prescriptions`, `GET /prescriptions?patientId=|encounterId=`, `GET /prescriptions/:id`,
-`POST /prescriptions/:id/{replace,cancel}`.
+`POST /prescriptions/:id/{replace,cancel}`. Medicine settings: `GET|POST /prescribing/medicines`, `PUT /prescribing/medicines/:id`
+([Medicine settings](#medicine-settings)).
 
 **Prescriptions issued at a facility** (`GET /prescriptions/issued`, `prescription.read`, selected facility required;
 `PrescriptionListService`): newest first over a period of the facility's calendar days (`from`, `to`; today by default; at most
@@ -87,3 +89,31 @@ dispensing transaction) implemented over `InventoryStockService` (`apps/api/src/
 The FK `(patient_id, encounter_id)` guarantees a prescription's encounter belongs to the same patient.
 The staff app prescribes from the encounter workspace (`docs/architecture/staff-app.md`); it shows the API's
 `allergy_warning` details as decision support and sends the prescriber's override reason.
+
+## Medicine settings
+
+Migration `0156_prescribing_medicines.sql`. The organization's own settings per medicine, read only by the assistant's
+prescribing rules ([assistant.md](assistant.md)), which check a prescription in the prescribing dialog before it is issued
+and are off until an administrator turns them on. Nothing here blocks or changes a prescription, and nothing is shipped:
+no dose, class, interaction or check is built in; every value is the organization's, validated by its physicians or
+pharmacist (compliance register).
+
+`prescribing_medicine`: the medicine as the organization writes it (`name`) and its words as matched (`name_key`, unique in
+the organization, so "Metformin HCl 500 mg" and "metformin hcl" are one setting), an optional class of its own
+(`class_name`: two current medicines of one class are a duplicate therapy), an optional maximum daily dose with its unit
+(both or neither), `check_renal` and `check_pregnancy` (prompt a kidney-function or pregnancy check before prescribing), an
+optional note shown with the suggestions, `active | inactive`, an optimistic `version`; at least a class, a maximum or a
+check. Matching is by words (`medicineWords` in `libs/prescription/src/lib/assistant/prescribing.rules.ts`: lower case,
+without accents, strengths and dosage forms): a setting applies to every prescribed name holding all its words, the most
+specific one first.
+
+`PrescribingMedicineService` (`libs/prescription/src/lib/medicines`): create and update (version-checked, `409
+duplicate_medicine_setting` for a medicine that has one), audited `prescription.medicine-setting.create | update` with the
+values changed. API: `GET /prescribing/medicines[?includeInactive=true]` (`prescription.read`), `POST /prescribing/medicines`
+and `PUT /prescribing/medicines/:id` (`clinic.configure`); no new permission. Staff: **Settings → Clinical → Prescribing
+checks** (`/clinic/prescribing`).
+
+The prescribing dialog (`prescriptions-panel.tsx`) sends the draft to `POST /assistant/suggestions/check` when the person
+holds `assistant.use`: on **Issue**, findings are shown first ("Before you issue") and the button becomes **Issue anyway**;
+without findings, or when the assistant cannot answer, the prescription is issued at once. The drug–allergy check is
+unchanged and still runs when the prescription is issued.

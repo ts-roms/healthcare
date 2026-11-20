@@ -117,6 +117,25 @@ Prescriptions are issued inside an open (in-progress) encounter and need `prescr
 5. Optionally add **Notes (for the pharmacist)**.
 6. Select **Issue prescription**. A prescription number is assigned.
 
+### Checks before issuing (suggestions)
+
+When your organization has turned on the assistant's prescribing checks (**Settings → Assistant**), selecting **Issue prescription** (or
+**Replace prescription**) first checks what you wrote:
+
+- **The same medicine or class is already prescribed**: a medicine already in a current prescription of the patient, of the same class as one
+  (classes are your organization's own), written twice, or prescribed again within the last days although that course ended.
+- **Above your organization's maximum daily dose**: the dose and frequency give more per day than the maximum your organization set for that
+  medicine, for example "Paracetamol: 6,000 mg a day, above your organization's maximum of 4,000 mg".
+- **Checks your organization asks for**: a reminder to check kidney function, or whether the patient may be pregnant, for the medicines your
+  organization marked, with its note.
+
+If there is something to check, the prescription is not issued yet: the suggestions appear under **Before you issue** and the button becomes
+**Issue anyway**. Change the prescription (it is checked again), or select **Issue anyway** to issue it as written. **Dismiss** hides a suggestion
+for you in this consultation for 14 days. If there is nothing to say, the prescription is issued at once, as before.
+
+Medicines are compared by the words of their names: a different salt, spelling or a brand name alone may not match, so **no suggestion does not
+mean there is no duplicate or that a dose is safe**. The drug–allergy check below still runs.
+
 ### Drug–allergy decision support
 
 When you submit, each medicine name is compared with the patient's recorded allergies. If a name matches, the prescription is **not** issued yet

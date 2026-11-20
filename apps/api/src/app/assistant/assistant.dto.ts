@@ -1,4 +1,5 @@
 import { SUGGESTION_SURFACES } from "@healthcare/core";
+import { FREQUENCIES } from "@healthcare/prescription";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
@@ -13,6 +14,26 @@ export const suggestionsQuerySchema = z.object({
   encounterId: z.string().uuid().optional(),
 });
 export class SuggestionsQueryDto extends createZodDto(suggestionsQuerySchema) {}
+
+/** A medicine as written in a prescription being drafted: only what the prescribing rules compare. */
+const draftMedicineSchema = z.object({
+  genericName: z.string().trim().min(1).max(200),
+  brandName: z.string().trim().max(200).nullish(),
+  strength: z.string().trim().max(60).nullish(),
+  doseAmount: z.number().positive().max(1_000_000).nullish(),
+  doseUnit: z.string().trim().max(20).nullish(),
+  frequency: z.enum(FREQUENCIES),
+});
+
+/** A draft checked before it is saved: for now a prescription in a consultation (surface `prescribing`). */
+export const checkSchema = z.object({
+  surface: z.literal("prescribing"),
+  encounterId: z.string().uuid(),
+  medicines: z.array(draftMedicineSchema).min(1).max(20),
+  /** When replacing a prescription: it is left out of the patient's earlier ones. */
+  replacesPrescriptionId: z.string().uuid().optional(),
+});
+export class CheckDto extends createZodDto(checkSchema) {}
 
 export const feedbackSchema = z.object({
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),

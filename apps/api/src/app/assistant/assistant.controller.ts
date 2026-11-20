@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestj
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { AssistantService } from "./assistant.service";
-import { FeedbackDto, InsightsQueryDto, ReplayDto, RuleSettingDto, RulesQueryDto, SuggestionsQueryDto } from "./assistant.dto";
+import { CheckDto, FeedbackDto, InsightsQueryDto, ReplayDto, RuleSettingDto, RulesQueryDto, SuggestionsQueryDto } from "./assistant.dto";
 
 /**
  * The heuristic assistant (docs/architecture/heuristic-assistant.md): decision support computed from rules over data the
@@ -20,6 +20,17 @@ export class AssistantController {
   @ApiOperation({ summary: "Suggestions for a screen at the selected facility, from the rules turned on there (audited, rule ids only)" })
   suggestions(@CurrentActor() actor: Actor, @Query() query: SuggestionsQueryDto) {
     return this.assistant.suggestions(actor, query.surface, { date: query.date, encounterId: query.encounterId });
+  }
+
+  @Post("suggestions/check")
+  @HttpCode(200)
+  @RequireFacility()
+  @RequirePermissions("assistant.use")
+  @ApiOperation({ summary: "Suggestions for a draft before it is saved: a prescription being written in a consultation (audited, rule ids only)" })
+  check(@CurrentActor() actor: Actor, @Body() body: CheckDto) {
+    return this.assistant.suggestions(actor, body.surface, {
+      prescriptionDraft: { encounterId: body.encounterId, medicines: body.medicines, replacesPrescriptionId: body.replacesPrescriptionId },
+    });
   }
 
   @Post("suggestions/:id/feedback")

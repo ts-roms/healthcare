@@ -22,7 +22,7 @@ import {
 } from "@healthcare/core";
 import { facility } from "@healthcare/organization";
 import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
-import { AssistantRules, type RuleBinding, type RuleMoment } from "./assistant-rules";
+import { AssistantRules, type PrescriptionDraft, type RuleBinding, type RuleMoment } from "./assistant-rules";
 import { assistantFeedback, assistantRuleSetting, type AssistantOutcome } from "./assistant.schema";
 
 /** A dismissed suggestion stays hidden from the person who dismissed it for this long; the same finding may then return. */
@@ -73,11 +73,19 @@ export class AssistantService {
 
   // ---- suggestions -------------------------------------------------------------------------------------------------
 
-  /** `date` (YYYY-MM-DD): the day a screen shows (the appointments board); `encounterId`: the consultation a consultation screen shows. */
-  async suggestions(actor: Actor, surface: SuggestionSurface, context: { date?: string; encounterId?: string } = {}): Promise<SuggestionsAnswer> {
+  /**
+   * `date` (YYYY-MM-DD): the day a screen shows (the appointments board); `encounterId`: the consultation a consultation
+   * screen shows; `prescriptionDraft`: a prescription being written, checked before it is issued (surface `prescribing`).
+   */
+  async suggestions(
+    actor: Actor,
+    surface: SuggestionSurface,
+    context: { date?: string; encounterId?: string; prescriptionDraft?: PrescriptionDraft } = {},
+  ): Promise<SuggestionsAnswer> {
     const facilityId = requireFacilityId(actor);
     const timeZone = await this.facilityTimeZone(actor, facilityId);
-    const moment = { ...liveMoment(timeZone, context.date), encounterId: context.encounterId };
+    const moment = { ...liveMoment(timeZone, context.date), encounterId: context.encounterId, prescriptionDraft: context.prescriptionDraft };
+    const encounterId = context.encounterId ?? context.prescriptionDraft?.encounterId;
     const bindings = this.rules.bindings.filter((b) => b.definition.surfaces.includes(surface));
     const settings = await this.effectiveSettings(actor.organizationId, facilityId, bindings);
 
@@ -102,7 +110,13 @@ export class AssistantService {
     await this.audit.recordStandalone(actor, {
       action: "assistant.view",
       resourceType: "assistant_surface",
-      metadata: { surface, rules: ran, shown: shown.length, ...(context.encounterId ? { encounterId: context.encounterId } : {}) },
+      metadata: {
+        surface,
+        rules: ran,
+        shown: shown.length,
+        ...(encounterId ? { encounterId } : {}),
+        ...(context.prescriptionDraft ? { medicines: context.prescriptionDraft.medicines.length } : {}),
+      },
     });
     return { items: shown, dismissed: items.filter((s) => hidden.has(s.id)).length, withheld };
   }

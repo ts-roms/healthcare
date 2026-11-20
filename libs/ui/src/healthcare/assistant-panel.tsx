@@ -54,10 +54,11 @@ export function AssistantPanel({
   onAnswer?: (id: string, outcome: AssistantOutcome) => void | Promise<void>;
   className?: string;
 }) {
+  const headingId = React.useId();
   return (
-    <section aria-labelledby="assistant-heading" className={cn("rounded-xl border border-border/70 bg-card p-4 text-card-foreground shadow-xs", className)}>
+    <section aria-labelledby={headingId} className={cn("rounded-xl border border-border/70 bg-card p-4 text-card-foreground shadow-xs", className)}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="assistant-heading" className="text-page-sm flex items-center gap-2 font-semibold">
+        <h2 id={headingId} className="text-page-sm flex items-center gap-2 font-semibold">
           <LightbulbIcon className="size-4" aria-hidden />
           Suggestions
         </h2>
