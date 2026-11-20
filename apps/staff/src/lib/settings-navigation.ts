@@ -154,6 +154,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         description: "Where a triaged patient can be sent at each facility: the consultation line, the emergency room, X-ray and other stations.",
       },
       {
+        label: "Assistant",
+        href: "/admin/assistant",
+        permissions: ["assistant.configure"],
+        description: "Which suggestion rules staff see, at which facilities, with your own thresholds.",
+      },
+      {
         label: "Guided tour",
         href: "/admin/guided-tour",
         permissions: ["organization.manage"],

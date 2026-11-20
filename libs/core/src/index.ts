@@ -31,5 +31,7 @@ export * from "./lib/events/domain-events";
 export * from "./lib/time/zoned-time";
 export * from "./lib/http/pdf-file";
 export * from "./lib/supplies/supply-use";
+export * from "./lib/assistant/statistics";
+export * from "./lib/assistant/suggestion";
 export * from "./lib/telemetry/metrics";
 export * from "./lib/telemetry/correlation";

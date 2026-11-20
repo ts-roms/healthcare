@@ -11,6 +11,12 @@ describe("navigationForPermissions", () => {
     expect(hrefs([])).toEqual(["/", "/help"]);
   });
 
+  it("shows the platform console only to platform administrators", () => {
+    expect(hrefs([])).not.toContain("/platform");
+    const platform = navigationForPermissions([], undefined, { platformAdmin: true }).find((i) => i.href === "/platform");
+    expect(platform).toMatchObject({ label: "Platform", placement: "footer" });
+  });
+
   it("shows patient lookup to users who can search patients", () => {
     expect(hrefs(["patient.search"])).toContain("/patients");
     expect(hrefs(["audit.read"])).not.toContain("/patients");
@@ -65,6 +71,13 @@ describe("navigationForPermissions", () => {
     expect(settings?.match?.("/clinic/procedures")).toBe(true);
     expect(settings?.match?.("/admin/users/abc")).toBe(true);
     expect(settings?.match?.("/clinic/encounters")).toBe(false);
+  });
+
+  it("lists the assistant settings only for those who may configure it", () => {
+    const pages = (permissions: string[]) => settingsForPermissions(permissions).flatMap((g) => g.pages.map((p) => p.href));
+    expect(pages(["assistant.configure"])).toContain("/admin/assistant");
+    expect(pages(["assistant.use", "assistant.insights.read"])).not.toContain("/admin/assistant");
+    expect(isSettingsPath("/admin/assistant")).toBe(true);
   });
 
   it("keeps a module current on the pages it owns, and not on its settings page", () => {

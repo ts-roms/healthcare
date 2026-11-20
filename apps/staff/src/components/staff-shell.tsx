@@ -39,6 +39,8 @@ const NextLink: LinkComponent = (props) => <Link {...props} />;
 export interface StaffShellProps {
   /** Effective permissions from the API; navigation is built here because nav items carry icon components. */
   permissions: string[];
+  /** Shows the platform console (every tenant) in the navigation; the API decides access. */
+  platformAdmin?: boolean;
   user: { displayName: string; email: string };
   organizationName: string;
   facilities: { id: string; name: string }[];
@@ -62,6 +64,7 @@ const BADGES_REFRESH_MS = 60_000;
 
 export function StaffShell({
   permissions,
+  platformAdmin = false,
   user,
   organizationName,
   facilities,
@@ -105,7 +108,10 @@ export function StaffShell({
   }, [refreshCounts]);
   // A new in-app notice reaches this browser over the realtime socket: update the bell and the counts at once (not the page).
   useLiveUpdates(NOTICE_EVENTS, () => void refreshCounts(), { refreshPage: false });
-  const navigation = React.useMemo(() => withBadgeCounts(navigationForPermissions(permissions), counts), [permissions, counts]);
+  const navigation = React.useMemo(
+    () => withBadgeCounts(navigationForPermissions(permissions, undefined, { platformAdmin }), counts),
+    [permissions, counts, platformAdmin],
+  );
 
   // Settings: every configuration page open to the user, drawn beside a sub-navigation; a module's other pages are its tabs.
   const settingsGroups = React.useMemo(() => settingsForPermissions(permissions), [permissions]);

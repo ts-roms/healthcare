@@ -5761,3 +5761,108 @@ export interface QueueDisplaySettings {
   groupByServicePoint: boolean;
   version: number | null;
 }
+
+/** Platform console (migration 0151): a patient count from 1 to 4 is "<5". */
+export type PlatformPatientCount = number | "<5";
+
+/** `GET /platform/tenants` row: one organization's status and operational figures, never a patient's data. */
+export interface TenantSummary {
+  id: string;
+  code: string;
+  name: string;
+  status: "active" | "suspended" | "archived";
+  createdAt: string;
+  facilities: { active: number; total: number };
+  activeStaff: number;
+  patients: PlatformPatientCount;
+  myHealthAccounts: PlatformPatientCount;
+  lastStaffSignInAt: string | null;
+}
+
+export interface TenantList {
+  items: TenantSummary[];
+  totals: { organizations: number; active: number; suspended: number };
+}
+
+/** `GET /platform/tenants/:id`. */
+export interface TenantDetail extends TenantSummary {
+  version: number;
+  isCurrentOrganization: boolean;
+  facilityList: Array<{
+    id: string;
+    code: string;
+    name: string;
+    facilityType: string;
+    cityMunicipality: string | null;
+    province: string | null;
+    status: string;
+  }>;
+  administrators: Array<{
+    id: string;
+    email: string;
+    displayName: string;
+    membershipStatus: string;
+    accountStatus: string;
+    mfaEnabled: boolean;
+    passwordChangeRequired: boolean;
+    lastLoginAt: string | null;
+  }>;
+  statusHistory: Array<{ id: string; fromStatus: string; toStatus: string; reason: string; changedAt: string; changedBy: string }>;
+}
+
+// ---- Heuristic assistant (GET /assistant/suggestions; docs/domains/assistant.md) ----------------------------------------
+
+export type AssistantSurface = "inventory";
+
+export interface AssistantSuggestion {
+  id: string;
+  ruleId: string;
+  ruleVersion: number;
+  surface: AssistantSurface;
+  severity: "info" | "advice" | "warning";
+  title: string;
+  rationale: string;
+  evidence: Array<{ label: string; resourceType: string; resourceId: string; value?: string }>;
+  basis: "rule" | "statistic" | "text-match";
+  strength: "matched" | "weak";
+  requires: string[];
+  action?: { label: string; href: string };
+  expiresAt?: string;
+}
+
+export interface AssistantSuggestions {
+  items: AssistantSuggestion[];
+  /** Hidden because this person dismissed them recently. */
+  dismissed: number;
+  /** Rules on here that need a permission this person lacks. */
+  withheld: Array<{ ruleId: string; title: string }>;
+}
+
+export interface AssistantRuleSettingValue {
+  version: number;
+  enabled: boolean;
+  parameters: Record<string, unknown>;
+  updatedAt: string;
+}
+
+/** GET /assistant/rules: one rule with its setting for the scope asked for (the organization, or one facility). */
+export interface AssistantRule {
+  ruleId: string;
+  ruleVersion: number;
+  domain: string;
+  title: string;
+  description: string;
+  surfaces: AssistantSurface[];
+  requires: string[];
+  defaultParameters: Record<string, number>;
+  parameterLabels: Record<string, { label: string; unit?: string; hint?: string; min?: number; max?: number }>;
+  scope: { facilityId: string | null };
+  /** This scope's own setting; null when it has none (a facility then follows the organization's). */
+  setting: AssistantRuleSettingValue | null;
+  organizationSetting: AssistantRuleSettingValue | null;
+}
+
+export interface AssistantInsights {
+  days: number;
+  rules: Array<{ ruleId: string; title: string; accepted: number; dismissed: number; notUseful: number; answered: number; reviewSuggested: boolean }>;
+}

@@ -145,6 +145,10 @@ export const PERMISSIONS = [
   "crm.campaign.approve",
   // Inventory valuation: stock values and the cost of stock received, used and written off (migration 0061).
   "inventory.valuation.read",
+  // Heuristic assistant (migration 0152): suggestions on screens the caller can already use; rule settings; rule insights.
+  "assistant.use",
+  "assistant.configure",
+  "assistant.insights.read",
   // Records requests: review patients' requests for copies of their records, share documents or decline (migration 0068).
   "patient.records-request.manage",
   // Two-way messaging: read patients' MyHealth conversations; reply, start, assign, close (migration 0076).

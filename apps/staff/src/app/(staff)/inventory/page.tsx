@@ -1,12 +1,13 @@
 import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { clinicalDate } from "@healthcare/ui/healthcare";
 import { Button, Card, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
-import type { InventoryItem, InventoryLocation, InventorySupplier, StockRow } from "@/lib/api/types";
+import type { AssistantSuggestions as Suggestions, InventoryItem, InventoryLocation, InventorySupplier, StockRow } from "@/lib/api/types";
 import { MovementForm } from "./movement-form";
 import { ExpiryStatus, StockStatus } from "./stock-status";
 
@@ -30,7 +31,7 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
   }
   const show = FILTERS.find((f) => f.key === params.show)?.key ?? "all";
   const filtered = show !== "all" || Boolean(params.location);
-  const [stock, unfiltered, locations, allLocations, items, suppliers] = await Promise.all([
+  const [stock, unfiltered, locations, allLocations, items, suppliers, suggestions] = await Promise.all([
     api<{ today: string; rows: StockRow[] }>("/inventory/stock", { query: { show, locationId: params.location } }),
     // The movement form picks lots from all stock, whatever the table is filtered to.
     filtered ? api<{ today: string; rows: StockRow[] }>("/inventory/stock", { query: { show: "all" } }) : null,
@@ -38,12 +39,21 @@ export default async function InventoryPage({ searchParams }: { searchParams: Pr
     api<InventoryLocation[]>("/inventory/locations"),
     api<InventoryItem[]>("/inventory/items"),
     api<InventorySupplier[]>("/inventory/suppliers"),
+    // Decision support only: if the assistant cannot answer, the stock page shows without it.
+    can(session, "assistant.use")
+      ? api<Suggestions>("/assistant/suggestions", { query: { surface: "inventory" } }).catch((error: unknown) => {
+          unstable_rethrow(error);
+          return null;
+        })
+      : null,
   ]);
+  const showAssistant = Boolean(suggestions && (suggestions.items.length > 0 || suggestions.dismissed > 0 || suggestions.withheld.length > 0));
   const canMove = can(session, "inventory.move");
   const canAdjust = can(session, "inventory.adjust");
   const href = (key: string) => `/inventory?show=${key}${params.location ? `&location=${params.location}` : ""}`;
   return (
     <ModulePage title="Inventory" description={`${facility.name} · medicines, supplies and reagents by location, lot and expiry`}>
+      {showAssistant && suggestions ? <AssistantSuggestions surface="inventory" suggestions={suggestions} /> : null}
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-3">
           <nav aria-label="Filter" className="flex flex-wrap items-center gap-1">

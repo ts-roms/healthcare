@@ -243,6 +243,14 @@ advises.
 | `inventory.read`                     | View stock, lots, movements, low-stock and expiry lists                          | Dental assistant, Inventory officer, Medical technologist, Nurse, Pharmacist |
 | `inventory.valuation.read`           | View stock values and the cost of stock received, used and written off           | Inventory officer                                                            |
 
+### Assistant
+
+| Permission                | What it allows                                                                               | Default roles (besides Organization administrator) |
+| ------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Inventory officer                                  |
+| `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                  |
+| `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                  |
+
 ### Records, reporting and integrations
 
 | Permission                    | What it allows                                                                                                      | Default roles (besides Organization administrator) |
@@ -353,6 +361,25 @@ without it, and the exempt accounts. Every change is audited.
 4. **Lost or replaced phone:** a person with recovery codes left signs in with one and turns it on again from **My account**. Otherwise, check who is asking (in person, or by a call you place to a number you already have), open their page under **Staff users**
    and click **Reset two-step verification…** with the reason. Their sessions end at once and they set it up again at their next sign-in. You cannot reset
    your own (use **My account**), and an account that also belongs to another organization can only be reset by a platform administrator.
+
+## The platform console (platform administrators)
+
+Platform administrators look after every organization on the platform. **Platform** at the foot of the menu (only they
+see it, and only with two-step verification on) lists each organization with its status, facilities, active staff,
+patients and MyHealth accounts (counts from 1 to 4 show as **<5**) and the last staff sign-in. It never shows a patient's
+details: to look inside an organization you still sign in to it as one of its members.
+
+- **Open an organization** to see its facilities, its administrators (with their email, so you can reach them) and the
+  history of suspensions. Opening it is recorded in that organization's own audit trail.
+- **New organization:** enter the organization's name and code (permanent; patients type it to sign in to MyHealth), its
+  first facility and its first administrator. If the administrator's email has no account yet, give a temporary
+  password of at least 12 characters and pass it to them yourself; they choose their own at the first sign-in. An
+  existing account keeps its password and is simply made the new organization's administrator. The administrator then
+  sets up everything else (more facilities, staff, roles).
+- **Suspend…** (with a reason of at least 10 characters) ends every staff and MyHealth session of the organization at once
+  and stops anyone of it from signing in; its scheduled outreach waits. Nothing is deleted. Tell the organization
+  yourself — the platform does not. **Reactivate…** lets them sign in again. You cannot suspend the organization you are
+  signed in to; sign in to another one first. Every change and its reason is kept in the status history.
 
 ## How facilities and departments are managed
 
@@ -502,6 +529,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Instruments, QC materials, lots and targets                                                                                                            | Screens: `/laboratory/instruments`, `/laboratory/qc`                                              | `lab.qc.manage`                 | [Laboratory quality](07-laboratory-quality.md)                                                            |
 | Reagent tests per unit (how many tests one stock unit of a reagent performs)                                                                           | Screen: `/laboratory/reagents` → **Tests per unit**                                               | `lab.qc.manage`                 | [Laboratory quality](07-laboratory-quality.md)                                                            |
 | Dental procedures, tooth notation, MyHealth dental records and online plan decisions, supply locations                                                 | Screen: `/dental/settings`                                                                        | `dental.settings.manage`        | [Dental](08-dental.md)                                                                                    |
+| Assistant suggestion rules (on or off for the organization or one facility, your own thresholds)                                                       | Screen: `/admin/assistant` (**Settings → Assistant**)                                             | `assistant.configure`           | this chapter                                                                                              |
 | Inventory items, suppliers, storage locations, reorder levels                                                                                          | Screen: `/inventory/catalog`                                                                      | `inventory.catalog.manage`      | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                    |
 | Reportable conditions (DOH), the facility's DOH health facility code, checking earlier diagnoses                                                       | Screen: `/reporting/settings`                                                                     | `doh.settings.manage`           | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Withholding codes and procurement methods                                                                                                              | Screen: `/inventory/compliance`                                                                   | `inventory.procurement.approve` | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                    |
@@ -557,6 +585,29 @@ choose what it holds: a random key (recommended; a lost card is revoked and repl
 the same code), or a **MyHealth link**: the patient scans the card with their phone, MyHealth opens with their patient number filled in and they choose their own password
 (their date of birth and email are filled in; they only enter the activation code the clinic gives them and a password). You can also tick **Offer MyHealth access at registration**: the registration form then starts with MyHealth access ticked, records the patient's consent (the registering person confirms they agreed) and shows the activation code once. Changes apply to codes issued from then on. Decide with your Data Protection Officer how cards are handed out and replaced. See
 [Patients](02-patients.md#how-to-use-patient-qr-codes).
+
+## How to turn on the assistant's suggestions
+
+The assistant shows staff short suggestions on the screens they already use, worked out from fixed rules over your own records (no artificial
+intelligence model, and nothing leaves the platform). A suggestion never changes a record: it says why it was shown and links to the screen where
+someone decides. Every rule is off until you turn it on.
+
+1. Choose **Settings → Assistant** (`assistant.configure`).
+2. Under **Settings for**, choose **Whole organization**, or a facility to set it differently there.
+3. On the rule's card, tick **Show these suggestions at …**, check **Your thresholds** and select **Save**.
+
+The rule today is **Stock may run out before a delivery arrives**: on **Inventory**, it suggests an order when usable stock and open orders will
+not last your **Delivery time** at the pace items were issued over the period you choose. The starting values (14 days' delivery time, enough for
+30 days, pace over the last 30 days, 5 issues for a firm pace) are only a starting point: set them from your suppliers and stock policy.
+
+A facility without a setting of its own follows the organization's; the card then says "follows the organization's setting". Once you save for a
+facility, it keeps its own setting, and later changes for the whole organization no longer apply there. Each save is kept as a version and
+recorded in the audit log. If someone else saved the same rule meanwhile, you see "Someone else updated this just now" and the screen shows their
+change.
+
+**How staff answered** (with `assistant.insights.read`) counts, for the last 90 days, how often each rule's suggestions were accepted, dismissed
+or marked not useful. **Mostly dismissed** appears once at least 20 answers have been given and 70% or more were dismissals: look at the rule's
+thresholds. Nothing changes by itself. See [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions).
 
 ## How to keep the breach register (Data privacy)
 

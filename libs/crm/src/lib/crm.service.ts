@@ -680,6 +680,8 @@ export class CrmService {
     let campaigns = 0;
     for (const campaign of due) {
       if (campaign.status === "approved" && !isDueToSend(campaign, now)) continue;
+      // A suspended organization sends nothing; its campaigns wait for a reactivation (platform console, migration 0151).
+      if ((await this.organizations.getOrganization(campaign.organizationId)).status !== "active") continue;
       deliveries += await this.sendCampaign(campaign, now);
       campaigns += 1;
     }

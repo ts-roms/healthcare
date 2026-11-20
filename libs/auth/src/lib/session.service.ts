@@ -107,6 +107,16 @@ export class SessionService {
     return revoked.length;
   }
 
+  /** Ends every staff session in the organization (it was suspended; platform console). */
+  async revokeAllForOrganization(executor: DbExecutor, organizationId: string, reason: string): Promise<number> {
+    const revoked = await executor
+      .update(authSession)
+      .set({ revokedAt: sql`now()`, revokedReason: reason })
+      .where(and(eq(authSession.organizationId, organizationId), isNull(authSession.revokedAt)))
+      .returning({ id: authSession.id });
+    return revoked.length;
+  }
+
   /** Signals an invalid refresh token without revealing which check failed. */
   static invalid(): UnauthenticatedError {
     return new UnauthenticatedError("Refresh token is invalid or expired", "invalid_refresh_token");

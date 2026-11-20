@@ -112,6 +112,21 @@ Status badges: **In stock**, **Low** (usable stock at or below the reorder level
 
 If the facility has no storage locations yet, you see "No storage locations at this facility yet (see Catalog)."
 
+### How to read the stock suggestions
+
+When your organization has turned on the assistant's stock rule (**Settings → Assistant**), a **Suggestions** box (marked **Decision support**) appears above the stock
+table. It lists items whose usable stock, with what is already on open purchase orders, may not last until a delivery arrives at the pace they
+were issued over recent weeks, and how much to order to cover the days your organization chose.
+
+1. Read the title (the item and roughly how many days of stock are left) and the sentence under it.
+2. Select **Why?** to see what the suggestion looked at: usable stock, what was issued and how often, and what is on order.
+3. Select **Open purchase orders** to raise an order yourself. The suggestion orders nothing.
+4. Select **Dismiss** or **Not useful** if it does not apply. It stays hidden for you for 14 days. Others still see it.
+
+**Check soon** means less than half the delivery time is covered or the item is out; **Consider** means some cover is left. **Based on limited
+data** means few issues were recorded, so the pace is uncertain. The box does not appear when there is nothing to suggest. Inventory officers
+and organization administrators see it.
+
 ### How to record a stock movement
 
 Use the **Record a movement** panel on the right of `/inventory`. Choose the tab, fill in the fields, and click **Record**. The message is

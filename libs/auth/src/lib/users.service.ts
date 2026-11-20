@@ -14,9 +14,9 @@ import {
   PERMISSIONS,
 } from "@healthcare/core";
 import { OrganizationService } from "@healthcare/organization";
-import { and, asc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, max, ne, or, sql } from "drizzle-orm";
 import type { z } from "zod";
-import { appUser, organizationMembership, role, roleAssignment, rolePermission } from "./auth.schema";
+import { appUser, authSession, organizationMembership, role, roleAssignment, rolePermission } from "./auth.schema";
 import { assertPasswordAccepted, BREACHED_PASSWORD_CHECKER, type BreachedPasswordChecker } from "./breached-passwords";
 import { hashPassword } from "./password";
 import { SessionService } from "./session.service";
@@ -53,6 +53,24 @@ export interface RoleView {
   version: number;
 }
 
+/** An organization's staff figures for the platform console (migration 0151): counts and a time only. */
+export interface PlatformMemberFigures {
+  activeMembers: number;
+  lastStaffSignInAt: Date | null;
+}
+
+/** An organization administrator as the platform console shows them (so the platform can reach the tenant). */
+export interface OrganizationAdministratorView {
+  id: string;
+  email: string;
+  displayName: string;
+  membershipStatus: string;
+  accountStatus: string;
+  mfaEnabled: boolean;
+  passwordChangeRequired: boolean;
+  lastLoginAt: Date | null;
+}
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
@@ -64,6 +82,131 @@ export class UsersService {
     private readonly sessions: SessionService,
     @Inject(BREACHED_PASSWORD_CHECKER) private readonly breachedPasswords: BreachedPasswordChecker,
   ) {}
+
+  /**
+   * Active staff members and the latest staff sign-in of every organization, for the platform console (the caller
+   * crosses organizations on purpose, under the platform scope).
+   */
+  async platformMemberFigures(): Promise<Map<string, PlatformMemberFigures>> {
+    const members = await this.db
+      .select({ organizationId: organizationMembership.organizationId, n: sql<number>`count(*)::int` })
+      .from(organizationMembership)
+      .innerJoin(appUser, eq(appUser.id, organizationMembership.userId))
+      .where(and(eq(organizationMembership.status, "active"), eq(appUser.status, "active")))
+      .groupBy(organizationMembership.organizationId);
+    const signIns = await this.db
+      .select({ organizationId: authSession.organizationId, at: max(authSession.createdAt) })
+      .from(authSession)
+      .groupBy(authSession.organizationId);
+    const figures = new Map<string, PlatformMemberFigures>();
+    for (const m of members) figures.set(m.organizationId, { activeMembers: m.n, lastStaffSignInAt: null });
+    for (const s of signIns) {
+      if (!s.organizationId) continue;
+      const entry = figures.get(s.organizationId) ?? { activeMembers: 0, lastStaffSignInAt: null };
+      entry.lastStaffSignInAt = s.at ?? null;
+      figures.set(s.organizationId, entry);
+    }
+    return figures;
+  }
+
+  /** Display names of accounts whatever their organization (platform administrators named in the platform console). */
+  async accountDisplayNames(userIds: string[]): Promise<Map<string, string>> {
+    if (userIds.length === 0) return new Map();
+    const rows = await this.db.select({ id: appUser.id, displayName: appUser.displayName }).from(appUser).where(inArray(appUser.id, userIds));
+    return new Map(rows.map((r) => [r.id, r.displayName]));
+  }
+
+  /** Ends every staff session in a suspended organization, in the caller's transaction (platform console). */
+  endOrganizationSessions(tx: DbExecutor, organizationId: string): Promise<number> {
+    return this.sessions.revokeAllForOrganization(tx, organizationId, "organization_suspended");
+  }
+
+  /** The holders of the built-in organization administrator role, for the platform console. */
+  organizationAdministrators(organizationId: string): Promise<OrganizationAdministratorView[]> {
+    return this.db
+      .selectDistinct({
+        id: appUser.id,
+        email: appUser.email,
+        displayName: appUser.displayName,
+        membershipStatus: organizationMembership.status,
+        accountStatus: appUser.status,
+        mfaEnabled: appUser.mfaEnabled,
+        passwordChangeRequired: appUser.passwordChangeRequired,
+        lastLoginAt: appUser.lastLoginAt,
+      })
+      .from(roleAssignment)
+      .innerJoin(role, and(eq(role.id, roleAssignment.roleId), eq(role.key, "org_admin"), eq(role.isSystem, true)))
+      .innerJoin(appUser, eq(appUser.id, roleAssignment.userId))
+      .innerJoin(
+        organizationMembership,
+        and(eq(organizationMembership.organizationId, roleAssignment.organizationId), eq(organizationMembership.userId, roleAssignment.userId)),
+      )
+      .where(and(eq(roleAssignment.organizationId, organizationId), isNull(roleAssignment.revokedAt)))
+      .orderBy(asc(appUser.displayName));
+  }
+
+  /**
+   * The hash of a new account's temporary password, screened against known breaches (outside any transaction), or
+   * undefined when the email already has an account (it keeps its own password) or no password was given.
+   */
+  async newAccountPasswordHash(email: string, password: string | undefined): Promise<string | undefined> {
+    const [known] = await this.db.select({ id: appUser.id }).from(appUser).where(eq(appUser.email, email));
+    if (known || !password) return undefined;
+    await assertPasswordAccepted(this.breachedPasswords, password, this.logger);
+    return hashPassword(password);
+  }
+
+  /**
+   * A new organization's first administrator, in the caller's transaction (platform console): an email new to the
+   * platform gets an account with the temporary password the platform administrator chose (to be replaced at the first
+   * sign-in); an existing account keeps its credentials and is only added. Then the built-in org_admin role.
+   */
+  async addOrganizationAdministrator(
+    tx: DbExecutor,
+    actor: Actor,
+    organizationId: string,
+    input: { email: string; displayName: string; passwordHash?: string },
+  ): Promise<{ userId: string; newAccount: boolean }> {
+    const [existing] = await tx.select({ id: appUser.id, kind: appUser.kind }).from(appUser).where(eq(appUser.email, input.email));
+    if (existing && existing.kind !== "staff") throw new BusinessRuleError("This email belongs to a patient account", "not_a_staff_account");
+    let userId = existing?.id;
+    if (!userId) {
+      if (!input.passwordHash) throw new BusinessRuleError("A temporary password is required for a new account", "initial_password_required");
+      const [created] = await tx
+        .insert(appUser)
+        .values({ email: input.email, displayName: input.displayName, passwordHash: input.passwordHash, passwordChangeRequired: true })
+        .returning({ id: appUser.id });
+      userId = created?.id;
+    }
+    if (!userId) throw new Error("User insert returned no row");
+    const target = { ...actor, organizationId };
+    await tx.insert(organizationMembership).values({ organizationId, userId }).onConflictDoNothing();
+    await this.audit.record(tx, target, {
+      action: "user.add-member",
+      resourceType: "app_user",
+      resourceId: userId,
+      metadata: { email: input.email, newAccount: !existing },
+    });
+    const [adminRole] = await tx
+      .select({ id: role.id })
+      .from(role)
+      .where(and(eq(role.key, "org_admin"), eq(role.isSystem, true)));
+    if (!adminRole) throw new Error("The built-in org_admin role is missing");
+    const [assignment] = await tx
+      .insert(roleAssignment)
+      .values({ organizationId, userId, roleId: adminRole.id, grantedBy: actor.userId })
+      .onConflictDoNothing()
+      .returning({ id: roleAssignment.id });
+    if (assignment) {
+      await this.audit.record(tx, target, {
+        action: "user.role-grant",
+        resourceType: "role_assignment",
+        resourceId: assignment.id,
+        metadata: { userId, roleKey: "org_admin" },
+      });
+    }
+    return { userId, newAccount: !existing };
+  }
 
   /** Display names of this organization's staff (for "entered by" / "verified by" labels). Not audited. */
   async displayNames(organizationId: string, userIds: string[]): Promise<Map<string, string>> {

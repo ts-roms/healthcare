@@ -384,3 +384,33 @@ workers act across organizations by design).
 
 **Consequences.** Two pools and two login roles (the platform pool small); every `asPlatform` call site keeps working
 unchanged; integration tests run both roles. Built only after ADR-0016 (it changes the same deployment variables).
+
+## ADR-0018 Heuristic assistant: rules over the caller's own data, suggestions computed on demand, nothing written
+
+**Status:** accepted (2026-11-20; plan in `docs/architecture/heuristic-assistant.md`, phase 0 built). **Context:** staff
+under time pressure benefit from prompts that notice what a screen does not (stock that will run out, a missing charge,
+an unusual pattern). CLAUDE.md §35 allows decision support only when it is labelled, shows its basis, can be overridden,
+is logged and is configurable, and §36 forbids encoding clinical or regulatory facts the organization has not entered.
+
+**Decision.** The assistant is deterministic: named, versioned rules and simple statistics over data the caller may
+already read. No LLM, no trained model, and nothing leaves the platform. A `Suggestion` (`libs/core`
+`assistant/suggestion.ts`) carries the rule id and version, a rationale, a non-empty evidence list, its basis and a
+strength band (`matched` / `weak`, never a made-up percentage); its only action is a link to an existing screen. Rules are
+pure functions that live beside the domain they read (`libs/<domain>/src/lib/assistant`) with that domain's read query;
+the API (`apps/api/src/app/assistant`, API-owned tables as in ADR-0011 and ADR-0015) binds them, applies settings and
+permissions, hides what the same person dismissed in the last 14 days and audits each request with rule ids only. A rule
+is **off** until an administrator turns it on for the organization or one facility (`assistant_rule_setting`, append-only
+versions, parameters checked by the rule's own schema); thresholds are the organization's, never shipped as clinical
+fact. Feedback (`assistant_feedback`, append-only) feeds an insights count per rule that flags a rule for review and
+changes nothing by itself. A rule whose source permission the caller lacks is withheld without counts. Suggestions are not
+stored and events carry ids only (`AssistantSuggestionActedOn`).
+
+**Alternatives rejected.** An LLM or hosted model (patient data leaving the platform, non-reproducible output, a privacy
+and clinical-safety review that has not happened); a separate `libs/assistant` holding every rule (rules would import every
+domain, ADR-0011 says create a library only for a second consumer); storing generated suggestions (stale rows, a new place
+for clinical text); rules enabled by default (an unvalidated threshold would speak for the organization).
+
+**Consequences.** One `AssistantRules` binding per rule in the API; a new surface is a code change (`SUGGESTION_SURFACES`);
+a `SuggestionProvider` seam is left for a future model-based provider, which would need its own ADR. Phase 0 ships one
+rule (`inventory.days-of-cover`), the kernel, migration `0152` (permissions `assistant.use | configure | insights.read`)
+and the `AssistantPanel` component, shown on staff `/inventory`.

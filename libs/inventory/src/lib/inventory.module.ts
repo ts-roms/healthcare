@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
+import { InventoryAssistantQueries } from "./assistant/inventory-assistant.queries";
 import { InventoryCatalogService } from "./catalog/inventory-catalog.service";
 import { InventoryComplianceController } from "./compliance/inventory-compliance.controller";
 import { InventoryComplianceService } from "./compliance/inventory-compliance.service";
@@ -35,7 +36,8 @@ import { InventoryValuationService } from "./stock/inventory-valuation.service";
     InventoryValuationService,
     InventoryComplianceService,
     InventoryReportingQueries,
+    InventoryAssistantQueries,
   ],
-  exports: [InventoryStockService, InventoryQueries, InventoryComplianceService, InventoryReportingQueries],
+  exports: [InventoryStockService, InventoryQueries, InventoryComplianceService, InventoryReportingQueries, InventoryAssistantQueries],
 })
 export class InventoryModule {}

@@ -17,6 +17,7 @@ import * as prescription from "@healthcare/prescription";
 import * as telemedicine from "@healthcare/telemedicine";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import * as auditArchive from "../src/app/audit-retention/audit-archive.schema";
+import * as assistant from "../src/app/assistant/assistant.schema";
 import * as kiosk from "../src/app/kiosk/kiosk.schema";
 import * as managementReports from "../src/app/management-dashboard/management-report.schema";
 import * as crm from "@healthcare/crm";
@@ -51,6 +52,7 @@ describe("Drizzle schema matches migrations", () => {
     managementReports,
     auditArchive,
     kiosk,
+    assistant,
     crm,
   ]
     .flatMap((module) => Object.values(module))
