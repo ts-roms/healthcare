@@ -133,6 +133,7 @@ Burp Suite: manual authenticated testing of staff and MyHealth sessions (refresh
 - Impact: unauthenticated remote code execution on the servers that hold session cookies for staff and patients, if the affected features are enabled/reachable. Reachability not tested.
 - Recommended fix: upgrade `next` to >=16.4.1 in both apps; disable SVG in `images` config and unused image optimization until upgraded.
 - Status: Fixed - Pending Verification (Next 16.4.3; scan of 2026-11-03 no longer lists it)
+- Follow-up 2026-11-21: 16.4.3 is itself affected by seven moderate advisories published since (all `<=16.4.4`: GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8, GHSA-7qx7-33qx-rqx2, GHSA-f3mh-rxg3-f5g2, GHSA-pc58-hwjq-p385, GHSA-rhh4-g77r-r9qj, GHSA-vvgp-ww4w-46vf — `use cache` leaks and poisoning, SVG rejection bypass in image optimization, HttpOnly cookie exposure on Edge routes, cross-client response injection when forwarding fetched responses). Staff, portal and kiosk moved to 16.4.6, which the npm advisory database lists with none (`next upgrade --agent=security`; lint, typecheck, unit tests and builds pass). Status unchanged: pending verification by a fresh scan.
 
 ### QA-102 HIGH Backend runtime dependencies with known DoS advisories
 

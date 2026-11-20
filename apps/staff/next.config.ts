@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
   },
   transpilePackages: ["@healthcare/ui", "@healthcare/domain"],
   experimental: {
+    // Policy for `next upgrade --agent` and the upgrade reminders of `next dev` / `next build`: security advisories only
+    // (also the default; set explicitly by the 16.4.3 → 16.4.6 security upgrade).
+    agentUpgrade: "security",
     // Signed consent forms (≤ 10 MB, lib/consent-form.ts) are uploaded through a server action,
     // which passes the proxy first. Both limits leave room for multipart overhead.
     serverActions: { bodySizeLimit: "12mb" },
