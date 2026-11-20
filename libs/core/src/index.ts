@@ -33,5 +33,6 @@ export * from "./lib/http/pdf-file";
 export * from "./lib/supplies/supply-use";
 export * from "./lib/assistant/statistics";
 export * from "./lib/assistant/suggestion";
+export * from "./lib/assistant/text-match";
 export * from "./lib/telemetry/metrics";
 export * from "./lib/telemetry/correlation";

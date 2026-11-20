@@ -1,3 +1,5 @@
+export * from "./lib/assistant/delta-check.rules";
+export * from "./lib/assistant/lab-assistant.queries";
 export * from "./lib/catalog/lab-catalog.service";
 export * from "./lib/lab-read-model";
 export * from "./lib/laboratory.module";

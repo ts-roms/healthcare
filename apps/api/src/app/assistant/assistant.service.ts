@@ -73,11 +73,11 @@ export class AssistantService {
 
   // ---- suggestions -------------------------------------------------------------------------------------------------
 
-  /** `date` (YYYY-MM-DD): the day a screen shows (the appointments board); today otherwise. */
-  async suggestions(actor: Actor, surface: SuggestionSurface, date?: string): Promise<SuggestionsAnswer> {
+  /** `date` (YYYY-MM-DD): the day a screen shows (the appointments board); `encounterId`: the consultation a consultation screen shows. */
+  async suggestions(actor: Actor, surface: SuggestionSurface, context: { date?: string; encounterId?: string } = {}): Promise<SuggestionsAnswer> {
     const facilityId = requireFacilityId(actor);
     const timeZone = await this.facilityTimeZone(actor, facilityId);
-    const moment = liveMoment(timeZone, date);
+    const moment = { ...liveMoment(timeZone, context.date), encounterId: context.encounterId };
     const bindings = this.rules.bindings.filter((b) => b.definition.surfaces.includes(surface));
     const settings = await this.effectiveSettings(actor.organizationId, facilityId, bindings);
 
@@ -102,7 +102,7 @@ export class AssistantService {
     await this.audit.recordStandalone(actor, {
       action: "assistant.view",
       resourceType: "assistant_surface",
-      metadata: { surface, rules: ran, shown: shown.length },
+      metadata: { surface, rules: ran, shown: shown.length, ...(context.encounterId ? { encounterId: context.encounterId } : {}) },
     });
     return { items: shown, dismissed: items.filter((s) => hidden.has(s.id)).length, withheld };
   }

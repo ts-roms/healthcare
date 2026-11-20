@@ -1,4 +1,5 @@
 import { ClinicAssistantQueries } from "./assistant/clinic-assistant.queries";
+import { EncounterAssistantQueries } from "./assistant/encounter-assistant.queries";
 import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
 import { CalendarController } from "./calendar/calendar.controller";
@@ -106,6 +107,7 @@ export class ClinicModule {
         ClinicConfigService,
         ClinicDashboardService,
         ClinicAssistantQueries,
+        EncounterAssistantQueries,
         ClinicQueries,
         ClinicReportingQueries,
         EncounterService,
@@ -148,6 +150,7 @@ export class ClinicModule {
         AutomaticNoShows,
         VisitService,
         ClinicAssistantQueries,
+        EncounterAssistantQueries,
         ClinicQueries,
         ClinicReportingQueries,
         ExternalRecordsService,

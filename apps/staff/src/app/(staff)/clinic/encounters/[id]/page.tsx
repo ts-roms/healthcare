@@ -32,6 +32,8 @@ import type {
 } from "@/lib/api/types";
 import { encounterControls } from "@/lib/encounter-mapping";
 import { toBannerPatient } from "@/lib/patient-mapping";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { EncounterWorkspace } from "./encounter-workspace";
 
 // Never put patient names in the tab title.
@@ -94,6 +96,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     procedures,
     procedureDefinitions,
     consentDocuments,
+    suggestions,
   ] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
@@ -116,6 +119,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     optional<ClinicProcedure[]>(`/encounters/${encounter.id}/procedures`),
     optional<ProcedureDefinition[]>("/clinic/procedure-definitions"),
     loadConsentFormDocuments(encounter.patientId),
+    // Before signing only: a signed consultation has nothing left to check.
+    encounter.status === "in_progress" ? loadSuggestions(session, "encounter", { encounterId: encounter.id }) : null,
   ]);
   // Supplies used by the procedures (from inventory): only once a procedure is recorded.
   const [supplyUses, supplyOptions] = procedures?.length
@@ -137,6 +142,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
       // A new encounter (history navigation) starts with fresh editor state.
       key={encounter.id}
       encounter={encounter}
+      assistant={hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="encounter" suggestions={suggestions} /> : null}
       banner={toBannerPatient(patient, summary?.allergies)}
       summary={summary}
       practitionerName={names.get(encounter.practitionerId) ?? null}

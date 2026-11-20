@@ -9,6 +9,8 @@ export const suggestionsQuerySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD")
     .optional(),
+  /** The consultation a consultation screen shows (surface `encounter`). */
+  encounterId: z.string().uuid().optional(),
 });
 export class SuggestionsQueryDto extends createZodDto(suggestionsQuerySchema) {}
 

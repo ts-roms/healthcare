@@ -5,8 +5,9 @@
 Decision support that notices what a screen does not, using fixed rules and simple statistics over data the caller may
 already read. It suggests and links; it never changes a record, never diagnoses and uses no language model. Design and
 phases: `docs/architecture/heuristic-assistant.md`; decision: ADR-0018. Built: phase 0 (the kernel, settings and feedback,
-the API, the first stock rule, the settings screen) and phase 1 (operational rules on the inventory, billing, appointments
-and queue screens, and the replay behind **Try these values**).
+the API, the first stock rule, the settings screen), phase 1 (operational rules on the inventory, billing, appointments
+and queue screens, and the replay behind **Try these values**) and phase 2's first slice, the doctor's workspace (the
+consultation checklist, code suggestions and the laboratory delta check). The rest of phase 2 is not built.
 
 ## Entities
 
@@ -27,14 +28,17 @@ library, a read query in that library, and a binding in `apps/api/src/app/assist
 when its logic or the meaning of a parameter changes; dismissals are per version. Every starting value is a starting
 point the organization changes, never a standard.
 
-| Rule                        | Screen       | Library (query)                                       | Says                                                                                                                                                                                                                        | Needs                 |
-| --------------------------- | ------------ | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `inventory.days-of-cover`   | Inventory    | `inventory` (`InventoryAssistantQueries`)             | Usable stock plus open orders lasts less than the delivery time at the recent pace; a quantity to cover the chosen days.                                                                                                    | `inventory.read`      |
-| `inventory.usage-spike`     | Inventory    | `inventory`                                           | An item issued far above its usual week: above the mean of earlier weeks plus `spread` swings (standard deviation, never below a tenth of the mean). Points to the movements: demand, a mistaken entry or loss.             | `inventory.read`      |
-| `inventory.expiry-exposure` | Inventory    | `inventory`                                           | A lot expected to expire unused: lots are used up in expiry order (FEFO) at the recent pace; what a lot still holds at its expiry. An item not issued in the window is expected to use nothing.                             | `inventory.read`      |
-| `billing.uncharged-work`    | Billing      | `billing` (`BillingAssistantQueries`) + clinic/dental | Clinic and dental procedures with no charge some hours later, grouped by code and the likely reason: no billing service for the code (advice: may be deliberate), no price on that day, or not captured (warnings). Counts. | `billing.charge.read` |
-| `clinic.no-show-risk`       | Appointments | `clinic` (`ClinicAssistantQueries`)                   | An appointment of the day whose patient missed a large share of their past appointments here (records merged into theirs counted). Named by time, never by patient; information only once confirmed.                        | `appointment.read`    |
-| `clinic.queue-wait`         | Queue        | `clinic`                                              | Patients waiting to be called longer than a percentile of this facility's past waits for the visit type (check-in to call, visits never sent back in line). Counts; never reorders the queue; no link.                      | `clinic.queue.read`   |
+| Rule                         | Screen       | Library (query)                                       | Says                                                                                                                                                                                                                                                                                                                                                                                              | Needs                 |
+| ---------------------------- | ------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `inventory.days-of-cover`    | Inventory    | `inventory` (`InventoryAssistantQueries`)             | Usable stock plus open orders lasts less than the delivery time at the recent pace; a quantity to cover the chosen days.                                                                                                                                                                                                                                                                          | `inventory.read`      |
+| `inventory.usage-spike`      | Inventory    | `inventory`                                           | An item issued far above its usual week: above the mean of earlier weeks plus `spread` swings (standard deviation, never below a tenth of the mean). Points to the movements: demand, a mistaken entry or loss.                                                                                                                                                                                   | `inventory.read`      |
+| `inventory.expiry-exposure`  | Inventory    | `inventory`                                           | A lot expected to expire unused: lots are used up in expiry order (FEFO) at the recent pace; what a lot still holds at its expiry. An item not issued in the window is expected to use nothing.                                                                                                                                                                                                   | `inventory.read`      |
+| `billing.uncharged-work`     | Billing      | `billing` (`BillingAssistantQueries`) + clinic/dental | Clinic and dental procedures with no charge some hours later, grouped by code and the likely reason: no billing service for the code (advice: may be deliberate), no price on that day, or not captured (warnings). Counts.                                                                                                                                                                       | `billing.charge.read` |
+| `clinic.no-show-risk`        | Appointments | `clinic` (`ClinicAssistantQueries`)                   | An appointment of the day whose patient missed a large share of their past appointments here (records merged into theirs counted). Named by time, never by patient; information only once confirmed.                                                                                                                                                                                              | `appointment.read`    |
+| `clinic.queue-wait`          | Queue        | `clinic`                                              | Patients waiting to be called longer than a percentile of this facility's past waits for the visit type (check-in to call, visits never sent back in line). Counts; never reorders the queue; no link.                                                                                                                                                                                            | `clinic.queue.read`   |
+| `clinic.encounter-checklist` | Consultation | `clinic` (`EncounterAssistantQueries`)                | Before a consultation in progress is signed: what the record does not hold yet (chief complaint, vital signs in person within N hours, allergy review, assessment, plan, a diagnosis, its code when a coding system is active, a primary one). One suggestion listing them; blocks nothing; checks for vital signs and codes are 1/0 parameters.                                                  | `encounter.read`      |
+| `clinic.code-suggestions`    | Consultation | `clinic`                                              | For each uncoded diagnosis (or the assessment when there is no diagnosis yet): up to three codes the organization itself used whose descriptions share at least N% of their words with the text (`libs/core` `assistant/text-match.ts`), with the matching words and how often each was used. A code counts only after `minUses` (≥ 2) uses, so a one-off description never shows. Never applied. | `encounter.read`      |
+| `laboratory.delta-check`     | Laboratory   | `laboratory` (`LabAssistantQueries`)                  | A numeric result entered but not yet released that differs from the same patient's last released result of the same test (same unit, within N days) by at least N%. Names the order, never the patient; links to the next stage's worklist; changes nothing.                                                                                                                                      | `lab.result.read`     |
 
 Composition: billing never reads clinical tables (`libs/billing/CLAUDE.md`), so the API takes the procedures from
 `ClinicAssistantQueries.proceduresPerformed` and `DentalAssistantQueries.proceduresPerformed` and asks billing only for
@@ -53,8 +57,12 @@ order states are not kept), so a replayed stock rule may fire more often than it
 
 `POST /assistant/rules/:ruleId/replay` (`assistant.configure`, and the rule's own permissions) runs a rule on each of the
 last 1–31 days (default 14) at the facility (body or header), each read at the rule's usual local time (`replayAt`: stock
-08:00, appointments 07:00, queue 10:00, billing 17:00), with given parameters or the setting in force, else the starting
-values. It answers counts per day (suggestions, weak ones), the average and the maximum; nothing is stored; audited
+08:00, appointments 07:00, queue 10:00, laboratory 15:00, consultations 16:00, billing 17:00), with given parameters or the
+setting in force, else the starting values. Consultation rules read the consultation on screen (`encounterId`); a replay
+reads every consultation of the facility started that day and still open at the replay time, and a live request without a
+consultation reads none. Consultations rebuild from their start, signing, note revisions, vital signs (and their
+entered-in-error time), diagnoses and allergy reviews; a diagnosis's later status changes are not dated, so its current
+status stands. Laboratory results rebuild from entry, verification, approval, release, cancellation and supersession. It answers counts per day (suggestions, weak ones), the average and the maximum; nothing is stored; audited
 `assistant.replay` with rule, facility and days. This is the plan's "backtest": thresholds are chosen from the
 organization's own data before a rule is turned on.
 
@@ -69,7 +77,8 @@ organization's own data before a rule is turned on.
 ## Queries
 
 - Suggestions for a surface at the selected facility (`inventory`, `billing`, `appointments` with an optional `date`,
-  `queue`); each request audits `assistant.view` with the surface, rule ids and the number shown, never a finding. Rules
+  `queue`, `encounter` with the `encounterId`, `laboratory`); each request audits `assistant.view` with the surface, rule
+  ids, the number shown and the consultation's id, never a finding. Rules
   whose source permission the caller lacks are listed in `withheld` by title, with no counts. A stored setting the rule no
   longer accepts keeps the rule silent until it is saved again. At most 20 suggestions a request.
 - Rules with the setting in force for a scope (and, for a facility, the organization's); the replay; insights (answers
@@ -82,13 +91,13 @@ organization's own data before a rule is turned on.
 
 ## Permissions
 
-Migrations `0152` and `0153` and the `PERMISSIONS` catalog. `assistant.use`: org_admin, inventory_officer (0152), cashier,
-receptionist, nurse (0153). `assistant.configure` and `assistant.insights.read`: org_admin. A rule's suggestions also need
+Migrations `0152`–`0154` and the `PERMISSIONS` catalog. `assistant.use`: org_admin, inventory_officer (0152), cashier,
+receptionist, nurse (0153), physician, dentist, medical_technologist, pathologist (0154). `assistant.configure` and `assistant.insights.read`: org_admin. A rule's suggestions also need
 the permission of what it reads (table above); without it the rule is withheld.
 
 ## API
 
-`/api/v1/assistant`: `GET /suggestions?surface=&date=` (facility header), `POST /suggestions/:id/feedback`,
+`/api/v1/assistant`: `GET /suggestions?surface=&date=&encounterId=` (facility header), `POST /suggestions/:id/feedback`,
 `GET /rules[?facilityId=]`, `PUT /rules/:ruleId/settings`, `POST /rules/:ruleId/replay`, `GET /insights?days=`.
 
 ## UI
@@ -100,7 +109,9 @@ server.
 
 Screens: staff `/inventory` (above the stock table), `/billing` (above the cashier's desk), `/appointments` (above the day
 board, for the day shown) and `/queue` (under the figures, through the `assistant` slot of `QueueWorkspace`, only while
-someone is in the queue). Each loads its surface with `loadSuggestions` (`apps/staff/src/lib/assistant-suggestions.ts`) in
+someone is in the queue), the consultation workspace `/clinic/encounters/[id]` (top of the centre column through its
+`assistant` slot, only while the consultation is in progress) and the laboratory workbench `/laboratory/worklist` (above
+the worklist, in the layout's notice area). Each loads its surface with `loadSuggestions` (`apps/staff/src/lib/assistant-suggestions.ts`) in
 parallel with the page's own data and shows the panel only when there is something to say; a failed assistant request
 never breaks the page. `AssistantSuggestions` (`apps/staff/src/components`) sends answers through `answerSuggestion`
 (`apps/staff/src/app/(staff)/assistant-actions.ts`), which refreshes that screen.
@@ -111,7 +122,7 @@ organization or one facility (`?facility=`): its state, an on/off switch and its
 facility of the scope (else the one selected in the top bar) with the values in the form, saved or not, and says how often it
 would have spoken. With `assistant.insights.read` the page also shows how staff answered each rule over 90 days. Wording
 helpers in `apps/staff/src/lib/assistant-settings.ts` (unit-tested). Manual: chapter 13, "How to turn on the assistant's
-suggestions", and each screen's chapter (3, 9, 10).
+suggestions", and each screen's chapter (3, 4, 6, 9, 10).
 
 ## Integration points and limits
 
@@ -120,4 +131,10 @@ suggestions", and each screen's chapter (3, 9, 10).
 - Dismissals are per person, not shared. A dismissed uncharged-work group hides later items of the same code and reason
   for that person too, for 14 days. Nothing is learned automatically.
 - Replays read past days at one time of day; the queue rule's answer depends on that hour.
-- No clinical rule exists yet. A clinical rule needs a clinician's sign-off before any organization turns it on.
+- The consultation and laboratory rules are clinical decision support (CLAUDE.md §35): labelled as such, showing their
+  basis, never applied, overridable by ignoring or dismissing, logged, and off until turned on. Each organization's
+  clinicians validate a rule and its thresholds before it is turned on (compliance register); no test-specific delta
+  limits, triage scale or code set is shipped.
+- Code suggestions read other patients' coded diagnoses only as codes, their most common description and a count, and only
+  codes used at least twice, so no single patient's free text is offered.
+- The delta check compares results with the same unit only; it does not convert units or read reference ranges.

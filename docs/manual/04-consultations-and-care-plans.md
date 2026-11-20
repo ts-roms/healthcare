@@ -93,6 +93,16 @@ deleted; entered-in-error ones stay visible, struck through.
 
 After signing, adding or correcting a diagnosis is an amendment: you need `encounter.amend` and must enter an **Amendment reason \***.
 
+### Codes your clinic has used (suggestions)
+
+When your organization has turned on the assistant's rule **Codes your clinic has used for these words** (**Settings → Assistant**), a
+**Suggestions** box (marked **Decision support**) at the top of the consultation shows, for a diagnosis written without a code (or for the
+assessment, before any diagnosis is added), up to three codes **your organization has itself used** whose descriptions share most of their
+words with what you wrote. **Why?** shows each code, how many times it was used and the matching words.
+
+It is word matching, not a diagnosis: no code list is built in, it never chooses or saves a code, and a code used only once is never offered. If a
+code is right, enter it yourself in **Diagnoses**.
+
 ## How to prescribe
 
 Prescriptions are issued inside an open (in-progress) encounter and need `prescription.issue`.
@@ -174,6 +184,11 @@ You need `appointment.manage`.
 3. You return to the encounter.
 
 ## How to sign the encounter
+
+When your organization has turned on the assistant's rule **Before signing: what the record does not hold yet**, a **Suggestions** box at the top
+of a consultation in progress lists what is not recorded yet: chief complaint, vital signs (in person, within the hours your organization chose),
+allergy review, assessment, plan, a diagnosis, its code and a primary one. Add what applies. It blocks nothing: you can sign without them, and
+**Dismiss** hides it for you on this consultation.
 
 1. Make sure the **Assessment** or the **Plan** is filled in. The platform will not sign a note with neither.
 2. Select **Sign encounter**. Unsaved changes are saved first, so what you sign is what you see.

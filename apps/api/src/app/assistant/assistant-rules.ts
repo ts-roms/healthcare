@@ -1,6 +1,17 @@
 import { Injectable } from "@nestjs/common";
 import { BillingAssistantQueries, UNCHARGED_WORK_RULE, unchargedWorkSuggestions, type UnchargedWorkInput } from "@healthcare/billing";
-import { ClinicAssistantQueries, NO_SHOW_RISK_RULE, noShowRiskSuggestions, QUEUE_WAIT_RULE, queueWaitSuggestions } from "@healthcare/clinic";
+import {
+  ClinicAssistantQueries,
+  CODE_SUGGESTIONS_RULE,
+  codeSuggestions,
+  ENCOUNTER_CHECKLIST_RULE,
+  EncounterAssistantQueries,
+  encounterChecklistSuggestions,
+  NO_SHOW_RISK_RULE,
+  noShowRiskSuggestions,
+  QUEUE_WAIT_RULE,
+  queueWaitSuggestions,
+} from "@healthcare/clinic";
 import { type Actor, localDate, type RuleDefinition, type Suggestion } from "@healthcare/core";
 import { DentalAssistantQueries } from "@healthcare/dental";
 import {
@@ -12,6 +23,7 @@ import {
   USAGE_SPIKE_RULE,
   usageSpikeSuggestions,
 } from "@healthcare/inventory";
+import { DELTA_CHECK_RULE, deltaCheckSuggestions, LabAssistantQueries } from "@healthcare/laboratory";
 
 /** When a rule reads its figures: now for a screen, a past moment when the settings screen replays it. */
 export interface RuleMoment {
@@ -26,6 +38,8 @@ export interface RuleMoment {
   timeZone: string;
   /** A live request (a past moment cannot read what was on open orders then). */
   live: boolean;
+  /** The consultation a consultation screen shows; a replay reads every consultation open at the moment instead. */
+  encounterId?: string;
 }
 
 /**
@@ -52,7 +66,20 @@ function erase<P>(definition: RuleDefinition<P>): RuleDefinition<unknown> {
 export class AssistantRules {
   readonly bindings: readonly RuleBinding[];
 
-  constructor(inventory: InventoryAssistantQueries, billing: BillingAssistantQueries, clinic: ClinicAssistantQueries, dental: DentalAssistantQueries) {
+  constructor(
+    inventory: InventoryAssistantQueries,
+    billing: BillingAssistantQueries,
+    clinic: ClinicAssistantQueries,
+    dental: DentalAssistantQueries,
+    encounters: EncounterAssistantQueries,
+    lab: LabAssistantQueries,
+  ) {
+    /** The consultations a consultation rule reads: the one on screen, none on a live request without one, every one open in a replay. */
+    const encountersFor = async (actor: Actor, facilityId: string, moment: RuleMoment): Promise<string[]> => {
+      if (moment.encounterId) return [moment.encounterId];
+      if (moment.live) return [];
+      return encounters.openOn(actor.organizationId, facilityId, moment.dayStart, moment.asOf);
+    };
     this.bindings = [
       {
         definition: erase(DAYS_OF_COVER_RULE),
@@ -129,6 +156,40 @@ export class AssistantRules {
             historyDays: params.historyDays,
           });
           return queueWaitSuggestions(inputs, params, moment.today);
+        },
+      },
+      {
+        definition: erase(ENCOUNTER_CHECKLIST_RULE),
+        replayAt: "16:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = ENCOUNTER_CHECKLIST_RULE.parametersSchema.parse(raw);
+          const out: Suggestion[] = [];
+          for (const id of await encountersFor(actor, facilityId, moment)) {
+            const input = await encounters.checklistInput(actor.organizationId, id, moment.asOf, params.vitalsWithinHours);
+            out.push(...encounterChecklistSuggestions(input, params));
+          }
+          return out;
+        },
+      },
+      {
+        definition: erase(CODE_SUGGESTIONS_RULE),
+        replayAt: "16:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = CODE_SUGGESTIONS_RULE.parametersSchema.parse(raw);
+          const ids = await encountersFor(actor, facilityId, moment);
+          if (ids.length === 0) return [];
+          const codes = await encounters.usedCodes(actor.organizationId, moment.asOf, params.lookbackDays);
+          const out: Suggestion[] = [];
+          for (const id of ids) out.push(...codeSuggestions(await encounters.codeTargets(actor.organizationId, id, moment.asOf), codes, params));
+          return out;
+        },
+      },
+      {
+        definition: erase(DELTA_CHECK_RULE),
+        replayAt: "15:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = DELTA_CHECK_RULE.parametersSchema.parse(raw);
+          return deltaCheckSuggestions(await lab.deltaInputs(actor.organizationId, facilityId, moment.asOf, params.lookbackDays), params);
         },
       },
     ];

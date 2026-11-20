@@ -1,6 +1,7 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Type } from "@nestjs/common";
 import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { OrganizationModule } from "@healthcare/organization";
+import { LabAssistantQueries } from "./assistant/lab-assistant.queries";
 import { LabCatalogService } from "./catalog/lab-catalog.service";
 import { INSTRUMENT_MESSAGE_READER, type InstrumentMessageReader } from "./instruments/instrument-interface.ports";
 import { LabInstrumentInterfaceController } from "./instruments/lab-instrument-interface.controller";
@@ -80,6 +81,7 @@ export class LaboratoryModule {
         LabReagentService,
         LabRecordQueries,
         LabReportingQueries,
+        LabAssistantQueries,
         LabReadModel,
         LabReportService,
         LabReportArchive,
@@ -108,6 +110,7 @@ export class LaboratoryModule {
         LabPatientAccess,
         LabRecordQueries,
         LabReportingQueries,
+        LabAssistantQueries,
         LabReportService,
         LabReportArchive,
         LabReportArchiveWorker,

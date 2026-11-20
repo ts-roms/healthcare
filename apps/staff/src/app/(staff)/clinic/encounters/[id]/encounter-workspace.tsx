@@ -91,6 +91,7 @@ export function EncounterWorkspace({
   procedures = null,
   medicalHistory = null,
   referrals,
+  assistant = null,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -131,6 +132,8 @@ export function EncounterWorkspace({
   medicalHistory?: { history: PatientHistory | null; canRecord: boolean } | null;
   /** Referrals from this consultation (items null: no access). */
   referrals: { items: Referral[] | null; canRefer: boolean; practitioners: Practitioner[]; currentPractitionerId: string | null };
+  /** The assistant's suggestions for this consultation (decision support), at the top of the centre column. */
+  assistant?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -355,6 +358,7 @@ export function EncounterWorkspace({
           ) : null,
           content: (
             <div className="flex flex-col gap-5">
+              {assistant}
               {telemedicine ? (
                 <TelemedicinePanel
                   consultation={telemedicine.consultation}

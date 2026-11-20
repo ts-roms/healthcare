@@ -5,6 +5,8 @@ import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabCatalogEntry, LabDashboard, LabInstrument, LabSpecimenType, LabWorklistRow, ReferenceLaboratory } from "@/lib/api/types";
 import { isStage, STAGES } from "@/lib/lab-mapping";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { LabWorkbench } from "./workbench";
 
 export const metadata = { title: "Lab workbench" };
@@ -23,7 +25,7 @@ export default async function WorklistPage({ searchParams }: { searchParams: Pro
   // Default to the first stage this user can act on.
   const stage = isStage(params.stage) ? params.stage : (STAGES.find((s) => can(session, s.permission))?.stage ?? "collect");
   const departmentId = params.department && /^[0-9a-f-]{36}$/.test(params.department) ? params.department : undefined;
-  const [rows, dashboard, departments, specimenTypes, referenceLabs, instruments] = await Promise.all([
+  const [rows, dashboard, departments, specimenTypes, referenceLabs, instruments, suggestions] = await Promise.all([
     api<LabWorklistRow[]>("/laboratory/worklist", { query: { stage, departmentId } }),
     can(session, "lab.dashboard.read") ? api<LabDashboard>("/laboratory/dashboard") : Promise.resolve(null),
     api<LabCatalogEntry[]>("/laboratory/departments"),
@@ -31,6 +33,7 @@ export default async function WorklistPage({ searchParams }: { searchParams: Pro
     api<ReferenceLaboratory[]>("/laboratory/reference-labs"),
     // Results name the instrument they were measured on (links the QC in force).
     can(session, "lab.qc.read") && can(session, "lab.result.enter") ? api<LabInstrument[]>("/laboratory/instruments") : Promise.resolve([]),
+    loadSuggestions(session, "laboratory"),
   ]);
   return (
     <LabWorkbench
@@ -44,6 +47,7 @@ export default async function WorklistPage({ searchParams }: { searchParams: Pro
       specimenTypes={specimenTypes}
       instruments={instruments.filter((i) => i.status === "active")}
       referenceLabs={referenceLabs}
+      assistant={hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="laboratory" suggestions={suggestions} /> : null}
       permissions={{
         collect: can(session, "lab.specimen.collect"),
         receive: can(session, "lab.specimen.receive"),

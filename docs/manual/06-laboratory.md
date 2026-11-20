@@ -197,6 +197,13 @@ Each result moves through three sign-offs:
 Each result shows who entered, verified, approved and released it. If your facility turned on **Release results automatically when approved**,
 approving also releases.
 
+**A result far from the patient's last one (suggestions):** when your organization has turned on the assistant's rule **A result differs
+sharply from the patient's last one** (**Settings → Assistant**), a **Suggestions** box (marked **Decision support**) above the worklist lists
+numeric results waiting to be verified, approved or released that changed from the same patient's last released result of the same test (same
+unit) by at least your organization's percentage, for example "Creatinine, order LO00000123: 2.4 mg/dL (+140% from the last released 1 mg/dL)".
+It names the order, not the patient. Consider checking the specimen's labelling and the entry, and whether a repeat is needed; a real change
+stays as it is. It changes no result, flag or step. Medical technologists, pathologists and organization administrators see it.
+
 **Separation of duties:** by default, the person who entered a result cannot verify or approve it. The facility policy can allow it; such a sign-off
 shows "(self, by facility policy)" on the result.
 

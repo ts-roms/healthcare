@@ -11,7 +11,7 @@ import type { AssistantSuggestions, AssistantSurface, Me } from "@/lib/api/types
 export async function loadSuggestions(
   session: Pick<Me, "permissions">,
   surface: AssistantSurface,
-  query: { date?: string } = {},
+  query: { date?: string; encounterId?: string } = {},
 ): Promise<AssistantSuggestions | null> {
   if (!can(session, "assistant.use")) return null;
   try {

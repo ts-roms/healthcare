@@ -245,11 +245,11 @@ advises.
 
 ### Assistant
 
-| Permission                | What it allows                                                                               | Default roles (besides Organization administrator) |
-| ------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Inventory officer, Nurse, Receptionist    |
-| `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                  |
-| `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                  |
+| Permission                | What it allows                                                                               | Default roles (besides Organization administrator)                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Physician, Receptionist |
+| `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                                                                      |
+| `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                                                                      |
 
 ### Records, reporting and integrations
 
@@ -598,18 +598,25 @@ someone decides. Every rule is off until you turn it on.
 
 The rules, and the screen each speaks on:
 
-| Rule                                        | Screen       | Who sees it                                             |
-| ------------------------------------------- | ------------ | ------------------------------------------------------- |
-| Stock may run out before a delivery arrives | Inventory    | Inventory officers, nurses, organization administrators |
-| An item was issued much more than usual     | Inventory    | Inventory officers, nurses, organization administrators |
-| Stock may expire before it is used          | Inventory    | Inventory officers, nurses, organization administrators |
-| Procedures with no charge                   | Billing      | Cashiers, receptionists, organization administrators    |
-| A patient may not come to their appointment | Appointments | Receptionists, nurses, organization administrators      |
-| Patients are waiting longer than usual      | Queue        | Receptionists, nurses, organization administrators      |
+| Rule                                                 | Screen       | Who sees it                                                                          |
+| ---------------------------------------------------- | ------------ | ------------------------------------------------------------------------------------ |
+| Stock may run out before a delivery arrives          | Inventory    | Inventory officers, nurses, organization administrators                              |
+| An item was issued much more than usual              | Inventory    | Inventory officers, nurses, organization administrators                              |
+| Stock may expire before it is used                   | Inventory    | Inventory officers, nurses, organization administrators                              |
+| Procedures with no charge                            | Billing      | Cashiers, receptionists, organization administrators                                 |
+| A patient may not come to their appointment          | Appointments | Receptionists, nurses, organization administrators                                   |
+| Patients are waiting longer than usual               | Queue        | Receptionists, nurses, organization administrators                                   |
+| Before signing: what the record does not hold yet    | Consultation | Physicians, dentists, nurses, organization administrators                            |
+| Codes your clinic has used for these words           | Consultation | Physicians, dentists, nurses, organization administrators                            |
+| A result differs sharply from the patient's last one | Laboratory   | Medical technologists, pathologists, nurses, physicians, organization administrators |
 
 Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
-[Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md). The starting values are only a starting point: set them from
-how your clinic works.
+[Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md), [Consultations](04-consultations-and-care-plans.md),
+[Laboratory](06-laboratory.md). The starting values are only a starting point: set them from how your clinic works.
+
+The consultation and laboratory rules are clinical decision support: before turning one on, have your clinicians check the rule and its
+thresholds (for example the percentage change that should prompt a second look at a result), and record who did in **Settings → Compliance**.
+They never choose a code, change a result or stop anyone signing.
 
 **Try these values** shows, before you save or turn anything on, how often the rule would have spoken on each of the last 14 days with the
 values in the form: for example "about 2 suggestions a day (at most 4, and nothing on 3 days)". It reads the facility you are setting, or the one

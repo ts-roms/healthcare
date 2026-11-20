@@ -7,10 +7,17 @@ import { api } from "@/lib/api/client";
 import type { AssistantSurface } from "@/lib/api/types";
 
 /** The screen each surface's suggestions are shown on, refreshed after an answer. */
-const SURFACE_PATH: Record<AssistantSurface, string> = { inventory: "/inventory", billing: "/billing", appointments: "/appointments", queue: "/queue" };
+const SURFACE_PATH: Record<AssistantSurface, { path: string; type?: "layout" }> = {
+  inventory: { path: "/inventory" },
+  billing: { path: "/billing" },
+  appointments: { path: "/appointments" },
+  queue: { path: "/queue" },
+  encounter: { path: "/clinic/encounters", type: "layout" },
+  laboratory: { path: "/laboratory/worklist" },
+};
 
 const answerSchema = z.object({
-  surface: z.enum(["inventory", "billing", "appointments", "queue"]),
+  surface: z.enum(["inventory", "billing", "appointments", "queue", "encounter", "laboratory"]),
   id: z.string().min(3).max(300),
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),
 });
@@ -23,6 +30,6 @@ export async function answerSuggestion(input: z.input<typeof answerSchema>): Pro
   const result = await actionResult(() =>
     api<{ id: string }>(`/assistant/suggestions/${encodeURIComponent(id)}/feedback`, { method: "POST", body: { outcome } }),
   );
-  if (result.ok) revalidatePath(SURFACE_PATH[surface]);
+  if (result.ok) revalidatePath(SURFACE_PATH[surface].path, SURFACE_PATH[surface].type);
   return result;
 }

@@ -1,4 +1,7 @@
 export * from "./lib/assistant/clinic-assistant.queries";
+export * from "./lib/assistant/code-suggestions.rules";
+export * from "./lib/assistant/encounter-assistant.queries";
+export * from "./lib/assistant/encounter-checklist.rules";
 export * from "./lib/assistant/no-show-risk.rules";
 export * from "./lib/assistant/queue-wait.rules";
 export * from "./lib/appointments/appointment-reminders";
