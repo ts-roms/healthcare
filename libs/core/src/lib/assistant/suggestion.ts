@@ -21,6 +21,8 @@ export const SUGGESTION_SURFACES = [
   "outreach",
   // A prescription being drafted, checked before it is issued (POST /assistant/suggestions/check).
   "prescribing",
+  // A patient's dental record (with the patient's id).
+  "dental",
 ] as const;
 /** Where a suggestion is shown. Grows with each phase; a new surface is a code change, not data. */
 export type SuggestionSurface = (typeof SUGGESTION_SURFACES)[number];

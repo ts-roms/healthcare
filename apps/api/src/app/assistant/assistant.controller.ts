@@ -19,7 +19,7 @@ export class AssistantController {
   @RequirePermissions("assistant.use")
   @ApiOperation({ summary: "Suggestions for a screen at the selected facility, from the rules turned on there (audited, rule ids only)" })
   suggestions(@CurrentActor() actor: Actor, @Query() query: SuggestionsQueryDto) {
-    return this.assistant.suggestions(actor, query.surface, { date: query.date, encounterId: query.encounterId });
+    return this.assistant.suggestions(actor, query.surface, { date: query.date, encounterId: query.encounterId, patientId: query.patientId });
   }
 
   @Post("suggestions/check")

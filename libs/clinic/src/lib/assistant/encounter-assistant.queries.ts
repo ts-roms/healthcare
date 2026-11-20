@@ -226,4 +226,32 @@ export class EncounterAssistantQueries {
     const diagnoses = await this.activeDiagnoses(organizationId, encounterId, asOf);
     return { visitTypeCode, diagnoses: diagnoses.map((d) => ({ codeSystemKey: d.codeSystemKey, code: d.code })) };
   }
+
+  /**
+   * `laboratory.monitoring-gap`, clinic side: the consultation's patient and their chronic problems at the moment — the
+   * active coded diagnoses marked chronic in any of their consultations (records linked to theirs included) recorded by
+   * then, the long-term part of the problem list Patient 360 shows, each with the time it was first recorded. A
+   * diagnosis's later status changes are not dated, so its current status stands. Codes only.
+   */
+  async chronicProblems(
+    organizationId: string,
+    encounterId: string,
+    asOf: Date,
+  ): Promise<{ patientId: string; problems: Array<{ codeSystemKey: string | null; code: string; firstRecordedAt: string }> } | null> {
+    const [enc] = await this.db
+      .select({ patientId: encounter.patientId })
+      .from(encounter)
+      .where(and(eq(encounter.organizationId, organizationId), eq(encounter.id, encounterId)));
+    if (!enc) return null;
+    const { rows } = await this.db.execute<{ code_system_key: string | null; code: string; first: string }>(sql`
+      SELECT d.code_system_key, d.code, to_char(min(d.recorded_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS first
+      FROM diagnosis d
+      WHERE d.organization_id = ${organizationId}::uuid
+        AND d.patient_id = ANY(patient_record_ids(${enc.patientId}::uuid))
+        AND d.status = 'active' AND d.is_chronic AND d.code IS NOT NULL
+        AND d.recorded_at <= ${asOf.toISOString()}::timestamptz
+      GROUP BY d.code_system_key, d.code
+    `);
+    return { patientId: enc.patientId, problems: rows.map((r) => ({ codeSystemKey: r.code_system_key, code: r.code, firstRecordedAt: r.first })) };
+  }
 }

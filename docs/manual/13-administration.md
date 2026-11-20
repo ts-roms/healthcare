@@ -623,14 +623,18 @@ The rules, and the screen each speaks on:
 | Orders past their usual turnaround                            | Laboratory      | Medical technologists, pathologists, organization administrators                     |
 | QC values drifting or shifted                                 | Quality control | Medical technologists, pathologists, organization administrators                     |
 | Specimen rejections concentrated on a collector or a facility | Quality control | Pathologists, organization administrators                                            |
+| Monitoring tests not done for a chronic condition             | Consultation    | Physicians, dentists, organization administrators                                    |
+| Planned work the chart says cannot be done                    | Dental record   | Dentists, physicians, nurses, organization administrators                            |
+| Treatment plan items waiting for the patient's decision       | Dental record   | Dentists, physicians, nurses, organization administrators                            |
 
 Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
 [Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md), [Consultations](04-consultations-and-care-plans.md),
-[Laboratory](06-laboratory.md), [Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign). The starting values are only a
-starting point: set them from how your clinic works.
+[Laboratory](06-laboratory.md), [Dental](08-dental.md#how-to-read-the-dental-suggestions),
+[Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign). The starting values are only a starting point: set them from how
+your clinic works.
 
-The consultation, prescribing and laboratory rules are clinical decision support: before turning one on, have your clinicians check the rule and its
-thresholds (for example the percentage change that should prompt a second look at a result), and record who did in **Settings → Compliance**.
+The consultation, prescribing, laboratory and dental rules are clinical decision support: before turning one on, have your clinicians check the rule
+and its thresholds (for example the percentage change that should prompt a second look at a result), and record who did in **Settings → Compliance**.
 
 **Prescribing checks** run when a doctor selects **Issue prescription** and read your own medicine settings: open **Settings → Prescribing checks**
 (`clinic.configure`), select **Add a medicine**, and give its generic name and any of a **Class** (two current medicines of one class are shown as a
@@ -648,8 +652,10 @@ administrators. Before turning it on, decide with your Data Protection Officer h
 interval, or whose last review found changes needed. Record reviews under **Settings → Compliance**; dismiss areas that do not apply to you.
 
 **An order set for this consultation** offers doctors your own order sets (**Settings → Laboratory → Order sets**) when a consultation's diagnosis or
-visit type matches; set them up first, with your clinicians. **When patients use MyHealth** counts MyHealth use per hour from the audit trail (counts
-only); before turning it on, confirm with your Data Protection Officer that your privacy notice covers using it to time outreach.
+visit type matches; set them up first, with your clinicians. **Monitoring tests not done for a chronic condition** reads the same order sets: a set
+with a diagnosis code is also the list of tests to repeat for that diagnosis when doctors mark it **Chronic condition**, and you choose after how many
+months a test counts as not done. **When patients use MyHealth** counts MyHealth use per hour from the audit trail (counts only); before turning it on,
+confirm with your Data Protection Officer that your privacy notice covers using it to time outreach.
 
 **Try these values** shows, before you save or turn anything on, how often the rule would have spoken on each of the last 14 days with the
 values in the form: for example "about 2 suggestions a day (at most 4, and nothing on 3 days)". It reads the facility you are setting, or the one

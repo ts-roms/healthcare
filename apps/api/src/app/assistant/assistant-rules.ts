@@ -32,7 +32,14 @@ import {
   SEND_HOUR_RULE,
   sendHourSuggestions,
 } from "@healthcare/crm";
-import { DentalAssistantQueries } from "@healthcare/dental";
+import {
+  CHART_CONSISTENCY_RULE,
+  chartConsistencySuggestions,
+  DentalAssistantQueries,
+  type DentalPlanInput,
+  PLAN_DECISIONS_RULE,
+  planDecisionSuggestions,
+} from "@healthcare/dental";
 import {
   DAYS_OF_COVER_RULE,
   daysOfCoverSuggestions,
@@ -47,6 +54,9 @@ import {
   deltaCheckSuggestions,
   LabAssistantQueries,
   LabOrderSetService,
+  MONITORING_GAP_RULE,
+  monitoringGapSuggestions,
+  type OrderSetCandidate,
   ORDER_SETS_RULE,
   orderSetSuggestions,
   QC_TREND_RULE,
@@ -84,6 +94,8 @@ export interface RuleMoment {
   live: boolean;
   /** The consultation a consultation screen shows; a replay reads every consultation open at the moment instead. */
   encounterId?: string;
+  /** The patient a patient screen shows (the dental record); a replay reads every patient with an open plan at the facility. */
+  patientId?: string;
   /** A prescription being drafted (surface `prescribing`); a replay reads the prescriptions issued that day instead. */
   prescriptionDraft?: PrescriptionDraft;
 }
@@ -184,6 +196,28 @@ export class AssistantRules {
         });
       }
       return checks;
+    };
+    /** The organization's active order sets, each item with the tests it orders (a panel's members). */
+    const activeOrderSets = async (actor: Actor): Promise<OrderSetCandidate[]> =>
+      (await orderSets.list(actor.organizationId)).map((set) => ({
+        id: set.id,
+        name: set.name,
+        note: set.note,
+        items: set.items.filter((i) => i.status === "active").map((i) => ({ name: i.name, testIds: i.testIds })),
+        triggers: set.triggers,
+      }));
+    /** What the dental rules read: the patient on screen, or every patient with an open plan at the facility in a replay. Once per moment. */
+    const plansRead = new WeakMap<RuleMoment, Promise<DentalPlanInput[]>>();
+    const dentalPlansFor = (actor: Actor, facilityId: string, moment: RuleMoment): Promise<DentalPlanInput[]> => {
+      let pending = plansRead.get(moment);
+      if (!pending) {
+        pending =
+          moment.patientId || !moment.live
+            ? dental.planInputs(actor.organizationId, { facilityId, asOf: moment.asOf, patientIds: moment.patientId ? [moment.patientId] : undefined })
+            : Promise.resolve([]);
+        plansRead.set(moment, pending);
+      }
+      return pending;
     };
     const checksRead = new WeakMap<RuleMoment, Promise<PrescribingCheck[]>>();
     const prescribingChecksFor = (actor: Actor, facilityId: string, moment: RuleMoment): Promise<PrescribingCheck[]> => {
@@ -351,14 +385,7 @@ export class AssistantRules {
           const params = ORDER_SETS_RULE.parametersSchema.parse(raw);
           const ids = await encountersFor(actor, facilityId, moment);
           if (ids.length === 0) return [];
-          // The organization's active sets, each item with the tests it orders (a panel's members).
-          const sets = (await orderSets.list(actor.organizationId)).map((set) => ({
-            id: set.id,
-            name: set.name,
-            note: set.note,
-            items: set.items.filter((i) => i.status === "active").map((i) => ({ name: i.name, testIds: i.testIds })),
-            triggers: set.triggers,
-          }));
+          const sets = await activeOrderSets(actor);
           if (!sets.some((s) => s.triggers.length > 0)) return [];
           const out: Suggestion[] = [];
           for (const id of ids) {
@@ -368,6 +395,49 @@ export class AssistantRules {
             out.push(...orderSetSuggestions(sets, { encounterId: id, ...clinical, orderedTestIds }, params));
           }
           return out;
+        },
+      },
+      {
+        definition: erase(MONITORING_GAP_RULE),
+        replayAt: "16:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = MONITORING_GAP_RULE.parametersSchema.parse(raw);
+          const ids = await encountersFor(actor, facilityId, moment);
+          if (ids.length === 0) return [];
+          const sets = (await activeOrderSets(actor)).filter((s) => s.triggers.some((t) => t.kind === "diagnosis_code"));
+          if (sets.length === 0) return [];
+          const testIds = [...new Set(sets.flatMap((s) => s.items.flatMap((i) => i.testIds)))];
+          const out: Suggestion[] = [];
+          for (const id of ids) {
+            // The chronic problems from the clinic, the releases and this consultation's orders from the laboratory.
+            const record = await encounters.chronicProblems(actor.organizationId, id, moment.asOf);
+            if (!record || record.problems.length === 0) continue;
+            const lastReleased = await lab.lastReleases(actor.organizationId, record.patientId, testIds, moment.asOf);
+            const orderedTestIds = await lab.orderedTestIds(actor.organizationId, id, moment.asOf);
+            out.push(
+              ...monitoringGapSuggestions(
+                { encounterId: id, asOf: moment.asOf.toISOString(), timeZone: moment.timeZone, problems: record.problems, sets, lastReleased, orderedTestIds },
+                params,
+              ),
+            );
+          }
+          return out;
+        },
+      },
+      // Dental: on the patient's dental record; a replay reads the patients with an open plan at the facility.
+      {
+        definition: erase(CHART_CONSISTENCY_RULE),
+        replayAt: "16:00",
+        run: async (actor, facilityId, _raw, moment) =>
+          (await dentalPlansFor(actor, facilityId, moment)).flatMap((input) => chartConsistencySuggestions(input, moment.timeZone)),
+      },
+      {
+        definition: erase(PLAN_DECISIONS_RULE),
+        replayAt: "16:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = PLAN_DECISIONS_RULE.parametersSchema.parse(raw);
+          const asOf = moment.asOf.toISOString();
+          return (await dentalPlansFor(actor, facilityId, moment)).flatMap((input) => planDecisionSuggestions(input, params, asOf, moment.timeZone));
         },
       },
       {

@@ -202,6 +202,14 @@ consultation's diagnosis or visit type, for example "Order set for the diagnosis
 or "already ordered in this consultation". **Open in the lab order form** opens the form with the set's tests chosen. Nothing is ordered until you
 select **Order N tests**; once all its tests are ordered, the suggestion goes. The sets are your organization's own: no guideline is built in.
 
+When your organization has turned on the assistant's rule **Monitoring tests not done for a chronic condition**, the **Suggestions** box also points
+out, in any consultation, a diagnosis marked **Chronic condition** on the patient's record for some time whose tests in one of your order sets have no
+released result in the months your organization chose, for example "Diabetes monitoring: HbA1c not released in 12 months (E11.9)", each test with
+the day it was last released or "no released result here". It counts only results released by your laboratory, not outside results filed on the
+record. **Open in the lab order form** opens the form with the set chosen: untick what the patient does not need or had done elsewhere. Once the
+tests are ordered in this consultation, the suggestion goes. A diagnosis recorded without **Chronic condition** ticked is not checked (and it leaves
+the patient's problem list after 90 days).
+
 ## How to book a follow-up
 
 You need `appointment.manage`.

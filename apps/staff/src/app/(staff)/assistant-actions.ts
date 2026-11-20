@@ -20,6 +20,8 @@ const SURFACE_PATH: Record<AssistantSurface, { path: string; type?: "layout" }> 
   outreach: { path: "/outreach" },
   // Checked in the prescribing dialog: the consultation refreshes.
   prescribing: { path: "/clinic/encounters", type: "layout" },
+  // A patient's dental record.
+  dental: { path: "/dental/patients", type: "layout" },
 };
 
 const answerSchema = z.object({
@@ -35,6 +37,7 @@ const answerSchema = z.object({
     "settings",
     "outreach",
     "prescribing",
+    "dental",
   ]),
   id: z.string().min(3).max(300),
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),

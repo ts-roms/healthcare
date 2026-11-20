@@ -75,16 +75,22 @@ export class AssistantService {
 
   /**
    * `date` (YYYY-MM-DD): the day a screen shows (the appointments board); `encounterId`: the consultation a consultation
-   * screen shows; `prescriptionDraft`: a prescription being written, checked before it is issued (surface `prescribing`).
+   * screen shows; `patientId`: the patient a patient screen shows (the dental record); `prescriptionDraft`: a prescription
+   * being written, checked before it is issued (surface `prescribing`).
    */
   async suggestions(
     actor: Actor,
     surface: SuggestionSurface,
-    context: { date?: string; encounterId?: string; prescriptionDraft?: PrescriptionDraft } = {},
+    context: { date?: string; encounterId?: string; patientId?: string; prescriptionDraft?: PrescriptionDraft } = {},
   ): Promise<SuggestionsAnswer> {
     const facilityId = requireFacilityId(actor);
     const timeZone = await this.facilityTimeZone(actor, facilityId);
-    const moment = { ...liveMoment(timeZone, context.date), encounterId: context.encounterId, prescriptionDraft: context.prescriptionDraft };
+    const moment = {
+      ...liveMoment(timeZone, context.date),
+      encounterId: context.encounterId,
+      patientId: context.patientId,
+      prescriptionDraft: context.prescriptionDraft,
+    };
     const encounterId = context.encounterId ?? context.prescriptionDraft?.encounterId;
     const bindings = this.rules.bindings.filter((b) => b.definition.surfaces.includes(surface));
     const settings = await this.effectiveSettings(actor.organizationId, facilityId, bindings);
@@ -115,6 +121,7 @@ export class AssistantService {
         rules: ran,
         shown: shown.length,
         ...(encounterId ? { encounterId } : {}),
+        ...(context.patientId ? { patientId: context.patientId } : {}),
         ...(context.prescriptionDraft ? { medicines: context.prescriptionDraft.medicines.length } : {}),
       },
     });

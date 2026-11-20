@@ -12,6 +12,8 @@ export const suggestionsQuerySchema = z.object({
     .optional(),
   /** The consultation a consultation screen shows (surface `encounter`). */
   encounterId: z.string().uuid().optional(),
+  /** The patient a patient screen shows (surface `dental`). */
+  patientId: z.string().uuid().optional(),
 });
 export class SuggestionsQueryDto extends createZodDto(suggestionsQuerySchema) {}
 

@@ -367,8 +367,8 @@ Receive specimen ─► send-out prepared (referral configuration, or by hand)
 
 Migration `0155_lab_order_sets.sql`. The organization's own sets of tests and panels ordered together, offered to doctors
 in the consultation's lab order form and, through the assistant's `laboratory.order-sets` rule, as a suggestion
-([assistant.md](assistant.md)). Catalogue master data: a set never orders anything; the doctor checks its tests and
-places an ordinary order.
+([assistant.md](assistant.md)). The assistant's `laboratory.monitoring-gap` rule also reads them: for a chronic diagnosis on the patient's record for some time, a set's tests with no released result for months. Catalogue master data: a set never
+orders anything; the doctor checks its tests and places an ordinary order.
 
 - `lab_order_set` — code (`^[a-z0-9][a-z0-9-]{1,48}$`, unique in the organization, never changed), name, optional note,
   status `active | inactive`, optimistic `version`, who created and last changed it.

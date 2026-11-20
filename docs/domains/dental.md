@@ -437,6 +437,16 @@ the items it listed, its total and until when it holds); when required, a staff-
 Decisions in MyHealth confirm the organization's acknowledgement text instead. What a written estimate must contain is
 not encoded (compliance dependency; `docs/architecture/compliance-configuration.md`).
 
+## Assistant suggestions
+
+Two rules of the heuristic assistant ([assistant.md](assistant.md)), off until an administrator turns them on, read the
+dental record and change nothing: `dental.chart-consistency` (an open plan's item still to do whose procedure the chart's
+latest state of the tooth rules out — missing, a pontic, an implant, impacted or not erupted) and `dental.plan-decisions`
+(items still proposed N days after they were added). Pure rules in `libs/dental/src/lib/assistant/dental-plan.rules.ts`,
+read through `DentalAssistantQueries.planInputs` (the chart and open plans as of a moment, names, teeth and dates only).
+Staff see them at the top of the dental record (`/dental/patients/[id]`) with `assistant.use` (dentists, since `0154`) and
+`dental.record.read`. No migration or permission.
+
 ## Open questions / assumptions
 
 - Display notation per facility (FDI default) — confirm with target clinics.

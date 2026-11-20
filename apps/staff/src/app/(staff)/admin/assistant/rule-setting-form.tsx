@@ -99,38 +99,48 @@ export function RuleSettingForm({
               Saving gives {scopeName} a setting of its own; later changes to the organization&apos;s setting no longer apply here.
             </p>
           ) : null}
-          <fieldset className="grid gap-3 sm:grid-cols-2">
-            <legend className="mb-2 text-table font-medium">Your thresholds</legend>
-            {fields.map((field) => (
-              <div key={field.key} className="grid gap-1">
-                <Label htmlFor={id(field.key)}>{field.label}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id={id(field.key)}
-                    type="number"
-                    inputMode="numeric"
-                    step={1}
-                    min={field.min}
-                    max={field.max}
-                    className="w-28"
-                    value={values[field.key] ?? ""}
-                    aria-describedby={field.hint ? id(`${field.key}-hint`) : undefined}
-                    onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
-                  />
-                  {field.unit ? <span className="text-table text-muted-foreground">{field.unit}</span> : null}
+          {fields.length === 0 ? (
+            <p className="text-table text-muted-foreground">This rule has no thresholds: it speaks whenever it finds what it checks for.</p>
+          ) : (
+            <fieldset className="grid gap-3 sm:grid-cols-2">
+              <legend className="mb-2 text-table font-medium">Your thresholds</legend>
+              {fields.map((field) => (
+                <div key={field.key} className="grid gap-1">
+                  <Label htmlFor={id(field.key)}>{field.label}</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={id(field.key)}
+                      type="number"
+                      inputMode="numeric"
+                      step={1}
+                      min={field.min}
+                      max={field.max}
+                      className="w-28"
+                      value={values[field.key] ?? ""}
+                      aria-describedby={field.hint ? id(`${field.key}-hint`) : undefined}
+                      onChange={(e) => setValues((v) => ({ ...v, [field.key]: e.target.value }))}
+                    />
+                    {field.unit ? <span className="text-table text-muted-foreground">{field.unit}</span> : null}
+                  </div>
+                  {field.hint ? (
+                    <p id={id(`${field.key}-hint`)} className="text-meta text-muted-foreground">
+                      {field.hint}
+                    </p>
+                  ) : null}
                 </div>
-                {field.hint ? (
-                  <p id={id(`${field.key}-hint`)} className="text-meta text-muted-foreground">
-                    {field.hint}
-                  </p>
-                ) : null}
-              </div>
-            ))}
-          </fieldset>
-          <p className="text-meta text-muted-foreground">
-            The starting values are a suggestion, not a standard: set them from how your clinic works.
-            {rule.setting ? ` Last changed ${clinicalDateTime(rule.setting.updatedAt)} (version ${rule.setting.version}).` : ""}
-          </p>
+              ))}
+            </fieldset>
+          )}
+          {fields.length > 0 || rule.setting ? (
+            <p className="text-meta text-muted-foreground">
+              {[
+                fields.length > 0 ? "The starting values are a suggestion, not a standard: set them from how your clinic works." : null,
+                rule.setting ? `Last changed ${clinicalDateTime(rule.setting.updatedAt)} (version ${rule.setting.version}).` : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            </p>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button type="submit" size="sm" disabled={pending}>
               Save

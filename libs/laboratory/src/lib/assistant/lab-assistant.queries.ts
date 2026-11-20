@@ -253,6 +253,21 @@ export class LabAssistantQueries {
     };
   }
 
+  /** `laboratory.monitoring-gap`: the patient's latest release of each test (records linked to theirs included) before `asOf`. */
+  async lastReleases(organizationId: string, patientId: string, testIds: string[], asOf: Date): Promise<Array<{ testId: string; releasedAt: string }>> {
+    if (testIds.length === 0) return [];
+    const { rows } = await this.db.execute<{ test_id: string; released_at: string }>(sql`
+      SELECT r.test_id, to_char(max(r.released_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS released_at
+      FROM lab_result r
+      WHERE r.organization_id = ${organizationId}::uuid
+        AND r.patient_id = ANY(patient_record_ids(${patientId}::uuid))
+        AND r.test_id = ANY(${sql.param(testIds)}::uuid[])
+        AND r.released_at IS NOT NULL AND r.released_at <= ${asOf.toISOString()}::timestamptz
+      GROUP BY r.test_id
+    `);
+    return rows.map((r) => ({ testId: r.test_id, releasedAt: r.released_at }));
+  }
+
   /** `laboratory.order-sets`: tests ordered in a consultation by a moment, cancelled ones left out (ids only). */
   async orderedTestIds(organizationId: string, encounterId: string, asOf: Date): Promise<string[]> {
     const { rows } = await this.db.execute<{ test_id: string }>(sql`
