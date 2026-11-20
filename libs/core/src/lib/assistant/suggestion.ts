@@ -14,6 +14,8 @@ export const SUGGESTION_SURFACES = [
   "queue",
   "encounter",
   "laboratory",
+  // The laboratory's quality control page.
+  "laboratory-quality",
   "security",
   "settings",
   "outreach",

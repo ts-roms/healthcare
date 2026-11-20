@@ -42,7 +42,20 @@ import {
   USAGE_SPIKE_RULE,
   usageSpikeSuggestions,
 } from "@healthcare/inventory";
-import { DELTA_CHECK_RULE, deltaCheckSuggestions, LabAssistantQueries, LabOrderSetService, ORDER_SETS_RULE, orderSetSuggestions } from "@healthcare/laboratory";
+import {
+  DELTA_CHECK_RULE,
+  deltaCheckSuggestions,
+  LabAssistantQueries,
+  LabOrderSetService,
+  ORDER_SETS_RULE,
+  orderSetSuggestions,
+  QC_TREND_RULE,
+  qcTrendSuggestions,
+  REJECTION_RATE_RULE,
+  rejectionRateSuggestions,
+  TURNAROUND_RISK_RULE,
+  turnaroundRiskSuggestions,
+} from "@healthcare/laboratory";
 import { COMPLIANCE_GAPS_RULE, complianceGapsSuggestions, OrganizationAssistantQueries } from "@healthcare/organization";
 import {
   CHECK_PROMPTS_RULE,
@@ -291,6 +304,44 @@ export class AssistantRules {
         run: async (actor, facilityId, raw, moment) => {
           const params = DELTA_CHECK_RULE.parametersSchema.parse(raw);
           return deltaCheckSuggestions(await lab.deltaInputs(actor.organizationId, facilityId, moment.asOf, params.lookbackDays), params);
+        },
+      },
+      // The laboratory's timing (workbench) and quality (QC page): times, z-scores and counts, never a patient.
+      {
+        definition: erase(TURNAROUND_RISK_RULE),
+        replayAt: "15:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = TURNAROUND_RISK_RULE.parametersSchema.parse(raw);
+          const input = await lab.turnaroundInputs(actor.organizationId, facilityId, { asOf: moment.asOf, lookbackDays: params.lookbackDays });
+          return turnaroundRiskSuggestions(input, params, moment.asOf.toISOString(), moment.today);
+        },
+      },
+      {
+        definition: erase(QC_TREND_RULE),
+        replayAt: "10:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = QC_TREND_RULE.parametersSchema.parse(raw);
+          const series = await lab.qcSeries(actor.organizationId, facilityId, {
+            asOf: moment.asOf,
+            lookbackDays: params.lookbackDays,
+            maxRuns: Math.max(params.trendRuns, params.shiftRuns),
+          });
+          return qcTrendSuggestions(series, params, moment.timeZone);
+        },
+      },
+      {
+        definition: erase(REJECTION_RATE_RULE),
+        replayAt: "17:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = REJECTION_RATE_RULE.parametersSchema.parse(raw);
+          const figures = await lab.rejectionFigures(actor.organizationId, facilityId, { asOf: moment.asOf, windowDays: params.windowDays });
+          if (figures.collectors.length === 0) return [];
+          const names = await users.displayNames(
+            actor.organizationId,
+            figures.collectors.map((c) => c.userId),
+          );
+          const collectors = figures.collectors.map((c) => ({ ...c, displayName: names.get(c.userId) ?? "A staff account" }));
+          return rejectionRateSuggestions({ collectors, others: figures.others }, params);
         },
       },
       {

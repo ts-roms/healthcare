@@ -599,27 +599,30 @@ someone decides. Every rule is off until you turn it on.
 
 The rules, and the screen each speaks on:
 
-| Rule                                                 | Screen        | Who sees it                                                                          |
-| ---------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------ |
-| Stock may run out before a delivery arrives          | Inventory     | Inventory officers, nurses, organization administrators                              |
-| An item was issued much more than usual              | Inventory     | Inventory officers, nurses, organization administrators                              |
-| Stock may expire before it is used                   | Inventory     | Inventory officers, nurses, organization administrators                              |
-| Procedures with no charge                            | Billing       | Cashiers, receptionists, organization administrators                                 |
-| A patient may not come to their appointment          | Appointments  | Receptionists, nurses, organization administrators                                   |
-| Patients are waiting longer than usual               | Queue         | Receptionists, nurses, organization administrators                                   |
-| Before signing: what the record does not hold yet    | Consultation  | Physicians, dentists, nurses, organization administrators                            |
-| Codes your clinic has used for these words           | Consultation  | Physicians, dentists, nurses, organization administrators                            |
-| A result differs sharply from the patient's last one | Laboratory    | Medical technologists, pathologists, nurses, physicians, organization administrators |
-| Unusual access to patient records                    | Audit log     | Organization administrators                                                          |
-| Compliance areas to review                           | Settings home | Organization administrators                                                          |
-| Invoices that may have been issued twice             | Billing       | Cashiers, receptionists, organization administrators                                 |
-| An order set for this consultation                   | Consultation  | Physicians, dentists, organization administrators                                    |
-| When patients use MyHealth                           | Outreach      | Organization administrators                                                          |
-| Audiences to consider                                | Outreach      | Organization administrators                                                          |
-| Patients receiving many campaigns                    | Outreach      | Organization administrators                                                          |
-| The same medicine or class is already prescribed     | Prescribing   | Physicians, dentists                                                                 |
-| Above your organization's maximum daily dose         | Prescribing   | Physicians, dentists                                                                 |
-| Checks your organization asks for before prescribing | Prescribing   | Physicians, dentists                                                                 |
+| Rule                                                          | Screen          | Who sees it                                                                          |
+| ------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------ |
+| Stock may run out before a delivery arrives                   | Inventory       | Inventory officers, nurses, organization administrators                              |
+| An item was issued much more than usual                       | Inventory       | Inventory officers, nurses, organization administrators                              |
+| Stock may expire before it is used                            | Inventory       | Inventory officers, nurses, organization administrators                              |
+| Procedures with no charge                                     | Billing         | Cashiers, receptionists, organization administrators                                 |
+| A patient may not come to their appointment                   | Appointments    | Receptionists, nurses, organization administrators                                   |
+| Patients are waiting longer than usual                        | Queue           | Receptionists, nurses, organization administrators                                   |
+| Before signing: what the record does not hold yet             | Consultation    | Physicians, dentists, nurses, organization administrators                            |
+| Codes your clinic has used for these words                    | Consultation    | Physicians, dentists, nurses, organization administrators                            |
+| A result differs sharply from the patient's last one          | Laboratory      | Medical technologists, pathologists, nurses, physicians, organization administrators |
+| Unusual access to patient records                             | Audit log       | Organization administrators                                                          |
+| Compliance areas to review                                    | Settings home   | Organization administrators                                                          |
+| Invoices that may have been issued twice                      | Billing         | Cashiers, receptionists, organization administrators                                 |
+| An order set for this consultation                            | Consultation    | Physicians, dentists, organization administrators                                    |
+| When patients use MyHealth                                    | Outreach        | Organization administrators                                                          |
+| Audiences to consider                                         | Outreach        | Organization administrators                                                          |
+| Patients receiving many campaigns                             | Outreach        | Organization administrators                                                          |
+| The same medicine or class is already prescribed              | Prescribing     | Physicians, dentists                                                                 |
+| Above your organization's maximum daily dose                  | Prescribing     | Physicians, dentists                                                                 |
+| Checks your organization asks for before prescribing          | Prescribing     | Physicians, dentists                                                                 |
+| Orders past their usual turnaround                            | Laboratory      | Medical technologists, pathologists, organization administrators                     |
+| QC values drifting or shifted                                 | Quality control | Medical technologists, pathologists, organization administrators                     |
+| Specimen rejections concentrated on a collector or a facility | Quality control | Pathologists, organization administrators                                            |
 
 Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
 [Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md), [Consultations](04-consultations-and-care-plans.md),

@@ -22,7 +22,8 @@ export async function saveAssistantRule(input: z.input<typeof schema>): Promise<
   const result = await actionResult(() => api<{ version: number }>(`/assistant/rules/${encodeURIComponent(ruleId)}/settings`, { method: "PUT", body }));
   revalidatePath("/admin/assistant");
   // The screens whose suggestions a rule may feed.
-  for (const path of ["/inventory", "/billing", "/appointments", "/queue", "/laboratory/worklist", "/admin/audit", "/admin", "/outreach"]) revalidatePath(path);
+  for (const path of ["/inventory", "/billing", "/appointments", "/queue", "/laboratory/worklist", "/laboratory/qc", "/admin/audit", "/admin", "/outreach"])
+    revalidatePath(path);
   revalidatePath("/clinic/encounters", "layout");
   return result;
 }

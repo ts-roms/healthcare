@@ -204,6 +204,12 @@ unit) by at least your organization's percentage, for example "Creatinine, order
 It names the order, not the patient. Consider checking the specimen's labelling and the entry, and whether a repeat is needed; a real change
 stays as it is. It changes no result, flag or step. Medical technologists, pathologists and organization administrators see it.
 
+**Orders past their usual turnaround (suggestions):** with the rule **Orders past their usual turnaround** on, the same box lists, per test,
+orders collected but not yet released that have waited longer than usual here, for example "Glucose: 2 orders past the usual turnaround
+(longest 3 h since collection)". "Usual" is the median time from collection to release of the test's recent results at this facility (STAT
+orders apart), plus your organization's margin; for a test with few results, the catalog's **Turnaround (minutes)** is used. **Why?** lists
+each order with how long it has waited and where it waits; **Open the worklist** opens that stage. It moves nothing.
+
 **Separation of duties:** by default, the person who entered a result cannot verify or approve it. The facility policy can allow it; such a sign-off
 shows "(self, by facility policy)" on the result.
 

@@ -14,6 +14,7 @@ const SURFACE_PATH: Record<AssistantSurface, { path: string; type?: "layout" }> 
   queue: { path: "/queue" },
   encounter: { path: "/clinic/encounters", type: "layout" },
   laboratory: { path: "/laboratory/worklist" },
+  "laboratory-quality": { path: "/laboratory/qc" },
   security: { path: "/admin/audit" },
   settings: { path: "/admin" },
   outreach: { path: "/outreach" },
@@ -22,7 +23,19 @@ const SURFACE_PATH: Record<AssistantSurface, { path: string; type?: "layout" }> 
 };
 
 const answerSchema = z.object({
-  surface: z.enum(["inventory", "billing", "appointments", "queue", "encounter", "laboratory", "security", "settings", "outreach", "prescribing"]),
+  surface: z.enum([
+    "inventory",
+    "billing",
+    "appointments",
+    "queue",
+    "encounter",
+    "laboratory",
+    "laboratory-quality",
+    "security",
+    "settings",
+    "outreach",
+    "prescribing",
+  ]),
   id: z.string().min(3).max(300),
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),
 });

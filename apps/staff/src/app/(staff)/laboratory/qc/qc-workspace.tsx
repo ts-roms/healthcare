@@ -50,6 +50,7 @@ export function QcWorkspace({
   tests,
   canEnter,
   canManage,
+  chart = null,
 }: {
   board: LabQcBoard;
   materials: LabQcMaterial[];
@@ -57,11 +58,23 @@ export function QcWorkspace({
   tests: LabTest[];
   canEnter: boolean;
   canManage: boolean;
+  /** A series to open first (from a link such as an assistant suggestion); else the board's first row. */
+  chart?: Pair | null;
 }) {
-  const [selected, setSelected] = React.useState<Pair | null>(
-    board.rows[0] ? { instrumentId: board.rows[0].instrumentId, testId: board.rows[0].testId } : null,
+  const [selected, setSelected] = React.useState<Pair | null>(() =>
+    chart && board.rows.some((r) => r.instrumentId === chart.instrumentId && r.testId === chart.testId)
+      ? chart
+      : board.rows[0]
+        ? { instrumentId: board.rows[0].instrumentId, testId: board.rows[0].testId }
+        : null,
   );
   const [version, setVersion] = React.useState(0);
+  const chartSection = React.useRef<HTMLDivElement>(null);
+  const linked = chart ? `${chart.instrumentId}:${chart.testId}` : null;
+  React.useEffect(() => {
+    // Opened from a link to a series (the assistant's QC suggestion): bring its chart into view.
+    if (linked) chartSection.current?.scrollIntoView({ block: "start" });
+  }, [linked]);
   const lotName = (qcLotId: string) => {
     for (const m of materials) {
       const lot = m.lots.find((l) => l.id === qcLotId);
@@ -162,13 +175,15 @@ export function QcWorkspace({
         </Card>
 
         {selected ? (
-          <RunHistory
-            key={`${selected.instrumentId}:${selected.testId}:${version}`}
-            pair={selected}
-            instrumentName={instruments.find((i) => i.id === selected.instrumentId)?.name ?? "Instrument"}
-            test={tests.find((t) => t.id === selected.testId)}
-            canEnter={canEnter}
-          />
+          <div ref={chartSection} id="qc-chart" className="scroll-mt-4">
+            <RunHistory
+              key={`${selected.instrumentId}:${selected.testId}:${version}`}
+              pair={selected}
+              instrumentName={instruments.find((i) => i.id === selected.instrumentId)?.name ?? "Instrument"}
+              test={tests.find((t) => t.id === selected.testId)}
+              canEnter={canEnter}
+            />
+          </div>
         ) : null}
 
         {canManage ? <QcSetup materials={materials} instruments={instruments} tests={tests} /> : <MaterialsList materials={materials} />}

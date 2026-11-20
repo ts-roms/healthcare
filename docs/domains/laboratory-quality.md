@@ -311,7 +311,9 @@ keys.
 ## Staff app
 
 `/laboratory/qc`: the QC board, "Record a control" (evaluated on save), the Levey-Jennings chart and run history with
-corrective actions, and control material / lot / target setup (`lab.qc.manage`). `/laboratory/instruments`: the
+corrective actions, and control material / lot / target setup (`lab.qc.manage`); above the board, the assistant's QC drift and
+shift suggestions and, for quality managers, specimen rejection rates per collector (`laboratory.qc-trend`,
+`laboratory.rejection-rate`, off until turned on; [assistant.md](assistant.md)); `?instrument=&test=` opens that series' chart. `/laboratory/instruments`: the
 register, status, last calibration (overdue flagged) and maintenance, reagent lots in use (load from stock, replace,
 unload, history; each lot's use against the tests it holds, "Running low", the runs counted and "Record use…"), the log
 and new entries. `/laboratory/reagents`: reagent use over a period — by reagent and per lot (in the period and over its

@@ -5826,7 +5826,7 @@ export interface TenantDetail extends TenantSummary {
 // ---- Heuristic assistant (GET /assistant/suggestions; docs/domains/assistant.md) ----------------------------------------
 
 export type AssistantSurface =
-  "inventory" | "billing" | "appointments" | "queue" | "encounter" | "laboratory" | "security" | "settings" | "outreach" | "prescribing";
+  "inventory" | "billing" | "appointments" | "queue" | "encounter" | "laboratory" | "laboratory-quality" | "security" | "settings" | "outreach" | "prescribing";
 
 /** The organization's own setting for one medicine, read by the assistant's prescribing rules (migration 0156). */
 export interface MedicineSetting {
