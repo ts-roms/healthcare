@@ -23,6 +23,8 @@ export const SUGGESTION_SURFACES = [
   "prescribing",
   // A patient's dental record (with the patient's id).
   "dental",
+  // The pharmacy: its home (waiting prescriptions) and a prescription being dispensed (with its id).
+  "pharmacy",
 ] as const;
 /** Where a suggestion is shown. Grows with each phase; a new surface is a code change, not data. */
 export type SuggestionSurface = (typeof SUGGESTION_SURFACES)[number];

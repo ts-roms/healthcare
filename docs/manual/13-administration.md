@@ -245,11 +245,11 @@ advises.
 
 ### Assistant
 
-| Permission                | What it allows                                                                               | Default roles (besides Organization administrator)                                                     |
-| ------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Physician, Receptionist |
-| `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                                                                      |
-| `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                                                                      |
+| Permission                | What it allows                                                                               | Default roles (besides Organization administrator)                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Pharmacist, Physician, Receptionist |
+| `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                                                                                  |
+| `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                                                                                  |
 
 ### Records, reporting and integrations
 
@@ -599,42 +599,47 @@ someone decides. Every rule is off until you turn it on.
 
 The rules, and the screen each speaks on:
 
-| Rule                                                          | Screen          | Who sees it                                                                          |
-| ------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------ |
-| Stock may run out before a delivery arrives                   | Inventory       | Inventory officers, nurses, organization administrators                              |
-| An item was issued much more than usual                       | Inventory       | Inventory officers, nurses, organization administrators                              |
-| Stock may expire before it is used                            | Inventory       | Inventory officers, nurses, organization administrators                              |
-| Procedures with no charge                                     | Billing         | Cashiers, receptionists, organization administrators                                 |
-| A patient may not come to their appointment                   | Appointments    | Receptionists, nurses, organization administrators                                   |
-| Patients are waiting longer than usual                        | Queue           | Receptionists, nurses, organization administrators                                   |
-| Before signing: what the record does not hold yet             | Consultation    | Physicians, dentists, nurses, organization administrators                            |
-| Codes your clinic has used for these words                    | Consultation    | Physicians, dentists, nurses, organization administrators                            |
-| A result differs sharply from the patient's last one          | Laboratory      | Medical technologists, pathologists, nurses, physicians, organization administrators |
-| Unusual access to patient records                             | Audit log       | Organization administrators                                                          |
-| Compliance areas to review                                    | Settings home   | Organization administrators                                                          |
-| Invoices that may have been issued twice                      | Billing         | Cashiers, receptionists, organization administrators                                 |
-| An order set for this consultation                            | Consultation    | Physicians, dentists, organization administrators                                    |
-| When patients use MyHealth                                    | Outreach        | Organization administrators                                                          |
-| Audiences to consider                                         | Outreach        | Organization administrators                                                          |
-| Patients receiving many campaigns                             | Outreach        | Organization administrators                                                          |
-| The same medicine or class is already prescribed              | Prescribing     | Physicians, dentists                                                                 |
-| Above your organization's maximum daily dose                  | Prescribing     | Physicians, dentists                                                                 |
-| Checks your organization asks for before prescribing          | Prescribing     | Physicians, dentists                                                                 |
-| Orders past their usual turnaround                            | Laboratory      | Medical technologists, pathologists, organization administrators                     |
-| QC values drifting or shifted                                 | Quality control | Medical technologists, pathologists, organization administrators                     |
-| Specimen rejections concentrated on a collector or a facility | Quality control | Pathologists, organization administrators                                            |
-| Monitoring tests not done for a chronic condition             | Consultation    | Physicians, dentists, organization administrators                                    |
-| Planned work the chart says cannot be done                    | Dental record   | Dentists, physicians, nurses, organization administrators                            |
-| Treatment plan items waiting for the patient's decision       | Dental record   | Dentists, physicians, nurses, organization administrators                            |
+| Rule                                                          | Screen                    | Who sees it                                                                          |
+| ------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------ |
+| Stock may run out before a delivery arrives                   | Inventory                 | Inventory officers, nurses, organization administrators                              |
+| An item was issued much more than usual                       | Inventory                 | Inventory officers, nurses, organization administrators                              |
+| Stock may expire before it is used                            | Inventory                 | Inventory officers, nurses, organization administrators                              |
+| Procedures with no charge                                     | Billing                   | Cashiers, receptionists, organization administrators                                 |
+| A patient may not come to their appointment                   | Appointments              | Receptionists, nurses, organization administrators                                   |
+| Patients are waiting longer than usual                        | Queue                     | Receptionists, nurses, organization administrators                                   |
+| Before signing: what the record does not hold yet             | Consultation              | Physicians, dentists, nurses, organization administrators                            |
+| Codes your clinic has used for these words                    | Consultation              | Physicians, dentists, nurses, organization administrators                            |
+| A result differs sharply from the patient's last one          | Laboratory                | Medical technologists, pathologists, nurses, physicians, organization administrators |
+| Unusual access to patient records                             | Audit log                 | Organization administrators                                                          |
+| Compliance areas to review                                    | Settings home             | Organization administrators                                                          |
+| Invoices that may have been issued twice                      | Billing                   | Cashiers, receptionists, organization administrators                                 |
+| An order set for this consultation                            | Consultation              | Physicians, dentists, organization administrators                                    |
+| When patients use MyHealth                                    | Outreach                  | Organization administrators                                                          |
+| Audiences to consider                                         | Outreach                  | Organization administrators                                                          |
+| Patients receiving many campaigns                             | Outreach                  | Organization administrators                                                          |
+| The same medicine or class is already prescribed              | Prescribing               | Physicians, dentists                                                                 |
+| Above your organization's maximum daily dose                  | Prescribing               | Physicians, dentists                                                                 |
+| Checks your organization asks for before prescribing          | Prescribing               | Physicians, dentists                                                                 |
+| Orders past their usual turnaround                            | Laboratory                | Medical technologists, pathologists, organization administrators                     |
+| QC values drifting or shifted                                 | Quality control           | Medical technologists, pathologists, organization administrators                     |
+| Specimen rejections concentrated on a collector or a facility | Quality control           | Pathologists, organization administrators                                            |
+| Monitoring tests not done for a chronic condition             | Consultation              | Physicians, dentists, organization administrators                                    |
+| Planned work the chart says cannot be done                    | Dental record             | Dentists, physicians, nurses, organization administrators                            |
+| Treatment plan items waiting for the patient's decision       | Dental record             | Dentists, physicians, nurses, organization administrators                            |
+| Waiting prescriptions that stock cannot fill                  | Pharmacy                  | Pharmacists, nurses, organization administrators                                     |
+| Stock that expires before the course ends                     | Pharmacy (a prescription) | Pharmacists, nurses, organization administrators                                     |
+| Consider seeing the patient in person                         | Online consultation       | Physicians, dentists, nurses, organization administrators                            |
 
 Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
 [Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md), [Consultations](04-consultations-and-care-plans.md),
 [Laboratory](06-laboratory.md), [Dental](08-dental.md#how-to-read-the-dental-suggestions),
+[Pharmacy](09-pharmacy-and-inventory.md#how-to-read-the-pharmacy-suggestions), [Telemedicine](05-telemedicine.md#how-to-escalate-to-in-person-care),
 [Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign). The starting values are only a starting point: set them from how
 your clinic works.
 
-The consultation, prescribing, laboratory and dental rules are clinical decision support: before turning one on, have your clinicians check the rule
-and its thresholds (for example the percentage change that should prompt a second look at a result), and record who did in **Settings → Compliance**.
+The consultation, prescribing, laboratory, dental and online-consultation rules, and the pharmacy's expiry check, are clinical decision support:
+before turning one on, have your clinicians or pharmacist check the rule and its thresholds (for example the percentage change that should prompt a
+second look at a result), and record who did in **Settings → Compliance**.
 
 **Prescribing checks** run when a doctor selects **Issue prescription** and read your own medicine settings: open **Settings → Prescribing checks**
 (`clinic.configure`), select **Add a medicine**, and give its generic name and any of a **Class** (two current medicines of one class are shown as a

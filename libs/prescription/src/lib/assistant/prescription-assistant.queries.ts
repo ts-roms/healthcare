@@ -1,9 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, filedAsPatient } from "@healthcare/core";
-import { and, asc, desc, eq, gte, inArray, lt, ne, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, lte, ne, or, type SQL } from "drizzle-orm";
+import { remainingToDispense, sameUnit } from "../dispensing/dispensing.rules";
 import { PrescribingMedicineService } from "../medicines/prescribing-medicine.service";
 import { PRESCRIBING_CONTEXT, type PrescribingContext } from "../ports";
-import { prescription, prescriptionItem } from "../prescription.schema";
+import { prescription, prescriptionDispense, prescriptionItem } from "../prescription.schema";
+import type { DispensingItem, PendingItem } from "./pharmacy.rules";
 import type { DraftMedicine, EarlierPrescription, MedicineSetting } from "./prescribing.rules";
 
 /**
@@ -133,6 +135,176 @@ export class PrescriptionAssistantQueries {
       ...r,
       medicines: items.filter((i) => i.prescriptionId === r.id).map(({ prescriptionId: _id, ...medicine }) => medicine),
     }));
+  }
+
+  // ---- the pharmacy rules (pharmacy.rules.ts) ------------------------------------------------------------------------
+
+  /**
+   * `dispensing.short-stock`: items of the prescriptions issued at the facility in (`since`, `asOf`] and still active then,
+   * with what is left of one fill (the quantity, refills not counted) after the dispenses recorded by then and not
+   * reversed by then. Items dispensed in another unit than prescribed are left out (what is left cannot be told).
+   */
+  async pendingItems(organizationId: string, facilityId: string, window: { since: Date; asOf: Date }): Promise<PendingItem[]> {
+    const rows = await this.db
+      .select({ id: prescription.id, prescriptionNumber: prescription.prescriptionNumber, issuedAt: prescription.issuedAt })
+      .from(prescription)
+      .where(
+        and(
+          eq(prescription.organizationId, organizationId),
+          eq(prescription.facilityId, facilityId),
+          gt(prescription.issuedAt, window.since),
+          lte(prescription.issuedAt, window.asOf),
+          or(isNull(prescription.cancelledAt), gt(prescription.cancelledAt, window.asOf)),
+        ),
+      )
+      .orderBy(asc(prescription.issuedAt))
+      .limit(500);
+    if (rows.length === 0) return [];
+    const ids = rows.map((r) => r.id);
+    const items = await this.itemsOf(ids);
+    const dispensed = await this.dispensedBy(ids, window.asOf);
+    const out: PendingItem[] = [];
+    for (const item of items) {
+      const own = dispensed.filter((d) => d.prescriptionItemId === item.id);
+      if (!own.every((d) => sameUnit(d.stockUnit, item.quantityUnit))) continue;
+      const remaining = Math.max(0, item.quantity - own.reduce((sum, d) => sum + d.quantity, 0));
+      if (remaining === 0) continue;
+      const rx = rows.find((r) => r.id === item.prescriptionId)!;
+      out.push({
+        prescriptionId: rx.id,
+        prescriptionNumber: rx.prescriptionNumber,
+        issuedAt: rx.issuedAt.toISOString(),
+        genericName: item.genericName,
+        strength: item.strength,
+        quantityUnit: item.quantityUnit,
+        remaining,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * `dispensing.course-expiry` on the dispense screen: an active prescription's items with their duration and what is
+   * left to dispense (refills included; null when something was dispensed in another unit). Null when the prescription
+   * is not this organization's or was not active at the moment.
+   */
+  async dispensingItems(
+    organizationId: string,
+    prescriptionId: string,
+    asOf: Date,
+  ): Promise<{ prescriptionId: string; prescriptionNumber: string; items: DispensingItem[] } | null> {
+    const [rx] = await this.db
+      .select({
+        id: prescription.id,
+        prescriptionNumber: prescription.prescriptionNumber,
+        issuedAt: prescription.issuedAt,
+        cancelledAt: prescription.cancelledAt,
+      })
+      .from(prescription)
+      .where(and(eq(prescription.organizationId, organizationId), eq(prescription.id, prescriptionId)));
+    if (!rx || rx.issuedAt.getTime() > asOf.getTime() || (rx.cancelledAt && rx.cancelledAt.getTime() <= asOf.getTime())) return null;
+    const items = await this.itemsOf([rx.id]);
+    const dispensed = await this.dispensedBy([rx.id], asOf);
+    return {
+      prescriptionId: rx.id,
+      prescriptionNumber: rx.prescriptionNumber,
+      items: items.map((item) => {
+        const own = dispensed.filter((d) => d.prescriptionItemId === item.id);
+        return {
+          prescriptionItemId: item.id,
+          genericName: item.genericName,
+          strength: item.strength,
+          durationValue: item.durationValue,
+          durationUnit: item.durationUnit,
+          remaining: own.every((d) => sameUnit(d.stockUnit, item.quantityUnit)) ? remainingToDispense(item, item.quantityUnit, own) : null,
+        };
+      }),
+    };
+  }
+
+  /** `dispensing.course-expiry` replayed: the dispenses recorded at the facility in [from, to) and not reversed by `to`. */
+  async dispensesBetween(
+    organizationId: string,
+    facilityId: string,
+    from: Date,
+    to: Date,
+  ): Promise<Array<{ prescriptionId: string; prescriptionNumber: string; dispensedAt: Date; movementGroupId: string; item: DispensingItem }>> {
+    const rows = await this.db
+      .select({
+        prescriptionId: prescriptionDispense.prescriptionId,
+        prescriptionNumber: prescription.prescriptionNumber,
+        dispensedAt: prescriptionDispense.dispensedAt,
+        movementGroupId: prescriptionDispense.stockMovementGroupId,
+        prescriptionItemId: prescriptionItem.id,
+        genericName: prescriptionItem.genericName,
+        strength: prescriptionItem.strength,
+        durationValue: prescriptionItem.durationValue,
+        durationUnit: prescriptionItem.durationUnit,
+      })
+      .from(prescriptionDispense)
+      .innerJoin(prescription, eq(prescription.id, prescriptionDispense.prescriptionId))
+      .innerJoin(prescriptionItem, eq(prescriptionItem.id, prescriptionDispense.prescriptionItemId))
+      .where(
+        and(
+          eq(prescriptionDispense.organizationId, organizationId),
+          eq(prescriptionDispense.facilityId, facilityId),
+          gte(prescriptionDispense.dispensedAt, from),
+          lt(prescriptionDispense.dispensedAt, to),
+          or(isNull(prescriptionDispense.reversedAt), gt(prescriptionDispense.reversedAt, to)),
+        ),
+      )
+      .orderBy(asc(prescriptionDispense.dispensedAt))
+      .limit(500);
+    return rows.map((r) => ({
+      prescriptionId: r.prescriptionId,
+      prescriptionNumber: r.prescriptionNumber,
+      dispensedAt: r.dispensedAt,
+      movementGroupId: r.movementGroupId,
+      item: {
+        prescriptionItemId: r.prescriptionItemId,
+        genericName: r.genericName,
+        strength: r.strength,
+        durationValue: r.durationValue,
+        durationUnit: r.durationUnit,
+        remaining: null,
+      },
+    }));
+  }
+
+  private itemsOf(prescriptionIds: string[]) {
+    return this.db
+      .select({
+        id: prescriptionItem.id,
+        prescriptionId: prescriptionItem.prescriptionId,
+        genericName: prescriptionItem.genericName,
+        strength: prescriptionItem.strength,
+        quantity: prescriptionItem.quantity,
+        quantityUnit: prescriptionItem.quantityUnit,
+        refills: prescriptionItem.refills,
+        durationValue: prescriptionItem.durationValue,
+        durationUnit: prescriptionItem.durationUnit,
+      })
+      .from(prescriptionItem)
+      .where(inArray(prescriptionItem.prescriptionId, prescriptionIds))
+      .orderBy(asc(prescriptionItem.prescriptionId), asc(prescriptionItem.lineNumber));
+  }
+
+  /** Dispenses of the prescriptions recorded by `asOf` and not reversed by then. */
+  private dispensedBy(prescriptionIds: string[], asOf: Date) {
+    return this.db
+      .select({
+        prescriptionItemId: prescriptionDispense.prescriptionItemId,
+        quantity: prescriptionDispense.quantity,
+        stockUnit: prescriptionDispense.stockUnit,
+      })
+      .from(prescriptionDispense)
+      .where(
+        and(
+          inArray(prescriptionDispense.prescriptionId, prescriptionIds),
+          lte(prescriptionDispense.dispensedAt, asOf),
+          or(isNull(prescriptionDispense.reversedAt), gt(prescriptionDispense.reversedAt, asOf)),
+        ),
+      );
   }
 
   /** The organization's active medicine settings. */

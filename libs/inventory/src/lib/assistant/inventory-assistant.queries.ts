@@ -1,7 +1,15 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database } from "@healthcare/core";
 import { and, eq, gt, gte, inArray, isNotNull, isNull, lte, or, sql, type SQL } from "drizzle-orm";
-import { inventoryItem, inventoryLocation, inventoryLot, inventoryMovement, inventoryPurchaseOrder, inventoryPurchaseOrderLine } from "../inventory.schema";
+import {
+  inventoryItem,
+  inventoryLocation,
+  inventoryLot,
+  inventoryMovement,
+  inventoryPurchaseOrder,
+  inventoryPurchaseOrderLine,
+  type ItemCategory,
+} from "../inventory.schema";
 import type { DaysOfCoverInput } from "./days-of-cover.rules";
 import type { ExpiryExposureInput } from "./expiry-exposure.rules";
 import type { UsageSpikeInput } from "./usage-spike.rules";
@@ -16,6 +24,18 @@ export interface AssistantMoment {
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Stock of one lot at one location, named, for the rules of other domains (the pharmacy's). */
+export interface LocatedLot {
+  locationId: string;
+  locationName: string;
+  itemId: string;
+  itemName: string;
+  stockUnit: string;
+  lotNumber: string | null;
+  expiryDate: string | null;
+  quantity: number;
+}
 
 /**
  * The figures the inventory assistant rules read, per active item at one facility. Stock is the ledger summed up to the
@@ -119,6 +139,100 @@ export class InventoryAssistantQueries {
           .map((l) => ({ lotId: l.lotId, lotNumber: l.lotNumber, expiryDate: l.expiryDate!, quantity: l.quantity })),
       }))
       .filter((item) => item.lots.length > 0);
+  }
+
+  /**
+   * The pharmacy rules: usable stock at the facility's active locations at the moment, per location, item and lot (the
+   * ledger summed up to the moment; lots expired by the moment's local day left out), for active items of the given
+   * categories (the dispensing workflow's own, passed by the API).
+   */
+  async usableLots(organizationId: string, facilityId: string, categories: readonly ItemCategory[], moment: AssistantMoment): Promise<LocatedLot[]> {
+    if (categories.length === 0) return [];
+    const rows = await this.db
+      .select({
+        locationId: inventoryLocation.id,
+        locationName: inventoryLocation.name,
+        itemId: inventoryItem.id,
+        itemName: inventoryItem.name,
+        stockUnit: inventoryItem.stockUnit,
+        lotNumber: inventoryLot.lotNumber,
+        expiryDate: inventoryLot.expiryDate,
+        quantity: sql<number>`sum(${inventoryMovement.quantity})::int`,
+      })
+      .from(inventoryMovement)
+      .innerJoin(inventoryLocation, eq(inventoryLocation.id, inventoryMovement.locationId))
+      .innerJoin(inventoryLot, eq(inventoryLot.id, inventoryMovement.lotId))
+      .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryMovement.itemId))
+      .where(
+        and(
+          this.atFacility(organizationId, facilityId),
+          eq(inventoryItem.status, "active"),
+          inArray(inventoryItem.category, [...categories]),
+          lte(inventoryMovement.recordedAt, moment.asOf),
+          or(isNull(inventoryLot.expiryDate), gte(inventoryLot.expiryDate, moment.today)),
+        ),
+      )
+      .groupBy(inventoryLocation.id, inventoryItem.id, inventoryLot.id)
+      .having(sql`sum(${inventoryMovement.quantity}) > 0`);
+    return rows;
+  }
+
+  /**
+   * The pharmacy rules: active items of the given categories that the facility stocks — any stock movement at one of its
+   * active locations by the moment — whether or not any is usable then.
+   */
+  async stockedItems(
+    organizationId: string,
+    facilityId: string,
+    categories: readonly ItemCategory[],
+    asOf: Date,
+  ): Promise<Array<{ itemId: string; itemName: string; stockUnit: string }>> {
+    if (categories.length === 0) return [];
+    return this.db
+      .selectDistinct({ itemId: inventoryItem.id, itemName: inventoryItem.name, stockUnit: inventoryItem.stockUnit })
+      .from(inventoryMovement)
+      .innerJoin(inventoryLocation, eq(inventoryLocation.id, inventoryMovement.locationId))
+      .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryMovement.itemId))
+      .where(
+        and(
+          this.atFacility(organizationId, facilityId),
+          eq(inventoryItem.status, "active"),
+          inArray(inventoryItem.category, [...categories]),
+          lte(inventoryMovement.recordedAt, asOf),
+        ),
+      );
+  }
+
+  /** The pharmacy rules replayed: the lots each stock movement group took (issues), per group. */
+  async lotsTaken(organizationId: string, movementGroupIds: readonly string[]): Promise<Map<string, LocatedLot[]>> {
+    const out = new Map<string, LocatedLot[]>();
+    if (movementGroupIds.length === 0) return out;
+    const rows = await this.db
+      .select({
+        movementGroupId: inventoryMovement.movementGroupId,
+        locationId: inventoryLocation.id,
+        locationName: inventoryLocation.name,
+        itemId: inventoryItem.id,
+        itemName: inventoryItem.name,
+        stockUnit: inventoryItem.stockUnit,
+        lotNumber: inventoryLot.lotNumber,
+        expiryDate: inventoryLot.expiryDate,
+        quantity: sql<number>`(-sum(${inventoryMovement.quantity}))::int`,
+      })
+      .from(inventoryMovement)
+      .innerJoin(inventoryLocation, eq(inventoryLocation.id, inventoryMovement.locationId))
+      .innerJoin(inventoryLot, eq(inventoryLot.id, inventoryMovement.lotId))
+      .innerJoin(inventoryItem, eq(inventoryItem.id, inventoryMovement.itemId))
+      .where(
+        and(
+          eq(inventoryMovement.organizationId, organizationId),
+          inArray(inventoryMovement.movementGroupId, [...movementGroupIds]),
+          eq(inventoryMovement.kind, "issue"),
+        ),
+      )
+      .groupBy(inventoryMovement.movementGroupId, inventoryLocation.id, inventoryItem.id, inventoryLot.id);
+    for (const { movementGroupId, ...lot } of rows) out.set(movementGroupId, [...(out.get(movementGroupId) ?? []), lot]);
+    return out;
   }
 
   // ---- internals ---------------------------------------------------------------------------------------------------

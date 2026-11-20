@@ -90,6 +90,17 @@ The FK `(patient_id, encounter_id)` guarantees a prescription's encounter belong
 The staff app prescribes from the encounter workspace (`docs/architecture/staff-app.md`); it shows the API's
 `allergy_warning` details as decision support and sends the prescriber's override reason.
 
+## Assistant suggestions on the pharmacy screens
+
+Two rules of the heuristic assistant ([assistant.md](assistant.md)), off until an administrator turns them on, read
+dispensing and stock and change nothing: `dispensing.short-stock` on `/pharmacy` (medicines that active prescriptions issued
+here in N days still need more of — one fill, in the prescribed unit — than the facility's usable stock of the items named
+like them) and `dispensing.course-expiry` on `/pharmacy/[prescriptionId]` (stock whose lot taken first expires before the
+course would end if handed over today). Pure rules in `libs/prescription/src/lib/assistant/pharmacy.rules.ts` (with the
+name and strength matching, `stockMatches`), read through `PrescriptionAssistantQueries.pendingItems | dispensingItems |
+dispensesBetween`; the stock comes from inventory through the API. Pharmacists see them since migration `0157`
+(`assistant.use`).
+
 ## Medicine settings
 
 Migration `0156_prescribing_medicines.sql`. The organization's own settings per medicine, read only by the assistant's

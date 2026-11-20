@@ -46,6 +46,7 @@ import {
   EXPIRY_EXPOSURE_RULE,
   expiryExposureSuggestions,
   InventoryAssistantQueries,
+  type LocatedLot,
   USAGE_SPIKE_RULE,
   usageSpikeSuggestions,
 } from "@healthcare/inventory";
@@ -70,6 +71,9 @@ import { COMPLIANCE_GAPS_RULE, complianceGapsSuggestions, OrganizationAssistantQ
 import {
   CHECK_PROMPTS_RULE,
   checkPromptSuggestions,
+  COURSE_EXPIRY_RULE,
+  courseExpirySuggestions,
+  DISPENSABLE_CATEGORIES,
   DOSE_LIMIT_RULE,
   doseLimitSuggestions,
   type DraftMedicine,
@@ -77,7 +81,12 @@ import {
   duplicateTherapySuggestions,
   type PrescribingCheck,
   PrescriptionAssistantQueries,
+  SHORT_STOCK_RULE,
+  shortStockSuggestions,
+  type StockCandidate,
+  stockCandidates,
 } from "@healthcare/prescription";
+import { IN_PERSON_RULE, inPersonSuggestions, TelemedicineAssistantQueries } from "@healthcare/telemedicine";
 
 /** When a rule reads its figures: now for a screen, a past moment when the settings screen replays it. */
 export interface RuleMoment {
@@ -96,6 +105,8 @@ export interface RuleMoment {
   encounterId?: string;
   /** The patient a patient screen shows (the dental record); a replay reads every patient with an open plan at the facility. */
   patientId?: string;
+  /** The prescription the dispense screen shows; a replay reads the dispenses of the day instead. */
+  prescriptionId?: string;
   /** A prescription being drafted (surface `prescribing`); a replay reads the prescriptions issued that day instead. */
   prescriptionDraft?: PrescriptionDraft;
 }
@@ -123,6 +134,25 @@ export interface RuleBinding {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
+/** The stock a dispense took, as the course check's candidates: per location and item, with its lots. */
+function dispensedFrom(prescriptionItemId: string, lots: readonly LocatedLot[]): StockCandidate[] {
+  const byPlace = new Map<string, StockCandidate>();
+  for (const lot of lots) {
+    const key = `${lot.locationId}:${lot.itemId}`;
+    const candidate = byPlace.get(key) ?? {
+      prescriptionItemId,
+      locationId: lot.locationId,
+      locationName: lot.locationName,
+      itemId: lot.itemId,
+      itemName: lot.itemName,
+      lots: [],
+    };
+    candidate.lots.push({ lotNumber: lot.lotNumber, expiryDate: lot.expiryDate, quantity: lot.quantity });
+    byPlace.set(key, candidate);
+  }
+  return [...byPlace.values()];
+}
+
 /** A definition's parameters are typed in its own module; the binding parses them back through its schema. */
 function erase<P>(definition: RuleDefinition<P>): RuleDefinition<unknown> {
   return definition as RuleDefinition<unknown>;
@@ -145,6 +175,7 @@ export class AssistantRules {
     orderSets: LabOrderSetService,
     crm: CrmAssistantQueries,
     prescriptions: PrescriptionAssistantQueries,
+    telemedicine: TelemedicineAssistantQueries,
   ) {
     /** The consultations a consultation rule reads: the one on screen, none on a live request without one, every one open in a replay. */
     const encountersFor = async (actor: Actor, facilityId: string, moment: RuleMoment): Promise<string[]> => {
@@ -520,6 +551,89 @@ export class AssistantRules {
           const load = await crm.outreachLoad(actor.organizationId, { asOf: moment.asOf, windowDays: params.windowDays, campaigns: params.campaigns });
           const { cap } = await crm.limits(actor.organizationId);
           return frequencyLoadSuggestions({ ...load, cap }, params);
+        },
+      },
+      {
+        definition: erase(IN_PERSON_RULE),
+        replayAt: "16:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = IN_PERSON_RULE.parametersSchema.parse(raw);
+          const org = actor.organizationId;
+          const onlineSince = new Date(moment.asOf.getTime() - params.onlineDays * DAY_MS);
+          const out: Suggestion[] = [];
+          for (const id of await encountersFor(actor, facilityId, moment)) {
+            // Online consultations only: the patient's care from the clinic, the pre-consult answers from telemedicine.
+            const care = await encounters.careContinuity(org, id, { asOf: moment.asOf, onlineSince });
+            if (!care?.online) continue;
+            const answers = await telemedicine.preConsultAnswers(org, id, moment.asOf);
+            out.push(
+              ...inPersonSuggestions(
+                {
+                  encounterId: id,
+                  asOf: moment.asOf.toISOString(),
+                  timeZone: moment.timeZone,
+                  redFlags: answers?.redFlags ?? [],
+                  symptomDurationDays: answers?.symptomDurationDays ?? null,
+                  onlineConsultations: care.onlineConsultations,
+                  lastInPersonAt: care.lastInPersonAt,
+                  lastVitalsAt: care.lastVitalsAt,
+                },
+                params,
+              ),
+            );
+          }
+          return out;
+        },
+      },
+      // Pharmacy: the waiting prescriptions on its home, a prescription on the dispense screen. Stock from inventory, in the
+      // dispensing workflow's own categories.
+      {
+        definition: erase(SHORT_STOCK_RULE),
+        replayAt: "09:00",
+        run: async (actor, facilityId, raw, moment) => {
+          if (moment.prescriptionId) return [];
+          const params = SHORT_STOCK_RULE.parametersSchema.parse(raw);
+          const since = new Date(moment.asOf.getTime() - params.withinDays * DAY_MS);
+          const pending = await prescriptions.pendingItems(actor.organizationId, facilityId, { since, asOf: moment.asOf });
+          if (pending.length === 0) return [];
+          const stocked = await inventory.stockedItems(actor.organizationId, facilityId, DISPENSABLE_CATEGORIES, moment.asOf);
+          if (stocked.length === 0) return [];
+          const lots = await inventory.usableLots(actor.organizationId, facilityId, DISPENSABLE_CATEGORIES, moment);
+          return shortStockSuggestions({ pending, stocked, lots }, params, moment.timeZone);
+        },
+      },
+      {
+        definition: erase(COURSE_EXPIRY_RULE),
+        replayAt: "17:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = COURSE_EXPIRY_RULE.parametersSchema.parse(raw);
+          const org = actor.organizationId;
+          if (moment.prescriptionId) {
+            const rx = await prescriptions.dispensingItems(org, moment.prescriptionId, moment.asOf);
+            if (!rx) return [];
+            const lots = await inventory.usableLots(org, facilityId, DISPENSABLE_CATEGORIES, moment);
+            return courseExpirySuggestions({ ...rx, day: moment.today, candidates: stockCandidates(rx.items, lots) }, params);
+          }
+          if (moment.live) return [];
+          // A replay checks what each dispense of the day handed over: the lots it took, against its course.
+          const dispenses = await prescriptions.dispensesBetween(org, facilityId, moment.dayStart, moment.asOf);
+          const taken = await inventory.lotsTaken(
+            org,
+            dispenses.map((d) => d.movementGroupId),
+          );
+          return dispenses.flatMap((d) =>
+            courseExpirySuggestions(
+              {
+                prescriptionId: d.prescriptionId,
+                prescriptionNumber: d.prescriptionNumber,
+                day: localDate(d.dispensedAt, moment.timeZone),
+                items: [d.item],
+                // One dispense takes from one location and item: its lots together, the earliest expiry first.
+                candidates: dispensedFrom(d.item.prescriptionItemId, taken.get(d.movementGroupId) ?? []),
+              },
+              params,
+            ),
+          );
         },
       },
       // Prescribing: checked in the prescribing dialog before issuing; a replay reads the whole day's prescriptions.

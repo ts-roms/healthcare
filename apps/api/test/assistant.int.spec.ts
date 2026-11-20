@@ -27,8 +27,8 @@ describe("heuristic assistant", () => {
     tenant = await createTenant(ctx.pool, "assistant-org");
     await createStaff(ctx.pool, tenant, "admin@assistant.ph", ["org_admin"]);
     await createStaff(ctx.pool, tenant, "officer@assistant.ph", ["inventory_officer"]);
-    // A pharmacist reads stock but holds no assistant.use.
-    await createStaff(ctx.pool, tenant, "nurse@assistant.ph", ["pharmacist"]);
+    // A dental assistant reads stock but holds no assistant.use (pharmacists hold it since 0157).
+    await createStaff(ctx.pool, tenant, "nurse@assistant.ph", ["dental_assistant"]);
     admin = (await login(ctx, "admin@assistant.ph")).accessToken;
     officer = (await login(ctx, "officer@assistant.ph")).accessToken;
     nurse = (await login(ctx, "nurse@assistant.ph")).accessToken;

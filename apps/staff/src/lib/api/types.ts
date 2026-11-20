@@ -5837,7 +5837,8 @@ export type AssistantSurface =
   | "settings"
   | "outreach"
   | "prescribing"
-  | "dental";
+  | "dental"
+  | "pharmacy";
 
 /** The organization's own setting for one medicine, read by the assistant's prescribing rules (migration 0156). */
 export interface MedicineSetting {

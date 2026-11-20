@@ -22,6 +22,8 @@ const SURFACE_PATH: Record<AssistantSurface, { path: string; type?: "layout" }> 
   prescribing: { path: "/clinic/encounters", type: "layout" },
   // A patient's dental record.
   dental: { path: "/dental/patients", type: "layout" },
+  // The pharmacy's home and a prescription being dispensed.
+  pharmacy: { path: "/pharmacy", type: "layout" },
 };
 
 const answerSchema = z.object({
@@ -38,6 +40,7 @@ const answerSchema = z.object({
     "outreach",
     "prescribing",
     "dental",
+    "pharmacy",
   ]),
   id: z.string().min(3).max(300),
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),

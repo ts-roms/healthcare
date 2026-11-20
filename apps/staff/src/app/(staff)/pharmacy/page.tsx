@@ -5,10 +5,12 @@ import { SearchIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { clinicalTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardContent, Input, Label, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { RecentDispenses } from "@/lib/api/types";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 
 export const metadata = { title: "Pharmacy" };
 
@@ -35,9 +37,11 @@ export default async function PharmacyPage({ searchParams }: { searchParams: Pro
     }
   }
   if (foundId) redirect(`/pharmacy/${foundId}`);
-  const today = await api<RecentDispenses>("/dispensing/dispenses");
+  // The assistant's notes on waiting prescriptions and stock (rules the organization turned on); the page renders without them.
+  const [today, suggestions] = await Promise.all([api<RecentDispenses>("/dispensing/dispenses"), loadSuggestions(session, "pharmacy")]);
   return (
     <ModulePage title="Pharmacy" description={`${facility.name} · dispense prescribed medicines from stock`}>
+      {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="pharmacy" suggestions={suggestions} /> : null}
       <Card>
         <CardContent>
           <form className="flex flex-wrap items-end gap-2" action="/pharmacy">

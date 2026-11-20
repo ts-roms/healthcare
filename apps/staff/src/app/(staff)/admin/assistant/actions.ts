@@ -26,6 +26,7 @@ export async function saveAssistantRule(input: z.input<typeof schema>): Promise<
     revalidatePath(path);
   revalidatePath("/clinic/encounters", "layout");
   revalidatePath("/dental/patients", "layout");
+  revalidatePath("/pharmacy", "layout");
   return result;
 }
 

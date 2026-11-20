@@ -132,6 +132,12 @@ When the patient needs to be examined in person (or sent to emergency care):
 5. Select **Book the in-person visit** to book the patient with you (needs `appointment.manage`). You return to the encounter after booking.
 6. Sign the encounter when your documentation is complete.
 
+When your organization has turned on the assistant's rule **Consider seeing the patient in person** (**Settings → Assistant**), the **Suggestions**
+box at the top of an online consultation in progress gives reasons to see the patient in person, for example "Consider seeing the patient in person: 1
+red flag ticked; symptoms for 20 days; never seen in person here". The reasons are red flags the patient ticked in the questionnaire, symptoms that
+have lasted the days your organization set, several online consultations in a short time, or no in-person consultation for months. **Why?** lists
+them with the last in-person consultation and vital signs. It escalates nothing: the decision is yours, with **Escalate to in-person care…**.
+
 ## Chat during the consultation
 
 Beside the video there is a **Chat**: a plain text conversation between you and the patient, open from the moment the patient enters the waiting room

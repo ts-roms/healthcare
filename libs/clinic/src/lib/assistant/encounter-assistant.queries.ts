@@ -254,4 +254,48 @@ export class EncounterAssistantQueries {
     `);
     return { patientId: enc.patientId, problems: rows.map((r) => ({ codeSystemKey: r.code_system_key, code: r.code, firstRecordedAt: r.first })) };
   }
+
+  /**
+   * `telemedicine.in-person-care`, clinic side: whether the consultation is an online one and, for one, the patient's care
+   * as of the moment — online consultations started in (`onlineSince`, `asOf`] (this one included), when the last
+   * in-person consultation started and when vital signs were last measured (records linked to theirs included;
+   * consultations opened in error as they are now, vital signs entered in error by then, left out). Counts and times only.
+   */
+  async careContinuity(
+    organizationId: string,
+    encounterId: string,
+    window: { asOf: Date; onlineSince: Date },
+  ): Promise<{ online: boolean; onlineConsultations: number; lastInPersonAt: string | null; lastVitalsAt: string | null } | null> {
+    const [enc] = await this.db
+      .select({ patientId: encounter.patientId, modality: encounter.modality })
+      .from(encounter)
+      .where(and(eq(encounter.organizationId, organizationId), eq(encounter.id, encounterId)));
+    if (!enc) return null;
+    if (enc.modality !== "telemedicine") return { online: false, onlineConsultations: 0, lastInPersonAt: null, lastVitalsAt: null };
+    const asOf = window.asOf.toISOString();
+    const iso = (column: ReturnType<typeof sql>) => sql`to_char((${column}) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+    const { rows } = await this.db.execute<{ online: number; last_in_person: string | null }>(sql`
+      SELECT
+        count(*) FILTER (WHERE e.modality = 'telemedicine' AND e.started_at > ${window.onlineSince.toISOString()}::timestamptz AND e.started_at <= ${asOf}::timestamptz)::int AS online,
+        ${iso(sql`max(e.started_at) FILTER (WHERE e.modality = 'in_person' AND e.started_at <= ${asOf}::timestamptz)`)} AS last_in_person
+      FROM encounter e
+      WHERE e.organization_id = ${organizationId}::uuid
+        AND e.patient_id = ANY(patient_record_ids(${enc.patientId}::uuid))
+        AND e.status <> 'entered_in_error'
+    `);
+    const { rows: vitals } = await this.db.execute<{ last: string | null }>(sql`
+      SELECT ${iso(sql`max(v.measured_at)`)} AS last
+      FROM vital_sign_set v
+      WHERE v.organization_id = ${organizationId}::uuid
+        AND v.patient_id = ANY(patient_record_ids(${enc.patientId}::uuid))
+        AND v.measured_at <= ${asOf}::timestamptz
+        AND (v.entered_in_error_at IS NULL OR v.entered_in_error_at > ${asOf}::timestamptz)
+    `);
+    return {
+      online: true,
+      onlineConsultations: Number(rows[0]?.online ?? 0),
+      lastInPersonAt: rows[0]?.last_in_person ?? null,
+      lastVitalsAt: vitals[0]?.last ?? null,
+    };
+  }
 }
