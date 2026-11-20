@@ -3,6 +3,7 @@ import { APP_CONFIG, type AppConfig } from "@healthcare/core";
 import { OrganizationModule } from "@healthcare/organization";
 import { LabAssistantQueries } from "./assistant/lab-assistant.queries";
 import { LabCatalogService } from "./catalog/lab-catalog.service";
+import { LabOrderSetService } from "./catalog/lab-order-set.service";
 import { INSTRUMENT_MESSAGE_READER, type InstrumentMessageReader } from "./instruments/instrument-interface.ports";
 import { LabInstrumentInterfaceController } from "./instruments/lab-instrument-interface.controller";
 import { LabInstrumentInterfaceService } from "./instruments/lab-instrument-interface.service";
@@ -82,6 +83,7 @@ export class LaboratoryModule {
         LabRecordQueries,
         LabReportingQueries,
         LabAssistantQueries,
+        LabOrderSetService,
         LabReadModel,
         LabReportService,
         LabReportArchive,
@@ -111,6 +113,7 @@ export class LaboratoryModule {
         LabRecordQueries,
         LabReportingQueries,
         LabAssistantQueries,
+        LabOrderSetService,
         LabReportService,
         LabReportArchive,
         LabReportArchiveWorker,

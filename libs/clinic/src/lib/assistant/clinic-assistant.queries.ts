@@ -74,6 +74,32 @@ export class ClinicAssistantQueries {
     }));
   }
 
+  /**
+   * `crm.audience-ideas`: how long the organization's patients take to come back — the gaps between one patient's
+   * completed consultations (linked records counted as one patient) started in the `lookbackDays` before `asOf`, in
+   * days, and the gap `fraction` of them fall within. Gaps under a day (two consultations the same day) are left out.
+   */
+  async returnFigures(
+    organizationId: string,
+    window: { asOf: Date; lookbackDays: number; fraction: number },
+  ): Promise<{ returns: number; days: number | null }> {
+    const asOf = window.asOf.toISOString();
+    const from = new Date(window.asOf.getTime() - window.lookbackDays * 86_400_000).toISOString();
+    const { rows } = await this.db.execute<{ returns: number; days: number | null }>(sql`
+      SELECT count(*)::int AS returns, round(percentile_cont(${window.fraction}::float8) WITHIN GROUP (ORDER BY gap_days))::int AS days
+      FROM (
+        SELECT extract(epoch FROM started_at - lag(started_at) OVER (PARTITION BY patient_canonical_id(patient_id) ORDER BY started_at)) / 86400 AS gap_days
+        FROM encounter
+        WHERE organization_id = ${organizationId}::uuid
+          AND status = 'completed' AND completed_at <= ${asOf}::timestamptz
+          AND started_at > ${from}::timestamptz AND started_at <= ${asOf}::timestamptz
+      ) gaps
+      WHERE gap_days >= 1
+    `);
+    const row = rows[0];
+    return { returns: Number(row?.returns ?? 0), days: row?.days === null || row?.days === undefined ? null : Number(row.days) };
+  }
+
   /** `clinic.queue-wait`: per visit type, past waits to the first call, and how long each visit of `date` still waiting at `asOf` has waited. */
   async queueWaitInputs(organizationId: string, facilityId: string, window: { date: string; asOf: Date; historyDays: number }): Promise<QueueWaitInput[]> {
     const { asOf } = window;

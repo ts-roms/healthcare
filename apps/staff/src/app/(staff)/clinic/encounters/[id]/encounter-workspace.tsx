@@ -29,17 +29,18 @@ import type {
   Encounter,
   EncounterDetail,
   LabOrder,
+  LabOrderSet,
   LabPanel,
   LabTest,
   MedicalCertificate,
-  Practitioner,
-  Referral,
   NoteRevision,
+  PatientHistory,
   PatientLabResult,
   PatientSummaryResponse,
+  Practitioner,
   Prescription,
+  Referral,
   TelemedicineConsultation,
-  PatientHistory,
 } from "@/lib/api/types";
 import { addDays, FOLLOW_UP_PRESETS } from "@/lib/care-plan-form";
 import {
@@ -121,6 +122,10 @@ export function EncounterWorkspace({
     results: PatientLabResult[] | null;
     canOrder: boolean;
     canCancel: boolean;
+    /** The organization's active order sets, to choose from in the order form. */
+    orderSets: LabOrderSet[];
+    /** An order set to pre-select (`?orderSet=`, the assistant's link); null: none. */
+    preset: LabOrderSet | null;
   };
   /** Medical certificates of this consultation (items null: no access). */
   certificates: { items: MedicalCertificate[] | null; canIssue: boolean; canVoid: boolean };
@@ -429,6 +434,8 @@ export function EncounterWorkspace({
                 allergyStatus={summary ? summary.allergies.status : "unknown"}
               />
               <LabOrdersPanel
+                // A new pre-selection (another link) starts the form again.
+                key={lab.preset?.id ?? "none"}
                 encounterId={encounter.id}
                 patientId={encounter.patientId}
                 orders={lab.orders}
@@ -436,6 +443,8 @@ export function EncounterWorkspace({
                 panels={lab.panels}
                 canOrder={lab.canOrder}
                 canCancel={lab.canCancel}
+                orderSets={lab.orderSets}
+                preset={lab.preset}
                 defaultIndication={encounter.diagnoses
                   .filter((d) => d.status === "active")
                   .map((d) => diagnosisLabel(d))

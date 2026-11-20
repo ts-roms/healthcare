@@ -391,9 +391,8 @@ export class CrmService {
     });
   }
 
-  private async loadLimits(
-    organizationId: string,
-  ): Promise<{ cap: FrequencyCap | null; quiet: (QuietHours & { channels: Array<"sms" | "email" | "push"> }) | null }> {
+  /** The organization's frequency cap and quiet hours as set now (null when off); also read by the outreach assistant. */
+  async loadLimits(organizationId: string): Promise<{ cap: FrequencyCap | null; quiet: (QuietHours & { channels: Array<"sms" | "email" | "push"> }) | null }> {
     const [row] = await this.db.select().from(crmSetting).where(eq(crmSetting.organizationId, organizationId));
     const view = settingsView(row);
     return {

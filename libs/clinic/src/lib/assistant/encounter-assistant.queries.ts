@@ -1,7 +1,18 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { DATABASE, type Database, filedAsPatient } from "@healthcare/core";
 import { and, desc, eq, gt, gte, isNotNull, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
-import { allergyIntolerance, allergyReview, codingSystem, diagnosis, encounter, encounterNoteRevision, vitalSignSet } from "../clinic.schema";
+import {
+  allergyIntolerance,
+  allergyReview,
+  appointment,
+  codingSystem,
+  diagnosis,
+  encounter,
+  encounterNoteRevision,
+  visit,
+  visitType,
+  vitalSignSet,
+} from "../clinic.schema";
 import type { CodeSuggestionTarget, UsedCode } from "./code-suggestions.rules";
 import type { EncounterChecklistInput } from "./encounter-checklist.rules";
 
@@ -162,7 +173,7 @@ export class EncounterAssistantQueries {
   /** Diagnoses of the consultation recorded by `asOf` and not entered in error (their later status changes are not dated, so the current status stands). */
   private activeDiagnoses(organizationId: string, encounterId: string, asOf: Date) {
     return this.db
-      .select({ id: diagnosis.id, code: diagnosis.code, display: diagnosis.display, rank: diagnosis.rank })
+      .select({ id: diagnosis.id, code: diagnosis.code, codeSystemKey: diagnosis.codeSystemKey, display: diagnosis.display, rank: diagnosis.rank })
       .from(diagnosis)
       .where(
         and(
@@ -173,5 +184,46 @@ export class EncounterAssistantQueries {
         ),
       )
       .orderBy(diagnosis.recordedAt);
+  }
+
+  /**
+   * `laboratory.order-sets`, clinic side: the open consultation's visit type code (from its queue visit, else its
+   * appointment) and its active diagnoses' codes. Null when the consultation is not open at the moment.
+   */
+  async orderSetContext(
+    organizationId: string,
+    encounterId: string,
+    asOf: Date,
+  ): Promise<{ visitTypeCode: string | null; diagnoses: Array<{ codeSystemKey: string | null; code: string | null }> } | null> {
+    const [enc] = await this.db
+      .select({
+        status: encounter.status,
+        startedAt: encounter.startedAt,
+        completedAt: encounter.completedAt,
+        visitId: encounter.visitId,
+        appointmentId: encounter.appointmentId,
+      })
+      .from(encounter)
+      .where(and(eq(encounter.organizationId, organizationId), eq(encounter.id, encounterId)));
+    if (!enc || enc.status === "entered_in_error" || enc.startedAt > asOf || (enc.completedAt !== null && enc.completedAt <= asOf)) return null;
+    let visitTypeCode: string | null = null;
+    if (enc.visitId) {
+      const [row] = await this.db
+        .select({ code: visitType.code })
+        .from(visit)
+        .innerJoin(visitType, eq(visitType.id, visit.visitTypeId))
+        .where(and(eq(visit.organizationId, organizationId), eq(visit.id, enc.visitId)));
+      visitTypeCode = row?.code ?? null;
+    }
+    if (!visitTypeCode && enc.appointmentId) {
+      const [row] = await this.db
+        .select({ code: visitType.code })
+        .from(appointment)
+        .innerJoin(visitType, eq(visitType.id, appointment.visitTypeId))
+        .where(and(eq(appointment.organizationId, organizationId), eq(appointment.id, enc.appointmentId)));
+      visitTypeCode = row?.code ?? null;
+    }
+    const diagnoses = await this.activeDiagnoses(organizationId, encounterId, asOf);
+    return { visitTypeCode, diagnoses: diagnoses.map((d) => ({ codeSystemKey: d.codeSystemKey, code: d.code })) };
   }
 }

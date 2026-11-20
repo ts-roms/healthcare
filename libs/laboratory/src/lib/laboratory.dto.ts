@@ -104,6 +104,35 @@ export class AddReferenceRangeDto extends createZodDto(addReferenceRangeSchema) 
 export const createPanelSchema = z.object({ code, name: text(120), testIds: z.array(z.uuid()).min(1).max(60) });
 export class CreatePanelDto extends createZodDto(createPanelSchema) {}
 
+// ---- Order sets (migration 0155) --------------------------------------------------------------
+
+const orderSetItem = z.union([z.object({ testId: z.uuid() }).strict(), z.object({ panelId: z.uuid() }).strict()]);
+const orderSetTrigger = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("diagnosis_code"),
+    /** The start of a diagnosis code, as written (e.g. E11); matched without regard to case. */
+    value: z
+      .string()
+      .trim()
+      .min(1)
+      .max(40)
+      .regex(/^[A-Za-z0-9.-]+$/, "Letters, digits, dots and dashes"),
+    /** The coding system key it applies to; left out: any system. */
+    codeSystemKey: z.string().trim().min(1).max(60).optional(),
+  }),
+  z.object({ kind: z.literal("visit_type"), /** The visit type's code. */ value: z.string().trim().min(1).max(40) }),
+]);
+export const orderSetSchema = z.object({
+  code,
+  name: text(120),
+  note: text(500).optional(),
+  items: z.array(orderSetItem).min(1).max(60),
+  triggers: z.array(orderSetTrigger).max(20).default([]),
+});
+export class OrderSetDto extends createZodDto(orderSetSchema) {}
+export const updateOrderSetSchema = orderSetSchema.omit({ code: true }).extend({ status, version: z.number().int().positive() });
+export class UpdateOrderSetDto extends createZodDto(updateOrderSetSchema) {}
+
 export const facilityPolicySchema = z.object({
   allowSelfVerification: z.boolean(),
   allowSelfApproval: z.boolean(),

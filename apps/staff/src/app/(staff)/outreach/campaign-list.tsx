@@ -39,7 +39,7 @@ export function CampaignList({
 }) {
   const [creating, setCreating] = React.useState(false);
   return (
-    <Card>
+    <Card id="campaigns" className="scroll-mt-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle>Campaigns</CardTitle>
         {canManage && !creating ? (

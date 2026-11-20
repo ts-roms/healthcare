@@ -174,6 +174,15 @@ note when a result was corrected. Select **Report** to open the printable report
 To cancel, select **Cancel order…**, enter a reason and select **Cancel order** (needs `lab.order.cancel`; only while no test has a result). See
 [Laboratory](06-laboratory.md) for what happens in the laboratory.
 
+**Order sets.** If your organization keeps order sets (tests and panels it orders together, kept under **Settings → Laboratory → Order sets**), choose
+one in **Add an order set…** to tick its tests and panels in one go. The form says which set they came from; untick what this patient does not need
+before you select **Order N tests**.
+
+When your organization has turned on the assistant's rule **An order set for this consultation**, the **Suggestions** box offers a set made for the
+consultation's diagnosis or visit type, for example "Order set for the diagnosis E11.9: Diabetes follow-up", with each of its tests marked "to order"
+or "already ordered in this consultation". **Open in the lab order form** opens the form with the set's tests chosen. Nothing is ordered until you
+select **Order N tests**; once all its tests are ordered, the suggestion goes. The sets are your organization's own: no guideline is built in.
+
 ## How to book a follow-up
 
 You need `appointment.manage`.

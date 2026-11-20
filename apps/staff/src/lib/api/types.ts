@@ -1001,6 +1001,19 @@ export interface LabPanel extends LabCatalogEntry {
   testIds: string[];
 }
 
+/** GET /laboratory/order-sets: tests and panels the organization orders together, and when each is offered (migration 0155). */
+export interface LabOrderSet {
+  id: string;
+  code: string;
+  name: string;
+  note: string | null;
+  status: "active" | "inactive";
+  version: number;
+  updatedAt: string;
+  items: Array<{ kind: "test" | "panel"; id: string; code: string; name: string; status: "active" | "inactive"; testIds: string[] }>;
+  triggers: Array<{ kind: "diagnosis_code" | "visit_type"; value: string; codeSystemKey: string | null }>;
+}
+
 export interface LabPolicy {
   facilityId: string;
   allowSelfVerification: boolean;
@@ -5812,7 +5825,7 @@ export interface TenantDetail extends TenantSummary {
 
 // ---- Heuristic assistant (GET /assistant/suggestions; docs/domains/assistant.md) ----------------------------------------
 
-export type AssistantSurface = "inventory" | "billing" | "appointments" | "queue" | "encounter" | "laboratory" | "security" | "settings";
+export type AssistantSurface = "inventory" | "billing" | "appointments" | "queue" | "encounter" | "laboratory" | "security" | "settings" | "outreach";
 
 export interface AssistantSuggestion {
   id: string;

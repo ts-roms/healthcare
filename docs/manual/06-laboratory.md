@@ -385,6 +385,22 @@ Under **Tests referred out from _facility_**, choose the **Test**, the **Referen
 from dispatch; blank uses the test's own), then click **Refer out**. To perform a test in-house again, click **Stop referring…**, give a reason, and
 click **Stop**.
 
+### Keep order sets
+
+Order sets are tests and panels your organization orders together, offered to doctors in the consultation's lab order form. Open **Settings →
+Laboratory → Order sets** (`/laboratory/order-sets`; you need `lab.catalog.manage`).
+
+1. Click **New order set**. Enter a **Code** (lowercase letters, digits and dashes; it never changes), a **Name** and, if you like, a **Note**
+   saying what the set is for.
+2. Tick its tests and panels (**Filter tests and panels** narrows the list). Only active tests and panels can be chosen.
+3. Under **Offer it for**, optionally type **Diagnosis codes starting with** (for example `E11, E10`) and choose the **coding system**, or **Any
+   coding system**, and tick **Visit types**. A set with neither is chosen by hand only.
+4. Click **Create**.
+
+**Edit** changes the name, note, tests, triggers or status; **Inactive** stops a set from being offered without losing it. If someone else changed
+the set meanwhile, the screen says so and shows their version: make your change again. Every change is recorded in the audit trail. Which tests belong together is your clinicians' decision;
+the platform ships no order sets. Doctors see a matching set as a suggestion only once the assistant's rule is turned on (**Settings → Assistant**).
+
 ## Rules the system enforces
 
 - A released result is never overwritten. Corrections create a new version; the old one stays readable.

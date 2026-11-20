@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, NativeSelect, toast } from "@healthcare/ui/primitives";
 import type { OutreachSegment, OutreachSegmentCriteria, OutreachSegmentPreview } from "@/lib/api/types";
+import type { SegmentDraft } from "@/lib/outreach-draft";
 import { CHANNEL_LABEL, describeCriteria, IDENTIFIER_LABEL, MONTH_NAMES, MY_HEALTH_LABEL } from "@/lib/outreach-mapping";
 import { archiveSegment, saveSegment } from "./actions";
 import { ReachPanel } from "./reach-panel";
@@ -12,15 +13,24 @@ export function SegmentList({
   segments,
   canManage,
   facilities,
+  draft = null,
 }: {
   segments: OutreachSegment[];
   canManage: boolean;
   facilities: Array<{ id: string; name: string }>;
+  /** A new segment to open filled in (from a link such as an assistant audience idea). */
+  draft?: SegmentDraft | null;
 }) {
   const facilityNames = Object.fromEntries(facilities.map((f) => [f.id, f.name]));
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
-  const [editing, setEditing] = React.useState<OutreachSegment | "new" | null>(null);
+  const [pendingDraft, setPendingDraft] = React.useState(canManage ? draft : null);
+  const [editing, setEditing] = React.useState<OutreachSegment | "new" | null>(pendingDraft ? "new" : null);
+  const card = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    // Opened from a link (an audience idea): bring the filled-in form into view.
+    if (pendingDraft) card.current?.scrollIntoView({ block: "start" });
+  }, [pendingDraft]);
   const [preview, setPreview] = React.useState<{ id: string; data: OutreachSegmentPreview } | null>(null);
 
   const showPreview = (segment: OutreachSegment) =>
@@ -43,7 +53,7 @@ export function SegmentList({
     });
 
   return (
-    <Card>
+    <Card ref={card} id="segments" className="scroll-mt-4">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle>Segments</CardTitle>
         {canManage && editing === null ? (
@@ -108,8 +118,16 @@ export function SegmentList({
           <SegmentForm
             key={editing === "new" ? "new" : editing.id}
             segment={editing === "new" ? null : editing}
+            draft={editing === "new" ? pendingDraft : null}
             facilities={facilities}
-            onDone={() => setEditing(null)}
+            onDone={() => {
+              setEditing(null);
+              // A filled-in form opens once: the link's values leave the address when it closes.
+              if (pendingDraft) {
+                setPendingDraft(null);
+                router.replace("/outreach", { scroll: false });
+              }
+            }}
           />
         ) : null}
       </CardContent>
@@ -119,33 +137,36 @@ export function SegmentList({
 
 function SegmentForm({
   segment,
+  draft,
   facilities,
   onDone,
 }: {
   segment: OutreachSegment | null;
+  draft: SegmentDraft | null;
   facilities: Array<{ id: string; name: string }>;
   onDone: () => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
-  const [name, setName] = React.useState(segment?.name ?? "");
+  const [name, setName] = React.useState(segment?.name ?? draft?.name ?? "");
   const [description, setDescription] = React.useState(segment?.description ?? "");
+  const start: OutreachSegmentCriteria = segment?.criteria ?? draft?.criteria ?? {};
   const [c, setC] = React.useState<Record<keyof OutreachSegmentCriteria, string>>({
-    ageMin: str(segment?.criteria.ageMin),
-    ageMax: str(segment?.criteria.ageMax),
-    sex: segment?.criteria.sex ?? "",
-    cityMunicipality: segment?.criteria.cityMunicipality ?? "",
-    province: segment?.criteria.province ?? "",
-    registeredFrom: segment?.criteria.registeredFrom ?? "",
-    registeredTo: segment?.criteria.registeredTo ?? "",
-    lastVisitBefore: segment?.criteria.lastVisitBefore ?? "",
-    noVisitForMonths: str(segment?.criteria.noVisitForMonths),
-    carePlanActivityDueWithinDays: str(segment?.criteria.carePlanActivityDueWithinDays),
-    optedInChannel: segment?.criteria.optedInChannel ?? "",
-    birthMonth: str(segment?.criteria.birthMonth),
-    myHealth: segment?.criteria.myHealth ?? "",
-    registeredFacilityId: segment?.criteria.registeredFacilityId ?? "",
-    identifierOnFile: segment?.criteria.identifierOnFile ?? "",
+    ageMin: str(start.ageMin),
+    ageMax: str(start.ageMax),
+    sex: start.sex ?? "",
+    cityMunicipality: start.cityMunicipality ?? "",
+    province: start.province ?? "",
+    registeredFrom: start.registeredFrom ?? "",
+    registeredTo: start.registeredTo ?? "",
+    lastVisitBefore: start.lastVisitBefore ?? "",
+    noVisitForMonths: str(start.noVisitForMonths),
+    carePlanActivityDueWithinDays: str(start.carePlanActivityDueWithinDays),
+    optedInChannel: start.optedInChannel ?? "",
+    birthMonth: str(start.birthMonth),
+    myHealth: start.myHealth ?? "",
+    registeredFacilityId: start.registeredFacilityId ?? "",
+    identifierOnFile: start.identifierOnFile ?? "",
   });
   const set = (key: keyof OutreachSegmentCriteria) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setC({ ...c, [key]: e.target.value });
   const num = (v: string) => (v.trim() === "" ? undefined : Number(v));
@@ -199,6 +220,11 @@ function SegmentForm({
           <Input id="sg-desc" value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
         </div>
       </div>
+      {draft && !segment ? (
+        <p className="rounded-md bg-info-subtle px-2 py-1.5 text-table text-info-foreground" role="status">
+          Filled in from a suggestion. Check the name and the criteria: nothing is saved until you save the segment.
+        </p>
+      ) : null}
       <fieldset className="grid gap-3 sm:grid-cols-3">
         <legend className="text-table font-medium">Who matches (every filled criterion must hold)</legend>
         <Field id="sg-age-min" label="Age from">

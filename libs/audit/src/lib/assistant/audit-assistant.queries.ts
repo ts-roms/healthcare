@@ -11,7 +11,7 @@ export interface AccessFigures {
 }
 
 /**
- * What `security.unusual-access` reads from the audit trail, per staff account, at a moment: distinct patients opened in
+ * What the assistant's rules read from the audit trail. `security.unusual-access`: per staff account, at a moment: distinct patients opened in
  * the window, outside working hours (in the facility's time zone), refusals, and distinct patients per earlier working
  * day. Counts only — never which patients. The API adds names and audits the request.
  */
@@ -59,5 +59,29 @@ export class AuditAssistantQueries {
       offHoursPatients: c.off_hours,
       denials: c.denials,
     }));
+  }
+
+  /**
+   * `crm.send-hour`: MyHealth visits per local hour (0 to 23) in the days up to `asOf` — an account that did anything in
+   * MyHealth in an hour of a day counts once for that hour. Counts only: no account, patient or action.
+   */
+  async portalVisitsByHour(organizationId: string, window: { asOf: Date; lookbackDays: number; timeZone: string }): Promise<number[]> {
+    const from = new Date(window.asOf.getTime() - window.lookbackDays * 86_400_000).toISOString();
+    const { rows } = await this.db.execute<{ hour: number; visits: number }>(sql`
+      SELECT hour, count(*)::int AS visits
+      FROM (
+        SELECT DISTINCT actor_user_id,
+               (occurred_at AT TIME ZONE ${window.timeZone})::date AS day,
+               extract(hour FROM occurred_at AT TIME ZONE ${window.timeZone})::int AS hour
+        FROM audit_event
+        WHERE organization_id = ${organizationId}::uuid
+          AND actor_type = 'patient' AND actor_user_id IS NOT NULL AND outcome = 'success'
+          AND occurred_at > ${from}::timestamptz AND occurred_at <= ${window.asOf.toISOString()}::timestamptz
+      ) visits
+      GROUP BY hour
+    `);
+    const hourly = Array.from({ length: 24 }, () => 0);
+    for (const row of rows) hourly[Number(row.hour)] = Number(row.visits);
+    return hourly;
   }
 }

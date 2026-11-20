@@ -83,6 +83,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         description: "Tests, reference ranges, panels and facility policy.",
       },
       {
+        label: "Order sets",
+        href: "/laboratory/order-sets",
+        permissions: ["lab.catalog.manage"],
+        description: "Tests and panels your organization orders together, and when to offer them in a consultation.",
+      },
+      {
         label: "Instruments",
         href: "/laboratory/instruments",
         permissions: ["lab.qc.read"],

@@ -19,7 +19,7 @@ export type ResultStatus = "entered" | "verified" | "approved" | "released" | "s
 export type ResultFlag = "normal" | "low" | "high" | "critical_low" | "critical_high" | "abnormal";
 export const COMMUNICATION_METHODS = ["phone", "in_person", "secure_message", "other"] as const;
 export type CriticalAlertStatus = "open" | "communicated" | "acknowledged";
-type CatalogStatus = "active" | "inactive";
+export type CatalogStatus = "active" | "inactive";
 
 const decimal = (name: string) => numeric(name, { mode: "number" });
 
@@ -109,6 +109,44 @@ export const labPanelTest = pgTable(
   },
   (t) => [primaryKey({ columns: [t.panelId, t.testId] })],
 );
+
+/** An order set: tests and panels the organization orders together (migration 0155). */
+export const labOrderSet = pgTable("lab_order_set", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  code: text("code").notNull(),
+  name: text("name").notNull(),
+  note: text("note"),
+  status: text("status").$type<CatalogStatus>().notNull().default("active"),
+  createdBy: uuid("created_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedBy: uuid("updated_by").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+});
+
+export const labOrderSetItem = pgTable(
+  "lab_order_set_item",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    orderSetId: uuid("order_set_id").notNull(),
+    position: smallint("position").notNull(),
+    testId: uuid("test_id"),
+    panelId: uuid("panel_id"),
+  },
+  (t) => [primaryKey({ columns: [t.orderSetId, t.position] })],
+);
+
+export type OrderSetTriggerKind = "diagnosis_code" | "visit_type";
+
+export const labOrderSetTrigger = pgTable("lab_order_set_trigger", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  orderSetId: uuid("order_set_id").notNull(),
+  kind: text("kind").$type<OrderSetTriggerKind>().notNull(),
+  value: text("value").notNull(),
+  codeSystemKey: text("code_system_key"),
+});
 
 export const labFacilityPolicy = pgTable("lab_facility_policy", {
   facilityId: uuid("facility_id").primaryKey(),

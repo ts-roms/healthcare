@@ -72,4 +72,19 @@ export class LabAssistantQueries {
       };
     });
   }
+
+  /** `laboratory.order-sets`: tests ordered in a consultation by a moment, cancelled ones left out (ids only). */
+  async orderedTestIds(organizationId: string, encounterId: string, asOf: Date): Promise<string[]> {
+    const { rows } = await this.db.execute<{ test_id: string }>(sql`
+      SELECT DISTINCT i.test_id
+      FROM lab_order_item i
+      JOIN lab_order o ON o.id = i.order_id
+      WHERE o.organization_id = ${organizationId}::uuid
+        AND o.encounter_id = ${encounterId}::uuid
+        AND o.ordered_at <= ${asOf.toISOString()}::timestamptz
+        AND (o.cancelled_at IS NULL OR o.cancelled_at > ${asOf.toISOString()}::timestamptz)
+        AND (i.cancelled_at IS NULL OR i.cancelled_at > ${asOf.toISOString()}::timestamptz)
+    `);
+    return rows.map((r) => r.test_id);
+  }
 }

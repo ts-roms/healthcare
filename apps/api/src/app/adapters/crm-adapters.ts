@@ -13,7 +13,7 @@ import {
   patientPortalAccount,
   PatientRecordService,
 } from "@healthcare/patient";
-import { and, eq, exists, gte, lte, notExists, sql } from "drizzle-orm";
+import { and, eq, exists, gte, lte, notExists, type SQL, sql } from "drizzle-orm";
 
 /**
  * Outreach → patient, clinic and care plans: who matches a segment (docs/domains/crm.md). Only active records (never
@@ -25,7 +25,41 @@ export class AppCrmSegmentSource implements CrmSegmentSource {
   constructor(@Inject(DATABASE) private readonly db: Database) {}
 
   async evaluate(organizationId: string, criteria: SegmentCriteria, today: string): Promise<SegmentMember[]> {
-    const conditions = [eq(patient.organizationId, organizationId), eq(patient.status, "active")];
+    const rows = await this.db
+      .select({
+        id: patient.id,
+        patientNumber: patient.patientNumber,
+        familyName: patient.familyName,
+        givenName: patient.givenName,
+        middleName: patient.middleName,
+        suffix: patient.suffix,
+        sex: patient.sex,
+        birthDate: patient.birthDate,
+      })
+      .from(patient)
+      .where(and(...this.conditions(organizationId, criteria, today)))
+      .orderBy(patient.familyName, patient.givenName);
+    return rows.map((row) => ({
+      patientId: row.id,
+      patientNumber: row.patientNumber,
+      displayName: displayName(row),
+      sex: row.sex,
+      age: ageInYears(row.birthDate, today),
+      givenName: row.givenName,
+    }));
+  }
+
+  async count(organizationId: string, criteria: SegmentCriteria, today: string): Promise<number> {
+    const [row] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(patient)
+      .where(and(...this.conditions(organizationId, criteria, today)));
+    return row?.total ?? 0;
+  }
+
+  /** The segment's criteria as conditions on active patients of the organization. */
+  private conditions(organizationId: string, criteria: SegmentCriteria, today: string): SQL[] {
+    const conditions: SQL[] = [eq(patient.organizationId, organizationId), eq(patient.status, "active")];
     // Age on `today`, in whole years, from the recorded birth date.
     if (criteria.ageMin !== undefined) conditions.push(lte(patient.birthDate, shiftYears(today, -criteria.ageMin)));
     if (criteria.ageMax !== undefined) conditions.push(sql`${patient.birthDate} > ${shiftYears(today, -(criteria.ageMax + 1))}`);
@@ -120,28 +154,7 @@ export class AppCrmSegmentSource implements CrmSegmentSource {
         ),
       );
     }
-    const rows = await this.db
-      .select({
-        id: patient.id,
-        patientNumber: patient.patientNumber,
-        familyName: patient.familyName,
-        givenName: patient.givenName,
-        middleName: patient.middleName,
-        suffix: patient.suffix,
-        sex: patient.sex,
-        birthDate: patient.birthDate,
-      })
-      .from(patient)
-      .where(and(...conditions))
-      .orderBy(patient.familyName, patient.givenName);
-    return rows.map((row) => ({
-      patientId: row.id,
-      patientNumber: row.patientNumber,
-      displayName: displayName(row),
-      sex: row.sex,
-      age: ageInYears(row.birthDate, today),
-      givenName: row.givenName,
-    }));
+    return conditions;
   }
 }
 

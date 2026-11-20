@@ -18,6 +18,7 @@ import type {
   Encounter,
   EncounterDetail,
   LabOrder,
+  LabOrderSet,
   LabPanel,
   LabTest,
   MedicalCertificate,
@@ -67,8 +68,15 @@ async function openCarePlans(patientId: string): Promise<CarePlanDetail[] | null
   return Promise.all(plans.slice(0, 5).map((p) => api<CarePlanDetail>(`/care-plans/${p.id}`)));
 }
 
-export default async function EncounterPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
+export default async function EncounterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  /** `orderSet`: an order set to pre-select in the lab order form (the assistant's link). */
+  searchParams: Promise<{ orderSet?: string }>;
+}) {
+  const [{ id }, session, query] = await Promise.all([params, getSession(), searchParams]);
   if (!can(session, "encounter.read")) redirect("/");
   if (!UUID.test(id)) notFound();
   const encounter = await load<EncounterDetail>(`/encounters/${id}`);
@@ -86,6 +94,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     labOrders,
     labTests,
     labPanels,
+    orderSets,
     labResults,
     consultation,
     certificates,
@@ -109,6 +118,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     can(session, "lab.order.read") ? optional<LabOrder[]>("/laboratory/orders", { encounterId: encounter.id }) : Promise.resolve(null),
     canOrderLab ? optional<LabTest[]>("/laboratory/tests") : Promise.resolve(null),
     canOrderLab ? optional<LabPanel[]>("/laboratory/panels") : Promise.resolve(null),
+    canOrderLab ? optional<LabOrderSet[]>("/laboratory/order-sets") : Promise.resolve(null),
     can(session, "lab.result.read") ? optional<PatientLabResult[]>(`/laboratory/patients/${encounter.patientId}/results`) : Promise.resolve(null),
     online ? optional<TelemedicineConsultation>(`/telemedicine/consultations/${encounter.appointmentId}`) : Promise.resolve(null),
     optional<MedicalCertificate[]>(`/encounters/${encounter.id}/certificates`),
@@ -179,6 +189,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
         results: labResults,
         canOrder: canOrderLab && !!labTests,
         canCancel: can(session, "lab.order.cancel"),
+        orderSets: orderSets ?? [],
+        preset: (orderSets ?? []).find((s) => s.id === query.orderSet) ?? null,
       }}
       certificates={{
         items: certificates,

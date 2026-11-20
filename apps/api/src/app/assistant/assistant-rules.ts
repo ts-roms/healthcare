@@ -21,7 +21,17 @@ import {
   QUEUE_WAIT_RULE,
   queueWaitSuggestions,
 } from "@healthcare/clinic";
-import { type Actor, localDate, type RuleDefinition, type Suggestion } from "@healthcare/core";
+import { type Actor, localDate, PH_TIMEZONE, type RuleDefinition, type Suggestion } from "@healthcare/core";
+import {
+  AUDIENCE_IDEAS_RULE,
+  audienceIdeas,
+  audienceIdeaSuggestions,
+  CrmAssistantQueries,
+  FREQUENCY_LOAD_RULE,
+  frequencyLoadSuggestions,
+  SEND_HOUR_RULE,
+  sendHourSuggestions,
+} from "@healthcare/crm";
 import { DentalAssistantQueries } from "@healthcare/dental";
 import {
   DAYS_OF_COVER_RULE,
@@ -32,7 +42,7 @@ import {
   USAGE_SPIKE_RULE,
   usageSpikeSuggestions,
 } from "@healthcare/inventory";
-import { DELTA_CHECK_RULE, deltaCheckSuggestions, LabAssistantQueries } from "@healthcare/laboratory";
+import { DELTA_CHECK_RULE, deltaCheckSuggestions, LabAssistantQueries, LabOrderSetService, ORDER_SETS_RULE, orderSetSuggestions } from "@healthcare/laboratory";
 import { COMPLIANCE_GAPS_RULE, complianceGapsSuggestions, OrganizationAssistantQueries } from "@healthcare/organization";
 
 /** When a rule reads its figures: now for a screen, a past moment when the settings screen replays it. */
@@ -86,6 +96,8 @@ export class AssistantRules {
     audit: AuditAssistantQueries,
     organization: OrganizationAssistantQueries,
     users: UsersService,
+    orderSets: LabOrderSetService,
+    crm: CrmAssistantQueries,
   ) {
     /** The consultations a consultation rule reads: the one on screen, none on a live request without one, every one open in a replay. */
     const encountersFor = async (actor: Actor, facilityId: string, moment: RuleMoment): Promise<string[]> => {
@@ -206,6 +218,32 @@ export class AssistantRules {
         },
       },
       {
+        definition: erase(ORDER_SETS_RULE),
+        replayAt: "16:00",
+        run: async (actor, facilityId, raw, moment) => {
+          const params = ORDER_SETS_RULE.parametersSchema.parse(raw);
+          const ids = await encountersFor(actor, facilityId, moment);
+          if (ids.length === 0) return [];
+          // The organization's active sets, each item with the tests it orders (a panel's members).
+          const sets = (await orderSets.list(actor.organizationId)).map((set) => ({
+            id: set.id,
+            name: set.name,
+            note: set.note,
+            items: set.items.filter((i) => i.status === "active").map((i) => ({ name: i.name, testIds: i.testIds })),
+            triggers: set.triggers,
+          }));
+          if (!sets.some((s) => s.triggers.length > 0)) return [];
+          const out: Suggestion[] = [];
+          for (const id of ids) {
+            const clinical = await encounters.orderSetContext(actor.organizationId, id, moment.asOf);
+            if (!clinical) continue;
+            const orderedTestIds = await lab.orderedTestIds(actor.organizationId, id, moment.asOf);
+            out.push(...orderSetSuggestions(sets, { encounterId: id, ...clinical, orderedTestIds }, params));
+          }
+          return out;
+        },
+      },
+      {
         definition: erase(UNUSUAL_ACCESS_RULE),
         replayAt: "21:00",
         run: async (actor, _facilityId, raw, moment) => {
@@ -247,6 +285,44 @@ export class AssistantRules {
             withinHours: params.withinHours,
           });
           return duplicateInvoiceSuggestions(pairs, moment.timeZone);
+        },
+      },
+      // Outreach is organization-wide and its times are Asia/Manila time (quiet hours, send times), whatever the facility's zone.
+      {
+        definition: erase(SEND_HOUR_RULE),
+        replayAt: "10:00",
+        run: async (actor, _facilityId, raw, moment) => {
+          const params = SEND_HOUR_RULE.parametersSchema.parse(raw);
+          const org = actor.organizationId;
+          const hourly = await audit.portalVisitsByHour(org, { asOf: moment.asOf, lookbackDays: params.lookbackDays, timeZone: PH_TIMEZONE });
+          const { quietHours } = await crm.limits(org);
+          const recentSendHours = await crm.recentSendHours(org, moment.asOf);
+          return sendHourSuggestions({ hourly, quietHours, recentSendHours }, params);
+        },
+      },
+      {
+        definition: erase(AUDIENCE_IDEAS_RULE),
+        replayAt: "10:00",
+        run: async (actor, _facilityId, raw, moment) => {
+          const params = AUDIENCE_IDEAS_RULE.parametersSchema.parse(raw);
+          const org = actor.organizationId;
+          const today = localDate(moment.asOf, PH_TIMEZONE);
+          // Return gaps from the clinic over two years; patient counts through the same matching a segment preview does.
+          const returns = await clinic.returnFigures(org, { asOf: moment.asOf, lookbackDays: 730, fraction: params.returnPercentile / 100 });
+          const ideas = audienceIdeas({ today, returns, segments: await crm.activeSegmentCriteria(org, moment.asOf) }, params);
+          const counted = [];
+          for (const idea of ideas) counted.push({ ...idea, patients: await crm.countMatching(org, idea.criteria, today) });
+          return audienceIdeaSuggestions(counted, params);
+        },
+      },
+      {
+        definition: erase(FREQUENCY_LOAD_RULE),
+        replayAt: "10:00",
+        run: async (actor, _facilityId, raw, moment) => {
+          const params = FREQUENCY_LOAD_RULE.parametersSchema.parse(raw);
+          const load = await crm.outreachLoad(actor.organizationId, { asOf: moment.asOf, windowDays: params.windowDays, campaigns: params.campaigns });
+          const { cap } = await crm.limits(actor.organizationId);
+          return frequencyLoadSuggestions({ ...load, cap }, params);
         },
       },
     ];

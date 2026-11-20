@@ -18,6 +18,8 @@ export interface SegmentMember {
  */
 export interface CrmSegmentSource {
   evaluate(organizationId: string, criteria: SegmentCriteria, today: string): Promise<SegmentMember[]>;
+  /** How many patients match, without loading them (the outreach assistant's audience ideas). */
+  count(organizationId: string, criteria: SegmentCriteria, today: string): Promise<number>;
 }
 export const CRM_SEGMENT_SOURCE = Symbol("CRM_SEGMENT_SOURCE");
 
