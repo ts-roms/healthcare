@@ -12,6 +12,13 @@ pnpm db:seed:demo                 # demo clinic through the running API: staff p
 pnpm dev                          # everything below, in parallel (one terminal)
 ```
 
+**Port 5432 already taken** (another project's PostgreSQL): `pnpm dev:deps` then starts this one without a host port and
+`pnpm db:migrate` reaches the other server (`28P01: password authentication failed for user "healthcare"`). Put
+`POSTGRES_PORT=5433` in `infrastructure/docker/.env` (gitignored; Docker Compose reads it, not the root `.env`), use the
+same port in the root `.env` for `DATABASE_URL`, `TEST_DATABASE_URL` and `E2E_DATABASE_URL`
+(`postgres://healthcare:healthcare@localhost:5433/healthcare_e2e`), and recreate the container with
+`docker compose -f infrastructure/docker/docker-compose.yml up -d postgres` (the data volume is kept).
+
 `pnpm dev` starts the API, the notification and integration workers, the staff app and the portal together with prefixed, interleaved logs (`nx run-many -t serve dev`); stop them all with Ctrl+C. The Next.js `dev` targets are marked `continuous` in each app's `package.json` so Nx runs them alongside the API. To run one app on its own (sign in to the staff app with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`):
 
 ```bash
