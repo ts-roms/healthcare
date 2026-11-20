@@ -1,4 +1,4 @@
-import type { AssistantRule } from "./api/types";
+import type { AssistantReplay, AssistantRule } from "./api/types";
 
 /**
  * What the assistant settings screen (`/admin/assistant`) shows for one rule. The API decides what is in force and
@@ -71,4 +71,14 @@ export function readParameters(
 /** The version the editor last read for this scope (0 when it has none), sent back so a newer change is not overwritten. */
 export function expectedVersion(rule: AssistantRule): number {
   return rule.setting?.version ?? 0;
+}
+
+/** What a replay found, in one sentence the settings screen shows under "Try these values". */
+export function replaySummary(replay: AssistantReplay, facilityName: string): string {
+  const days = replay.days.length;
+  const quiet = replay.days.filter((d) => d.suggestions === 0).length;
+  if (replay.maxPerDay === 0) return `Over the last ${days} days at ${facilityName}, these values would not have shown anything.`;
+  const average = replay.averagePerDay === 1 ? "1 suggestion" : `${replay.averagePerDay} suggestions`;
+  const quietText = quiet === 0 ? "" : quiet === 1 ? ", and nothing on 1 day" : `, and nothing on ${quiet} days`;
+  return `Over the last ${days} days at ${facilityName}, these values would have shown about ${average} a day (at most ${replay.maxPerDay}${quietText}). Each day was read at ${replay.readAt}.`;
 }

@@ -1,6 +1,6 @@
 # Heuristic assistant — plan
 
-**Status:** accepted as ADR-0018 (2026-11-20). Phase 0 is built (`docs/domains/assistant.md`); phases 1 to 4 are not.
+**Status:** accepted as ADR-0018 (2026-11-20). Phases 0 and 1 are built (`docs/domains/assistant.md`); phases 2 to 4 are not. Phase 1's backtest is the replay behind **Try these values**; its wait estimate became a "waits longer than usual" rule; dispensing, laboratory orders and consultations are not yet checked for missing charges.
 
 ## 1. What "heuristic" means here
 

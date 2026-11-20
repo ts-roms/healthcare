@@ -3,12 +3,14 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CalendarCogIcon, ListOrderedIcon, PlusIcon, Settings2Icon } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getVisitTypes } from "@/lib/api/clinic";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { AppointmentItem, ClinicRoom, Page, PractitionerScheduleRow, ScheduleExceptionRow, WaitlistEntry } from "@/lib/api/types";
 import { weekOf } from "@/lib/appointment-day";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { viewRange } from "@/lib/calendar";
 import { shiftDate, todayIn, zonedLocalToIso } from "@/lib/clinic-mapping";
 import { AppointmentsDay, type AppointmentsView } from "./appointments-day";
@@ -43,7 +45,7 @@ export default async function AppointmentsPage({
   const dayEnd = zonedLocalToIso(`${shiftDate(date, 1)}T00:00`, facility.timezone);
   const week = weekOf(date);
 
-  const [page, rooms, schedules, closures, waitlist, weekBooked] = await Promise.all([
+  const [page, rooms, schedules, closures, waitlist, weekBooked, suggestions] = await Promise.all([
     api<Page<AppointmentItem>>("/appointments", { query: { facilityId: facility.id, date, practitionerId, pageSize: 100 } }),
     api<ClinicRoom[]>("/clinic/rooms", { query: { facilityId: facility.id } }).catch(() => [] as ClinicRoom[]),
     // Working hours and closures shade the timeline; without them it still shows the bookings.
@@ -62,6 +64,7 @@ export default async function AppointmentsPage({
               .catch(() => false),
       ),
     ),
+    loadSuggestions(session, "appointments", { date }),
   ]);
   const weekDays = week.map((d, i) => ({ date: d, booked: d === date ? page.items.some((a) => a.status !== "cancelled") : (weekBooked[i] ?? false) }));
   const canBook = can(session, "appointment.manage") && can(session, "patient.search");
@@ -119,6 +122,7 @@ export default async function AppointmentsPage({
         </>
       }
     >
+      {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="appointments" suggestions={suggestions} /> : null}
       <AppointmentsDay
         items={page.items}
         truncated={page.hasMore}

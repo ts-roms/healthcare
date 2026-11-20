@@ -2,7 +2,14 @@ import { SUGGESTION_SURFACES } from "@healthcare/core";
 import { createZodDto } from "nestjs-zod";
 import { z } from "zod";
 
-export const suggestionsQuerySchema = z.object({ surface: z.enum(SUGGESTION_SURFACES) });
+export const suggestionsQuerySchema = z.object({
+  surface: z.enum(SUGGESTION_SURFACES),
+  /** The day the screen shows (the appointments board); today otherwise. */
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD")
+    .optional(),
+});
 export class SuggestionsQueryDto extends createZodDto(suggestionsQuerySchema) {}
 
 export const feedbackSchema = z.object({
@@ -21,6 +28,15 @@ export const ruleSettingSchema = z.object({
   expectedVersion: z.number().int().min(0),
 });
 export class RuleSettingDto extends createZodDto(ruleSettingSchema) {}
+
+export const replaySchema = z.object({
+  /** Default: the facility the request acts in. */
+  facilityId: z.string().uuid().nullish(),
+  /** Default: the setting in force there, else the rule's starting values. */
+  parameters: z.record(z.string(), z.unknown()).optional(),
+  days: z.number().int().min(1).max(31).default(14),
+});
+export class ReplayDto extends createZodDto(replaySchema) {}
 
 export const rulesQuerySchema = z.object({ facilityId: z.string().uuid().optional() });
 export class RulesQueryDto extends createZodDto(rulesQuerySchema) {}

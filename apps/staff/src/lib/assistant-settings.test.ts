@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AssistantRule, AssistantRuleSettingValue } from "./api/types";
-import { expectedVersion, parameterFields, readParameters, ruleState, ruleStateLabel } from "./assistant-settings";
+import { expectedVersion, parameterFields, readParameters, replaySummary, ruleState, ruleStateLabel } from "./assistant-settings";
 
 const setting = (enabled: boolean, parameters: Record<string, unknown> = {}, version = 1): AssistantRuleSettingValue => ({
   version,
@@ -88,5 +88,27 @@ describe("parameter fields", () => {
   it("sends back the version last read for the scope", () => {
     expect(expectedVersion(rule())).toBe(0);
     expect(expectedVersion(rule({ setting: setting(true, {}, 4) }))).toBe(4);
+  });
+});
+
+describe("replay summary", () => {
+  const replay = (counts: number[]) => ({
+    ruleId: "inventory.days-of-cover",
+    facilityId: "f1",
+    readAt: "08:00",
+    days: counts.map((n, i) => ({ date: `2026-11-${String(i + 1).padStart(2, "0")}`, suggestions: n, weak: 0 })),
+    averagePerDay: Math.round((counts.reduce((a, b) => a + b, 0) / counts.length) * 10) / 10,
+    maxPerDay: Math.max(...counts),
+    notes: [],
+  });
+
+  it("says how often the rule would have spoken, and on how many days nothing", () => {
+    expect(replaySummary(replay([2, 0, 4, 2]), "Main Clinic")).toBe(
+      "Over the last 4 days at Main Clinic, these values would have shown about 2 suggestions a day (at most 4, and nothing on 1 day). Each day was read at 08:00.",
+    );
+  });
+
+  it("says when nothing would have shown", () => {
+    expect(replaySummary(replay([0, 0]), "Main Clinic")).toBe("Over the last 2 days at Main Clinic, these values would not have shown anything.");
   });
 });

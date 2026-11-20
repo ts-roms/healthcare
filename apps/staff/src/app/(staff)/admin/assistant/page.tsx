@@ -18,7 +18,7 @@ import {
 } from "@healthcare/ui/primitives";
 import { StaffSettingsPage } from "@/components/settings-page";
 import { api } from "@/lib/api/client";
-import { can, getFacilities, getSession } from "@/lib/api/session";
+import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { AssistantInsights, AssistantRule } from "@/lib/api/types";
 import { RuleSettingForm } from "./rule-setting-form";
 
@@ -27,7 +27,7 @@ export const metadata = { title: "Assistant" };
 const WHOLE_ORGANIZATION = "the whole organization";
 
 export default async function AssistantSettingsPage({ searchParams }: { searchParams: Promise<{ facility?: string }> }) {
-  const [params, session] = await Promise.all([searchParams, getSession()]);
+  const [params, session, selected] = await Promise.all([searchParams, getSession(), getSelectedFacility()]);
   if (!can(session, "assistant.configure")) redirect("/");
   const facilities = (await getFacilities()).filter((f) => f.status === "active");
   const facility = facilities.find((f) => f.id === params.facility) ?? null;
@@ -36,6 +36,8 @@ export default async function AssistantSettingsPage({ searchParams }: { searchPa
     can(session, "assistant.insights.read") ? api<AssistantInsights>("/assistant/insights", { query: { days: 90 } }) : null,
   ]);
   const scopeName = facility?.name ?? WHOLE_ORGANIZATION;
+  // "Try these values" reads one facility: this scope's, else the one selected in the top bar.
+  const replayFacility = facility ?? selected;
 
   return (
     <StaffSettingsPage
@@ -68,7 +70,14 @@ export default async function AssistantSettingsPage({ searchParams }: { searchPa
       {rules.length === 0 ? (
         <p className="text-body text-muted-foreground">No rules are available yet.</p>
       ) : (
-        rules.map((rule) => <RuleSettingForm key={`${rule.ruleId}-${facility?.id ?? "org"}-${rule.setting?.version ?? 0}`} rule={rule} scopeName={scopeName} />)
+        rules.map((rule) => (
+          <RuleSettingForm
+            key={`${rule.ruleId}-${facility?.id ?? "org"}-${rule.setting?.version ?? 0}`}
+            rule={rule}
+            scopeName={scopeName}
+            replayFacility={replayFacility ? { id: replayFacility.id, name: replayFacility.name } : null}
+          />
+        ))
       )}
 
       {insights ? (

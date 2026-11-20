@@ -5812,7 +5812,7 @@ export interface TenantDetail extends TenantSummary {
 
 // ---- Heuristic assistant (GET /assistant/suggestions; docs/domains/assistant.md) ----------------------------------------
 
-export type AssistantSurface = "inventory";
+export type AssistantSurface = "inventory" | "billing" | "appointments" | "queue";
 
 export interface AssistantSuggestion {
   id: string;
@@ -5860,6 +5860,17 @@ export interface AssistantRule {
   /** This scope's own setting; null when it has none (a facility then follows the organization's). */
   setting: AssistantRuleSettingValue | null;
   organizationSetting: AssistantRuleSettingValue | null;
+}
+
+/** POST /assistant/rules/:ruleId/replay: how often the rule would have spoken on each past day. */
+export interface AssistantReplay {
+  ruleId: string;
+  facilityId: string;
+  readAt: string;
+  days: Array<{ date: string; suggestions: number; weak: number }>;
+  averagePerDay: number;
+  maxPerDay: number;
+  notes: string[];
 }
 
 export interface AssistantInsights {

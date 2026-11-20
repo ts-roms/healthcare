@@ -43,6 +43,18 @@ If a screen says you must choose a facility first, pick one in the top bar — s
 The screen shows at most 100 appointments. If you see "Showing the first 100 appointments. Filter by practitioner to see the rest.", choose a
 practitioner.
 
+### Patients who may not come (suggestions)
+
+When your organization has turned on the assistant's rule **A patient may not come to their appointment** (**Settings → Assistant**), a
+**Suggestions** box (marked **Decision support**) appears above the day board for appointments whose patient missed a large share of their
+past appointments here. It names the time, not the patient; **Open the appointment** opens it on the board.
+
+- Not confirmed yet (**Consider**): consider calling the patient to confirm, and keep the waiting list in mind if they cannot come.
+- Already confirmed (**For your information**): nothing to do.
+
+It reads only whether the patient came to past appointments, nothing about their health or who they are. Nothing is cancelled or booked
+twice. **Dismiss** hides it for you for 14 days. Receptionists, nurses and organization administrators see these suggestions.
+
 ## How to book an appointment
 
 Appointments are booked from the patient record, so you always book for the right person.
@@ -166,6 +178,15 @@ The board updates by itself. Next to the title you see the connection state and 
 - **Updates every 15 s** — live updates are unavailable, so the board re-reads the queue every 15 seconds.
 
 Select the refresh button next to the connection state to reload at any time.
+
+### Waits longer than usual (suggestions)
+
+When your organization has turned on the assistant's rule **Patients are waiting longer than usual** (**Settings → Assistant**), a
+**Suggestions** box (marked **Decision support**) appears under the queue's figures when patients have been waiting to be called longer than
+this facility usually takes for their visit type (by default, longer than 9 in 10 past waits over the last four weeks). It counts them and gives
+the longest wait; it never changes the order of the queue. Consider calling them, telling them about the delay, or sending them to another
+service point. **Check soon** means the longest wait is more than twice the usual one. **Based on limited data** means the facility has few past
+visits of that type. **Dismiss** hides it for you for the rest of the day.
 
 ### Call a patient and move them along
 

@@ -1,3 +1,6 @@
+export * from "./lib/assistant/clinic-assistant.queries";
+export * from "./lib/assistant/no-show-risk.rules";
+export * from "./lib/assistant/queue-wait.rules";
 export * from "./lib/appointments/appointment-reminders";
 export * from "./lib/appointments/automatic-no-shows";
 export * from "./lib/appointments/patient-booking.service";

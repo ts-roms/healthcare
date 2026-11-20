@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestj
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { AssistantService } from "./assistant.service";
-import { FeedbackDto, InsightsQueryDto, RuleSettingDto, RulesQueryDto, SuggestionsQueryDto } from "./assistant.dto";
+import { FeedbackDto, InsightsQueryDto, ReplayDto, RuleSettingDto, RulesQueryDto, SuggestionsQueryDto } from "./assistant.dto";
 
 /**
  * The heuristic assistant (docs/architecture/heuristic-assistant.md): decision support computed from rules over data the
@@ -19,7 +19,7 @@ export class AssistantController {
   @RequirePermissions("assistant.use")
   @ApiOperation({ summary: "Suggestions for a screen at the selected facility, from the rules turned on there (audited, rule ids only)" })
   suggestions(@CurrentActor() actor: Actor, @Query() query: SuggestionsQueryDto) {
-    return this.assistant.suggestions(actor, query.surface);
+    return this.assistant.suggestions(actor, query.surface, query.date);
   }
 
   @Post("suggestions/:id/feedback")
@@ -43,6 +43,14 @@ export class AssistantController {
   @ApiOperation({ summary: "Turn a rule on or off and set its parameters (a new version; audited)" })
   updateSetting(@CurrentActor() actor: Actor, @Param("ruleId") ruleId: string, @Body() body: RuleSettingDto) {
     return this.assistant.updateSetting(actor, ruleId, body);
+  }
+
+  @Post("rules/:ruleId/replay")
+  @HttpCode(200)
+  @RequirePermissions("assistant.configure")
+  @ApiOperation({ summary: "How often a rule would have spoken on each of the last days at a facility, with given parameters (counts only; audited)" })
+  replay(@CurrentActor() actor: Actor, @Param("ruleId") ruleId: string, @Body() body: ReplayDto) {
+    return this.assistant.replay(actor, ruleId, body);
   }
 
   @Get("insights")

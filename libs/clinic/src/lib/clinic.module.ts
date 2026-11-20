@@ -1,3 +1,4 @@
+import { ClinicAssistantQueries } from "./assistant/clinic-assistant.queries";
 import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
 import { CalendarController } from "./calendar/calendar.controller";
@@ -104,6 +105,7 @@ export class ClinicModule {
         BookingRulesService,
         ClinicConfigService,
         ClinicDashboardService,
+        ClinicAssistantQueries,
         ClinicQueries,
         ClinicReportingQueries,
         EncounterService,
@@ -145,6 +147,7 @@ export class ClinicModule {
       exports: [
         AutomaticNoShows,
         VisitService,
+        ClinicAssistantQueries,
         ClinicQueries,
         ClinicReportingQueries,
         ExternalRecordsService,

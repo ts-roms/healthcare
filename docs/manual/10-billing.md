@@ -38,6 +38,21 @@ the permission). You can also open a patient's billing from the patient record w
 
 If the lists are empty you see "No charges waiting to be invoiced.", "No drafts." or "Nothing owed on issued invoices."
 
+### Procedures with no charge (suggestions)
+
+When your organization has turned on the assistant's rule **Procedures with no charge** (**Settings → Assistant**), a **Suggestions** box (marked
+**Decision support**) appears at the top of the cashier's desk when clinic or dental procedures done some hours ago have no charge. It counts
+them by procedure code and says why, never which patient:
+
+- **No billing service for this code** (**Consider**): nothing is set up to charge it. If the procedure is free on purpose, dismiss the
+  suggestion; otherwise add a service for the code in **Billing settings → Services and prices**.
+- **No price on that day** (**Check soon**): a service is set up but has no price for the day it was done.
+- **Not captured** (**Check soon**): a priced service is set up, but no charge was recorded. Add the charge by hand on the patient's billing
+  page (below), and tell your administrator.
+
+Select **Why?** for the code and the dates; **Dismiss** hides that code and reason for you for 14 days. Cashiers, receptionists and organization
+administrators see these suggestions.
+
 ## How to add a charge by hand
 
 Use this for anything not captured automatically (for example a service whose visit type or test is not linked to a billable service).

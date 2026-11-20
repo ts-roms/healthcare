@@ -247,7 +247,7 @@ advises.
 
 | Permission                | What it allows                                                                               | Default roles (besides Organization administrator) |
 | ------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Inventory officer                                  |
+| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Inventory officer, Nurse, Receptionist    |
 | `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                  |
 | `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                  |
 
@@ -596,9 +596,25 @@ someone decides. Every rule is off until you turn it on.
 2. Under **Settings for**, choose **Whole organization**, or a facility to set it differently there.
 3. On the rule's card, tick **Show these suggestions at …**, check **Your thresholds** and select **Save**.
 
-The rule today is **Stock may run out before a delivery arrives**: on **Inventory**, it suggests an order when usable stock and open orders will
-not last your **Delivery time** at the pace items were issued over the period you choose. The starting values (14 days' delivery time, enough for
-30 days, pace over the last 30 days, 5 issues for a firm pace) are only a starting point: set them from your suppliers and stock policy.
+The rules, and the screen each speaks on:
+
+| Rule                                        | Screen       | Who sees it                                             |
+| ------------------------------------------- | ------------ | ------------------------------------------------------- |
+| Stock may run out before a delivery arrives | Inventory    | Inventory officers, nurses, organization administrators |
+| An item was issued much more than usual     | Inventory    | Inventory officers, nurses, organization administrators |
+| Stock may expire before it is used          | Inventory    | Inventory officers, nurses, organization administrators |
+| Procedures with no charge                   | Billing      | Cashiers, receptionists, organization administrators    |
+| A patient may not come to their appointment | Appointments | Receptionists, nurses, organization administrators      |
+| Patients are waiting longer than usual      | Queue        | Receptionists, nurses, organization administrators      |
+
+Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
+[Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md). The starting values are only a starting point: set them from
+how your clinic works.
+
+**Try these values** shows, before you save or turn anything on, how often the rule would have spoken on each of the last 14 days with the
+values in the form: for example "about 2 suggestions a day (at most 4, and nothing on 3 days)". It reads the facility you are setting, or the one
+selected in the top bar when you set the whole organization, and the records as they stood each day. Nothing is saved or shown to anyone. Stock
+rules cannot know what was on order on a past day, so they may show more there than they would have.
 
 A facility without a setting of its own follows the organization's; the card then says "follows the organization's setting". Once you save for a
 facility, it keeps its own setting, and later changes for the whole organization no longer apply there. Each save is kept as a version and

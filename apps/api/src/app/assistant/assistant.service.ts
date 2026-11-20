@@ -7,6 +7,9 @@ import {
   DATABASE,
   type Database,
   DomainEventPublisher,
+  ForbiddenError,
+  localDate,
+  localDayBounds,
   NotFoundError,
   parseSuggestionId,
   PgErrorCode,
@@ -15,10 +18,11 @@ import {
   type Suggestion,
   type SuggestionSurface,
   VersionConflictError,
+  zonedToUtc,
 } from "@healthcare/core";
 import { facility } from "@healthcare/organization";
 import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
-import { AssistantRules, type RuleBinding } from "./assistant-rules";
+import { AssistantRules, type RuleBinding, type RuleMoment } from "./assistant-rules";
 import { assistantFeedback, assistantRuleSetting, type AssistantOutcome } from "./assistant.schema";
 
 /** A dismissed suggestion stays hidden from the person who dismissed it for this long; the same finding may then return. */
@@ -26,6 +30,22 @@ export const DISMISSAL_DAYS = 14;
 
 /** The most suggestions one request returns. */
 const MAX_SUGGESTIONS = 20;
+
+/** The most past days one replay reads. */
+export const MAX_REPLAY_DAYS = 31;
+
+export interface ReplayAnswer {
+  ruleId: string;
+  facilityId: string;
+  /** The facility's local time each day was read at. */
+  readAt: string;
+  days: Array<{ date: string; suggestions: number; weak: number }>;
+  /** Suggestions a day on average over the days read. */
+  averagePerDay: number;
+  maxPerDay: number;
+  /** What a replay cannot know (e.g. open orders on a past day), in plain words. */
+  notes: string[];
+}
 
 type SettingRow = typeof assistantRuleSetting.$inferSelect;
 
@@ -53,8 +73,11 @@ export class AssistantService {
 
   // ---- suggestions -------------------------------------------------------------------------------------------------
 
-  async suggestions(actor: Actor, surface: SuggestionSurface): Promise<SuggestionsAnswer> {
+  /** `date` (YYYY-MM-DD): the day a screen shows (the appointments board); today otherwise. */
+  async suggestions(actor: Actor, surface: SuggestionSurface, date?: string): Promise<SuggestionsAnswer> {
     const facilityId = requireFacilityId(actor);
+    const timeZone = await this.facilityTimeZone(actor, facilityId);
+    const moment = liveMoment(timeZone, date);
     const bindings = this.rules.bindings.filter((b) => b.definition.surfaces.includes(surface));
     const settings = await this.effectiveSettings(actor.organizationId, facilityId, bindings);
 
@@ -70,7 +93,7 @@ export class AssistantService {
       }
       const parsed = binding.definition.parametersSchema.safeParse(setting.parameters);
       if (!parsed.success) continue; // a stored setting the rule no longer accepts: the rule stays silent until it is saved again
-      items.push(...(await binding.run(actor, facilityId, parsed.data)));
+      items.push(...(await binding.run(actor, facilityId, parsed.data, moment)));
       ran.push(binding.definition.id);
     }
 
@@ -81,7 +104,7 @@ export class AssistantService {
       resourceType: "assistant_surface",
       metadata: { surface, rules: ran, shown: shown.length },
     });
-    return { items: shown, dismissed: items.length - items.filter((s) => !hidden.has(s.id)).length, withheld };
+    return { items: shown, dismissed: items.filter((s) => hidden.has(s.id)).length, withheld };
   }
 
   /** Records what the caller did with a suggestion. Rejects ids of rules that do not exist. */
@@ -158,16 +181,7 @@ export class AssistantService {
     const scope = input.facilityId ?? null;
     if (scope) await this.assertFacility(actor, scope);
     const parsed = binding.definition.parametersSchema.safeParse(input.parameters ?? binding.definition.defaultParameters);
-    if (!parsed.success) {
-      // Name the first field in the settings screen's own words.
-      const labels = binding.definition.parameterLabels as Record<string, RuleParameterLabel>;
-      const first = parsed.error.issues[0];
-      const field = first ? labels[String(first.path[0])] : undefined;
-      const message = field
-        ? `${field.label}: enter a whole number${field.min !== undefined && field.max !== undefined ? ` from ${field.min} to ${field.max}` : ""}.`
-        : "The rule's settings are not valid.";
-      throw new BusinessRuleError(message, "invalid_rule_parameters", { issues: parsed.error.issues });
-    }
+    if (!parsed.success) throw this.invalidParameters(binding, parsed.error.issues);
     try {
       return await this.db.transaction(async (tx) => {
         const [latest] = await tx
@@ -202,6 +216,53 @@ export class AssistantService {
       if (asPgError(error)?.code === PgErrorCode.uniqueViolation) throw new VersionConflictError("Assistant rule setting", input.expectedVersion);
       throw error;
     }
+  }
+
+  // ---- replay ------------------------------------------------------------------------------------------------------
+
+  /**
+   * How often a rule would have spoken on each of the last `days` days at a facility, with given (or its stored, else
+   * starting) parameters: each day is read at the rule's usual time, from the records as they stood then. Counts only;
+   * nothing is stored or shown to anyone else. Audited.
+   */
+  async replay(actor: Actor, ruleId: string, input: { facilityId?: string | null; parameters?: Record<string, unknown>; days: number }): Promise<ReplayAnswer> {
+    const binding = this.rules.find(ruleId);
+    if (!binding) throw new NotFoundError("Assistant rule");
+    if (!binding.definition.requires.every((p) => actor.permissions.has(p))) {
+      throw new ForbiddenError("This rule reads records you do not have access to");
+    }
+    const facilityId = input.facilityId ?? requireFacilityId(actor);
+    const timeZone = await this.facilityTimeZone(actor, facilityId);
+    let parameters: unknown = input.parameters;
+    if (!parameters) {
+      const settings = await this.effectiveSettings(actor.organizationId, facilityId, [binding]);
+      parameters = settings.get(ruleId)?.parameters ?? binding.definition.defaultParameters;
+    }
+    const parsed = binding.definition.parametersSchema.safeParse(parameters);
+    if (!parsed.success) throw this.invalidParameters(binding, parsed.error.issues);
+    const days = Math.min(MAX_REPLAY_DAYS, Math.max(1, input.days));
+    const today = localDate(new Date(), timeZone);
+    const out: ReplayAnswer["days"] = [];
+    for (let back = days; back >= 1; back--) {
+      const date = shiftDay(today, -back);
+      const found = await binding.run(actor, facilityId, parsed.data, pastMoment(timeZone, date, binding.replayAt));
+      out.push({ date, suggestions: found.length, weak: found.filter((s) => s.strength === "weak").length });
+    }
+    await this.audit.recordStandalone(actor, {
+      action: "assistant.replay",
+      resourceType: "assistant_rule",
+      metadata: { ruleId, facilityId, days },
+    });
+    const counts = out.map((d) => d.suggestions);
+    return {
+      ruleId,
+      facilityId,
+      readAt: binding.replayAt,
+      days: out,
+      averagePerDay: Math.round((counts.reduce((a, b) => a + b, 0) / counts.length) * 10) / 10,
+      maxPerDay: Math.max(...counts),
+      notes: binding.definition.id === "inventory.days-of-cover" ? ["Open purchase orders on past days are not known, so none are counted."] : [],
+    };
   }
 
   // ---- insights ----------------------------------------------------------------------------------------------------
@@ -243,6 +304,27 @@ export class AssistantService {
   }
 
   // ---- internals ---------------------------------------------------------------------------------------------------
+
+  /** The first wrong parameter, named in the settings screen's own words. */
+  private invalidParameters(binding: RuleBinding, issues: ReadonlyArray<{ path: PropertyKey[] }>): BusinessRuleError {
+    const labels = binding.definition.parameterLabels as Record<string, RuleParameterLabel>;
+    const first = issues[0];
+    const field = first ? labels[String(first.path[0])] : undefined;
+    const message = field
+      ? `${field.label}: enter a whole number${field.min !== undefined && field.max !== undefined ? ` from ${field.min} to ${field.max}` : ""}.`
+      : "The rule's settings are not valid.";
+    return new BusinessRuleError(message, "invalid_rule_parameters", { issues });
+  }
+
+  /** The facility's time zone; also proves the facility is the caller's organization's. */
+  private async facilityTimeZone(actor: Actor, facilityId: string): Promise<string> {
+    const [row] = await this.db
+      .select({ timezone: facility.timezone })
+      .from(facility)
+      .where(and(eq(facility.organizationId, actor.organizationId), eq(facility.id, facilityId)));
+    if (!row) throw new NotFoundError("Facility");
+    return row.timezone;
+  }
 
   private async assertFacility(actor: Actor, facilityId: string): Promise<void> {
     const [row] = await this.db
@@ -305,4 +387,23 @@ function scopeFilter(organizationId: string, scope: string | null, ruleId: strin
     eq(assistantRuleSetting.ruleId, ruleId),
     scope ? eq(assistantRuleSetting.facilityId, scope) : isNull(assistantRuleSetting.facilityId),
   );
+}
+
+function shiftDay(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Now, for a screen showing `date` (default: the facility's today). */
+function liveMoment(timeZone: string, date?: string): RuleMoment {
+  const asOf = new Date();
+  const today = localDate(asOf, timeZone);
+  const day = date ?? today;
+  const { start, end } = localDayBounds(day, timeZone);
+  return { asOf, date: day, dayStart: start, dayEnd: end, today, timeZone, live: true };
+}
+
+/** A past day read at a local time. */
+function pastMoment(timeZone: string, date: string, time: string): RuleMoment {
+  const { start, end } = localDayBounds(date, timeZone);
+  return { asOf: zonedToUtc(date, time, timeZone), date, dayStart: start, dayEnd: end, today: date, timeZone, live: false };
 }

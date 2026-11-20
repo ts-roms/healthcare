@@ -114,18 +114,26 @@ If the facility has no storage locations yet, you see "No storage locations at t
 
 ### How to read the stock suggestions
 
-When your organization has turned on the assistant's stock rule (**Settings → Assistant**), a **Suggestions** box (marked **Decision support**) appears above the stock
-table. It lists items whose usable stock, with what is already on open purchase orders, may not last until a delivery arrives at the pace they
-were issued over recent weeks, and how much to order to cover the days your organization chose.
+When your organization has turned on the assistant's stock rules (**Settings → Assistant**), a **Suggestions** box (marked **Decision support**)
+appears above the stock table whenever there is something to say. There are three rules, each turned on separately:
 
-1. Read the title (the item and roughly how many days of stock are left) and the sentence under it.
-2. Select **Why?** to see what the suggestion looked at: usable stock, what was issued and how often, and what is on order.
-3. Select **Open purchase orders** to raise an order yourself. The suggestion orders nothing.
-4. Select **Dismiss** or **Not useful** if it does not apply. It stays hidden for you for 14 days. Others still see it.
+- **Stock may run out before a delivery arrives:** items whose usable stock, with what is already on open purchase orders, will not last the
+  delivery time at the pace they were issued over recent weeks, and how much to order to cover the days your organization chose. **Open
+  purchase orders** takes you there; the suggestion orders nothing.
+- **An item was issued much more than usual:** an item issued far more in the last 7 days than in a usual week. It may be more patients, a
+  mistaken entry, or stock that went missing. **Review movements** takes you to the movement list.
+- **Stock may expire before it is used:** a lot that will probably still hold stock on its expiry date, using the earliest expiry first at the
+  recent pace. Consider moving it where it is used more, or using it first. **See expiring stock** shows the list.
 
-**Check soon** means less than half the delivery time is covered or the item is out; **Consider** means some cover is left. **Based on limited
-data** means few issues were recorded, so the pace is uncertain. The box does not appear when there is nothing to suggest. Inventory officers
-and organization administrators see it.
+For any suggestion:
+
+1. Read the title and the sentence under it.
+2. Select **Why?** to see what it looked at (usable stock, what was issued and how often, what is on order, the lot and its expiry).
+3. Select **Dismiss** or **Not useful** if it does not apply. It stays hidden for you for 14 days. Others still see it.
+
+**Check soon** means it needs attention soon (less than half the delivery time covered, the item out, or a lot that is not moving and expires
+within a month); **Consider** means there is still time. **Based on limited data** means few issues were recorded, so the pace is uncertain.
+Inventory officers, nurses and organization administrators see these suggestions.
 
 ### How to record a stock movement
 

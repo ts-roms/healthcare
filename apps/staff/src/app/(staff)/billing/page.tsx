@@ -3,11 +3,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { clinicalDate, clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@healthcare/ui/primitives";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { FacilityRequired } from "@/components/facility-required";
 import { InvoiceBadge } from "@/components/invoice-badge";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { BillingWorklistRow, InvoiceSummary } from "@/lib/api/types";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { peso } from "@/lib/billing-mapping";
 
 export const metadata = { title: "Billing" };
@@ -23,13 +25,15 @@ export default async function BillingPage() {
       </ModulePage>
     );
   }
-  const [worklist, drafts, unpaid] = await Promise.all([
+  const [worklist, drafts, unpaid, suggestions] = await Promise.all([
     api<BillingWorklistRow[]>("/billing/worklist"),
     api<InvoiceSummary[]>("/billing/invoices", { query: { status: "draft" } }),
     api<InvoiceSummary[]>("/billing/invoices", { query: { unpaid: "true" } }),
+    loadSuggestions(session, "billing"),
   ]);
   return (
     <ModulePage title="Billing" description={`${facility.name} · charges to invoice, drafts and balances`}>
+      {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="billing" suggestions={suggestions} /> : null}
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="py-0 xl:col-span-2">
           <CardHeader className="pt-4">

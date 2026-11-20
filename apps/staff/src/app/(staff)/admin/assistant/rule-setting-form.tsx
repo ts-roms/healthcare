@@ -5,12 +5,27 @@ import { CircleCheckIcon, CircleOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, Input, Label, toast } from "@healthcare/ui/primitives";
 import type { AssistantRule } from "@/lib/api/types";
-import { expectedVersion, parameterFields, readParameters, ruleState, ruleStateLabel } from "@/lib/assistant-settings";
+import { expectedVersion, parameterFields, readParameters, replaySummary, ruleState, ruleStateLabel } from "@/lib/assistant-settings";
 import { useServerAction } from "@/lib/use-server-action";
-import { saveAssistantRule } from "./actions";
+import { replayAssistantRule, saveAssistantRule } from "./actions";
 
-/** One assistant rule's on/off switch and parameters for the scope the page shows (the organization, or one facility). */
-export function RuleSettingForm({ rule, scopeName }: { rule: AssistantRule; scopeName: string }) {
+/** Past days a "Try these values" replay reads. */
+const REPLAY_DAYS = 14;
+
+/**
+ * One assistant rule's on/off switch and parameters for the scope the page shows (the organization, or one facility),
+ * with "Try these values": how often the rule would have spoken over the last two weeks at `replayFacility`.
+ */
+export function RuleSettingForm({
+  rule,
+  scopeName,
+  replayFacility,
+}: {
+  rule: AssistantRule;
+  scopeName: string;
+  /** The facility a replay reads: the one this scope is, else the one selected in the top bar; null = none selected. */
+  replayFacility: { id: string; name: string } | null;
+}) {
   const state = ruleState(rule);
   const fields = parameterFields(rule);
   const [enabled, setEnabled] = React.useState(state.kind !== "unset" && state.enabled);
@@ -18,6 +33,22 @@ export function RuleSettingForm({ rule, scopeName }: { rule: AssistantRule; scop
   const { pending, run } = useServerAction({ refreshOnFailure: true });
   const on = state.kind !== "unset" && state.enabled;
   const id = (key: string) => `${rule.ruleId}-${key}`;
+  const [replay, setReplay] = React.useState<{ text: string; notes: string[] } | null>(null);
+  const [replaying, startReplay] = React.useTransition();
+
+  function tryValues() {
+    if (!replayFacility) return;
+    const read = readParameters(fields, values);
+    if (!read.ok) {
+      toast.error(read.message);
+      return;
+    }
+    startReplay(async () => {
+      const result = await replayAssistantRule({ ruleId: rule.ruleId, facilityId: replayFacility.id, parameters: read.parameters, days: REPLAY_DAYS });
+      if (result.ok) setReplay({ text: replaySummary(result.data, replayFacility.name), notes: result.data.notes });
+      else toast.error(result.message);
+    });
+  }
 
   return (
     <Card>
@@ -68,7 +99,7 @@ export function RuleSettingForm({ rule, scopeName }: { rule: AssistantRule; scop
               Saving gives {scopeName} a setting of its own; later changes to the organization&apos;s setting no longer apply here.
             </p>
           ) : null}
-          <fieldset className="grid gap-3 sm:grid-cols-2" disabled={!enabled}>
+          <fieldset className="grid gap-3 sm:grid-cols-2">
             <legend className="mb-2 text-table font-medium">Your thresholds</legend>
             {fields.map((field) => (
               <div key={field.key} className="grid gap-1">
@@ -97,12 +128,29 @@ export function RuleSettingForm({ rule, scopeName }: { rule: AssistantRule; scop
             ))}
           </fieldset>
           <p className="text-meta text-muted-foreground">
-            The starting values are a suggestion, not a standard: set them from your own suppliers and stock policy.
+            The starting values are a suggestion, not a standard: set them from how your clinic works.
             {rule.setting ? ` Last changed ${clinicalDateTime(rule.setting.updatedAt)} (version ${rule.setting.version}).` : ""}
           </p>
-          <Button type="submit" size="sm" className="justify-self-start" disabled={pending}>
-            Save
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" size="sm" disabled={pending}>
+              Save
+            </Button>
+            <Button type="button" size="sm" variant="outline" disabled={replaying || !replayFacility} onClick={tryValues}>
+              {replaying ? "Trying…" : "Try these values"}
+            </Button>
+            {!replayFacility ? <span className="text-meta text-muted-foreground">Select a facility in the top bar to try values.</span> : null}
+          </div>
+          {replay ? (
+            <div role="status" className="rounded-md bg-muted/50 p-3 text-table">
+              <p>{replay.text}</p>
+              {replay.notes.map((note) => (
+                <p key={note} className="mt-1 text-meta text-muted-foreground">
+                  {note}
+                </p>
+              ))}
+              <p className="mt-1 text-meta text-muted-foreground">Nothing was saved or shown to anyone else.</p>
+            </div>
+          ) : null}
         </form>
       </CardContent>
     </Card>

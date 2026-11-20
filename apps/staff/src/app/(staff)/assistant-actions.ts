@@ -7,10 +7,10 @@ import { api } from "@/lib/api/client";
 import type { AssistantSurface } from "@/lib/api/types";
 
 /** The screen each surface's suggestions are shown on, refreshed after an answer. */
-const SURFACE_PATH: Record<AssistantSurface, string> = { inventory: "/inventory" };
+const SURFACE_PATH: Record<AssistantSurface, string> = { inventory: "/inventory", billing: "/billing", appointments: "/appointments", queue: "/queue" };
 
 const answerSchema = z.object({
-  surface: z.enum(["inventory"]),
+  surface: z.enum(["inventory", "billing", "appointments", "queue"]),
   id: z.string().min(3).max(300),
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),
 });
