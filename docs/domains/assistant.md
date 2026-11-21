@@ -202,6 +202,12 @@ in parallel with the page's own data and shows the panel only when there is some
 `AssistantSuggestions` (`apps/staff/src/components`) sends answers through `answerSuggestion` (`apps/staff/src/app/(staff)/assistant-actions.ts`),
 which refreshes that screen.
 
+End to end: journey `apps/e2e/tests/34-assistant.journey.ts` follows the stock rule `inventory.days-of-cover` through these screens and the
+settings below. An administrator turns it on for the organization, stock is received and issued until it would not last a delivery, and an
+inventory officer sees the suggestion on `/inventory` (Decision support, **Why?** with its evidence, rule and version), follows its link (counted as
+followed) and marks it **Not useful** with a reason (hidden for them). The administrator then reads the counts and the reason on the rule's insights
+page and records a review that retires it, and the rule's settings card shows it off with that review.
+
 The prescribing dialog in the consultation (`prescriptions-panel.tsx`) checks the draft when the person holds
 `assistant.use` (`checkPrescriptionDraft`, `apps/staff/src/lib/prescribing-check.ts`): on **Issue** (or **Replace**), findings
 are shown first under "Before you issue", the button becomes **Issue anyway** and the next click issues; editing a medicine
