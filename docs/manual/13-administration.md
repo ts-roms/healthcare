@@ -672,9 +672,28 @@ facility, it keeps its own setting, and later changes for the whole organization
 recorded in the audit log. If someone else saved the same rule meanwhile, you see "Someone else updated this just now" and the screen shows their
 change.
 
-**How staff answered** (with `assistant.insights.read`) counts, for the last 90 days, how often each rule's suggestions were accepted, dismissed
-or marked not useful. **Mostly dismissed** appears once at least 20 answers have been given and 70% or more were dismissals: look at the rule's
-thresholds. Nothing changes by itself. See [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions).
+**Insights and reviews** (with `assistant.insights.read`) says how many rules are due for review and how many are mostly dismissed, and opens
+the insights page: see [How to review the assistant's rules](#how-to-review-the-assistants-rules). Each rule's card on this page also shows its
+latest review and the false positives it found.
+
+## How to review the assistant's rules
+
+Review every rule you turned on about every three months, and again when a release says a rule changed: keep it, adjust its thresholds, or retire it.
+The full procedure, and who should take part for each kind of rule, is the runbook `docs/runbooks/assistant-rule-review.md`.
+
+1. Choose **Settings → Assistant → Open insights and reviews** (`/admin/assistant/insights`; `assistant.insights.read`). Choose **Last 30, 90 or
+   365 days**.
+2. The table lists every rule with where it is on, how many times its suggestions were **Shown**, **Followed** (someone opened its link),
+   **Dismissed** and marked **Not useful**. **Review due** marks a rule that is on and was never reviewed, was reviewed over 92 days ago or on an
+   earlier version; **Mostly dismissed**, one with at least 20 answers of which 70% or more were dismissals or "not useful". They are listed first.
+3. Open a rule. **What staff said** shows the latest reasons people gave when they dismissed it or marked it not useful.
+4. To change its thresholds, use **Change its settings** and **Try these values** first.
+5. Under **Record a review** (`assistant.configure`), choose **Keep it as it is**, **Adjust its thresholds** or **Retire it**, write what was decided
+   and why, the false positives found (a pattern, never a patient's details) and the date, and select **Record review** (or **Retire the rule**).
+   Retiring turns the rule off at once for the whole organization and every facility where it was on; you can turn it on again later.
+6. The reviews are listed under the form, newest first, with who recorded them. They cannot be changed: record a new review to correct one.
+
+For a clinical rule, name the clinician who validated it in the note: the review is your clinical sign-off for that rule.
 
 ## How to keep the breach register (Data privacy)
 

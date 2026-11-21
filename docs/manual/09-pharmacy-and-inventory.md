@@ -149,7 +149,9 @@ For any suggestion:
 
 1. Read the title and the sentence under it.
 2. Select **Why?** to see what it looked at (usable stock, what was issued and how often, what is on order, the lot and its expiry).
-3. Select **Dismiss** or **Not useful** if it does not apply. It stays hidden for you for 14 days. Others still see it.
+3. Select **Dismiss** if it does not apply now, or **Not useful** if it is wrong — then say what was wrong, if you like, and select **Mark not
+   useful** (your administrator reads it when reviewing the rule; never write a patient's name or details). Either way it stays hidden for you for
+   14 days. Others still see it. Opening a suggestion's link is counted too, so administrators can see which rules help.
 
 **Check soon** means it needs attention soon (less than half the delivery time covered, the item out, or a lot that is not moving and expires
 within a month); **Consider** means there is still time. **Based on limited data** means few issues were recorded, so the pace is uncertain.

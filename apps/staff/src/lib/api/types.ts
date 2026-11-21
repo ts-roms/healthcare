@@ -5901,6 +5901,28 @@ export interface AssistantRule {
   /** This scope's own setting; null when it has none (a facility then follows the organization's). */
   setting: AssistantRuleSettingValue | null;
   organizationSetting: AssistantRuleSettingValue | null;
+  /** The organization's latest review of the rule (migration 0159), if any. */
+  lastReview: AssistantRuleReviewSummary | null;
+}
+
+export type AssistantReviewOutcome = "keep" | "adjust" | "retire";
+
+/** A review of a rule as the settings and insights screens show it. */
+export interface AssistantRuleReviewSummary {
+  id: string;
+  ruleVersion: number;
+  outcome: AssistantReviewOutcome;
+  note: string;
+  falsePositives: string | null;
+  /** YYYY-MM-DD */
+  reviewedOn: string;
+}
+
+/** GET /assistant/rules/:ruleId/reviews: a rule's reviews, newest first. */
+export interface AssistantRuleReview extends AssistantRuleReviewSummary {
+  /** Who recorded it (display name). */
+  recordedBy: string;
+  recordedAt: string;
 }
 
 /** POST /assistant/rules/:ruleId/replay: how often the rule would have spoken on each past day. */
@@ -5916,5 +5938,30 @@ export interface AssistantReplay {
 
 export interface AssistantInsights {
   days: number;
-  rules: Array<{ ruleId: string; title: string; accepted: number; dismissed: number; notUseful: number; answered: number; reviewSuggested: boolean }>;
+  rules: AssistantRuleInsight[];
+}
+
+/** GET /assistant/insights: how one rule did over the period, for its periodic review. */
+export interface AssistantRuleInsight {
+  ruleId: string;
+  ruleVersion: number;
+  title: string;
+  description: string;
+  domain: string;
+  /** Where it is on now: the organization's own setting, and how many facilities' own settings. */
+  enabled: { organization: boolean; facilities: number };
+  /** Times its suggestions were shown. */
+  shown: number;
+  /** Followed (the suggestion's link opened). */
+  accepted: number;
+  dismissed: number;
+  notUseful: number;
+  answered: number;
+  /** At least 20 answers, 70% or more dismissed or not useful. */
+  reviewSuggested: boolean;
+  /** On somewhere, and never reviewed, reviewed over 92 days ago, or reviewed on an earlier version. */
+  reviewDue: boolean;
+  /** The latest reasons staff gave when dismissing or marking it not useful, newest first. */
+  reasons: Array<{ outcome: "dismissed" | "not_useful"; reason: string; at: string }>;
+  lastReview: AssistantRuleReviewSummary | null;
 }

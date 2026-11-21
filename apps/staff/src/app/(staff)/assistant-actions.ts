@@ -44,15 +44,17 @@ const answerSchema = z.object({
   ]),
   id: z.string().min(3).max(300),
   outcome: z.enum(["accepted", "dismissed", "not_useful"]),
+  /** The person's own words for "Not useful" (read by administrators when reviewing the rule). */
+  reason: z.string().trim().min(1).max(500).optional(),
 });
 
 /** Records what the person did with an assistant suggestion. The API checks the permission, facility and rule. */
 export async function answerSuggestion(input: z.input<typeof answerSchema>): Promise<ActionResult<{ id: string }>> {
   const parsed = answerSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: "Invalid request." };
-  const { surface, id, outcome } = parsed.data;
+  const { surface, id, outcome, reason } = parsed.data;
   const result = await actionResult(() =>
-    api<{ id: string }>(`/assistant/suggestions/${encodeURIComponent(id)}/feedback`, { method: "POST", body: { outcome } }),
+    api<{ id: string }>(`/assistant/suggestions/${encodeURIComponent(id)}/feedback`, { method: "POST", body: { outcome, ...(reason ? { reason } : {}) } }),
   );
   if (result.ok) revalidatePath(SURFACE_PATH[surface].path, SURFACE_PATH[surface].type);
   return result;

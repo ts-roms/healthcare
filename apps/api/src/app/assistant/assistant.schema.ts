@@ -1,7 +1,8 @@
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-// Mirrors database/migrations/0152_assistant.sql (the migration is the source of truth). These tables belong to the API's
-// assistant composition, which reads several domains (ADR-0018), not to a domain library.
+// Mirrors database/migrations/0152_assistant.sql and 0159_assistant_governance.sql (the migrations are the source of
+// truth). These tables belong to the API's assistant composition, which reads several domains (ADR-0018), not to a domain
+// library.
 
 const ts = (name: string) => timestamp(name, { withTimezone: true });
 
@@ -30,4 +31,34 @@ export const assistantFeedback = pgTable("assistant_feedback", {
   outcome: text("outcome").$type<AssistantOutcome>().notNull(),
   reason: text("reason"),
   createdAt: ts("created_at").notNull().defaultNow(),
+});
+
+/** Times each rule's suggestions were shown, per facility and local day (0159; a counter, updated in place). */
+export const assistantRuleShown = pgTable(
+  "assistant_rule_shown",
+  {
+    organizationId: uuid("organization_id").notNull(),
+    facilityId: uuid("facility_id").notNull(),
+    ruleId: text("rule_id").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    shown: integer("shown").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.organizationId, t.facilityId, t.ruleId, t.day] })],
+);
+
+export const RULE_REVIEW_OUTCOMES = ["keep", "adjust", "retire"] as const;
+export type RuleReviewOutcome = (typeof RULE_REVIEW_OUTCOMES)[number];
+
+/** An organization's review of a rule (0159; append-only). */
+export const assistantRuleReview = pgTable("assistant_rule_review", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  ruleId: text("rule_id").notNull(),
+  ruleVersion: integer("rule_version").notNull(),
+  outcome: text("outcome").$type<RuleReviewOutcome>().notNull(),
+  note: text("note").notNull(),
+  falsePositives: text("false_positives"),
+  reviewedOn: date("reviewed_on", { mode: "string" }).notNull(),
+  recordedBy: uuid("recorded_by").notNull(),
+  recordedAt: ts("recorded_at").notNull().defaultNow(),
 });

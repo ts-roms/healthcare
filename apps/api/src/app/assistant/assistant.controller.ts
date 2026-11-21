@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestj
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
 import { AssistantService } from "./assistant.service";
-import { CheckDto, FeedbackDto, InsightsQueryDto, ReplayDto, RuleSettingDto, RulesQueryDto, SuggestionsQueryDto } from "./assistant.dto";
+import { CheckDto, FeedbackDto, InsightsQueryDto, ReplayDto, RuleReviewDto, RuleSettingDto, RulesQueryDto, SuggestionsQueryDto } from "./assistant.dto";
 
 /**
  * The heuristic assistant (docs/architecture/heuristic-assistant.md): decision support computed from rules over data the
@@ -71,8 +71,25 @@ export class AssistantController {
 
   @Get("insights")
   @RequirePermissions("assistant.insights.read")
-  @ApiOperation({ summary: "How staff answered each rule's suggestions over a period (counts only; audited)" })
+  @ApiOperation({
+    summary: "How each rule did over a period: times shown, followed, dismissed and not useful, recent reasons, where it is on and its last review (audited)",
+  })
   insights(@CurrentActor() actor: Actor, @Query() query: InsightsQueryDto) {
     return this.assistant.insights(actor, query.days);
+  }
+
+  @Get("rules/:ruleId/reviews")
+  @RequirePermissions("assistant.insights.read")
+  @ApiOperation({ summary: "The organization's reviews of a rule, newest first" })
+  reviews(@CurrentActor() actor: Actor, @Param("ruleId") ruleId: string) {
+    return this.assistant.reviews(actor, ruleId);
+  }
+
+  @Post("rules/:ruleId/reviews")
+  @HttpCode(201)
+  @RequirePermissions("assistant.configure")
+  @ApiOperation({ summary: "Record a review of a rule: keep, adjust, or retire it (turned off wherever it is on in the organization; audited)" })
+  recordReview(@CurrentActor() actor: Actor, @Param("ruleId") ruleId: string, @Body() body: RuleReviewDto) {
+    return this.assistant.recordReview(actor, ruleId, body);
   }
 }

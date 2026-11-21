@@ -4,6 +4,8 @@ import * as React from "react";
 import { ChevronDownIcon, InfoIcon, LightbulbIcon, TriangleAlertIcon, type LucideIcon } from "lucide-react";
 import { Badge, type BadgeProps } from "../primitives/badge";
 import { Button } from "../primitives/button";
+import { Label } from "../primitives/label";
+import { Textarea } from "../primitives/textarea";
 import { cn } from "../lib/utils";
 
 /** What the API's `GET /assistant/suggestions` returns for one suggestion (libs/core `Suggestion`), as the panel reads it. */
@@ -22,6 +24,9 @@ export interface AssistantSuggestionView {
 
 export type AssistantOutcome = "accepted" | "dismissed" | "not_useful";
 
+/** Records an answer; `reason` is the person's own words for "Not useful" (optional). */
+export type AssistantAnswerHandler = (id: string, outcome: AssistantOutcome, reason?: string) => void | Promise<void>;
+
 const SEVERITY: Record<AssistantSuggestionView["severity"], { label: string; icon: LucideIcon; variant: NonNullable<BadgeProps["variant"]> }> = {
   info: { label: "For your information", icon: InfoIcon, variant: "neutral" },
   advice: { label: "Consider", icon: LightbulbIcon, variant: "info" },
@@ -36,14 +41,16 @@ const BASIS: Record<AssistantSuggestionView["basis"], string> = {
 
 /**
  * Decision support from the heuristic assistant (docs/architecture/heuristic-assistant.md): each suggestion says what
- * rule produced it and what it looked at ("Why?"), says when the data was thin, and can be dismissed. It never changes
- * a record; its action is only a link. Severity is a label with an icon, never colour alone.
+ * rule produced it and what it looked at ("Why?"), says when the data was thin, and can be dismissed or marked not useful
+ * with a reason. It never changes a record; its action is only a link, and following it is counted (`onFollow`).
+ * Severity is a label with an icon, never colour alone.
  */
 export function AssistantPanel({
   suggestions,
   dismissedCount = 0,
   withheldCount = 0,
   onAnswer,
+  onFollow,
   className,
 }: {
   suggestions: readonly AssistantSuggestionView[];
@@ -51,7 +58,9 @@ export function AssistantPanel({
   dismissedCount?: number;
   /** Rules on here that need a permission the person lacks. */
   withheldCount?: number;
-  onAnswer?: (id: string, outcome: AssistantOutcome) => void | Promise<void>;
+  onAnswer?: AssistantAnswerHandler;
+  /** Called when the person opens a suggestion's link (counted as followed; must not delay the navigation). */
+  onFollow?: (id: string) => void;
   className?: string;
 }) {
   const headingId = React.useId();
@@ -70,7 +79,7 @@ export function AssistantPanel({
         <ul className="mt-3 flex flex-col gap-3">
           {suggestions.map((s) => (
             <li key={s.id}>
-              <SuggestionCard suggestion={s} onAnswer={onAnswer} />
+              <SuggestionCard suggestion={s} onAnswer={onAnswer} onFollow={onFollow} />
             </li>
           ))}
         </ul>
@@ -90,21 +99,26 @@ export function AssistantPanel({
 export function SuggestionCard({
   suggestion,
   onAnswer,
+  onFollow,
 }: {
   suggestion: AssistantSuggestionView;
-  onAnswer?: (id: string, outcome: AssistantOutcome) => void | Promise<void>;
+  onAnswer?: AssistantAnswerHandler;
+  onFollow?: (id: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [explaining, setExplaining] = React.useState(false);
+  const [reason, setReason] = React.useState("");
   const spec = SEVERITY[suggestion.severity];
   const Icon = spec.icon;
   const whyId = React.useId();
+  const reasonId = React.useId();
 
-  async function answer(outcome: AssistantOutcome) {
+  async function answer(outcome: AssistantOutcome, why?: string) {
     if (!onAnswer) return;
     setBusy(true);
     try {
-      await onAnswer(suggestion.id, outcome);
+      await onAnswer(suggestion.id, outcome, why);
     } finally {
       setBusy(false);
     }
@@ -124,7 +138,15 @@ export function SuggestionCard({
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {suggestion.action ? (
           <Button asChild size="sm">
-            <a href={suggestion.action.href}>{suggestion.action.label}</a>
+            <a
+              href={suggestion.action.href}
+              onClick={() => onFollow?.(suggestion.id)}
+              onAuxClick={(e) => {
+                if (e.button === 1) onFollow?.(suggestion.id);
+              }}
+            >
+              {suggestion.action.label}
+            </a>
           </Button>
         ) : null}
         {onAnswer ? (
@@ -132,7 +154,7 @@ export function SuggestionCard({
             <Button size="sm" variant="outline" disabled={busy} onClick={() => answer("dismissed")}>
               Dismiss
             </Button>
-            <Button size="sm" variant="ghost" disabled={busy} onClick={() => answer("not_useful")}>
+            <Button size="sm" variant="ghost" disabled={busy} aria-expanded={explaining} aria-controls={reasonId} onClick={() => setExplaining((v) => !v)}>
               Not useful
             </Button>
           </>
@@ -142,6 +164,30 @@ export function SuggestionCard({
           <ChevronDownIcon className={cn("size-4 transition-transform", open && "rotate-180")} aria-hidden />
         </Button>
       </div>
+      {explaining ? (
+        <form
+          id={reasonId}
+          className="mt-2 flex flex-col gap-2 rounded-md bg-muted/50 p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void answer("not_useful", reason.trim() || undefined).then(() => setExplaining(false));
+          }}
+        >
+          <Label htmlFor={`${reasonId}-reason`}>What was wrong with it? (optional)</Label>
+          <Textarea id={`${reasonId}-reason`} rows={2} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <p className="text-table text-muted-foreground">
+            Your administrator reads this when reviewing the rule. Do not write a patient&apos;s name or details.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" size="sm" disabled={busy}>
+              Mark not useful
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setExplaining(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : null}
       {open ? (
         <div id={whyId} className="mt-2 rounded-md bg-muted/50 p-3 text-table">
           <p className="font-medium">{BASIS[suggestion.basis]}</p>

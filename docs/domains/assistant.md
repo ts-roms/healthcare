@@ -15,9 +15,11 @@ specimen rejections concentrated on a collector or a facility on the QC page), a
 items the chart says cannot be carried out and items waiting for the patient's decision; in a consultation, the tests one of the organization's order
 sets lists for a chronic diagnosis that have no released result for months), and the pharmacy and online consultations (on the pharmacy's home,
 medicines that waiting prescriptions need more of than the facility holds; on the dispense screen, stock that would expire before the course ends; in
-an online consultation, reasons to consider seeing the patient in person). Phase 3's MyHealth item, result wording, is not a rule: MyHealth's result
-page explains each result in fixed, versioned sentences (`resultExplanation`), and the organization records its review of them as a compliance area
-("Results shown to patients", migration `0158`); see Integration points and limits.
+an online consultation, reasons to consider seeing the patient in person). Phase 4, governance, is built too: how often each rule was shown and
+followed, the reasons staff give for "Not useful", an insights page per rule, and the organization's reviews of its rules (keep, adjust or retire,
+with the false positives found), with a quarterly review runbook (`docs/runbooks/assistant-rule-review.md`). Phase 3's MyHealth item, result wording,
+is not a rule: MyHealth's result page explains each result in fixed, versioned sentences (`resultExplanation`), and the organization records its
+review of them as a compliance area ("Results shown to patients", migration `0158`); see Integration points and limits.
 
 ## Entities
 
@@ -28,9 +30,13 @@ Migration `0152_assistant.sql`; Drizzle mirrors in `apps/api/src/app/assistant/a
   A rule with no row is **off**.
 - `assistant_feedback` — append-only: who answered which finding (`rule_id`, `rule_version`, `subject_key` from the
   suggestion id) with `accepted | dismissed | not_useful` and an optional reason. No names, values or record text.
-- Suggestions are computed on demand and not stored. Migrations `0153`, `0154` and `0157` change no table (permissions only). Migration
-  `0155` adds the laboratory's order sets (`docs/domains/laboratory.md`, "Order sets") and `0156` the prescription domain's
-  medicine settings (`docs/domains/prescription.md`, "Medicine settings"), not assistant tables.
+- `assistant_rule_shown` (migration `0159`) — times each rule's suggestions were shown, per facility and local day: a counter updated in place by
+  every suggestions request (counts only; never a finding, subject or person).
+- `assistant_rule_review` (migration `0159`) — append-only: the organization's review of a rule — its version, `keep | adjust | retire`, what was
+  decided and why (`note`), the false positives found, the review date and who recorded it.
+- Suggestions are computed on demand and not stored. Migrations `0153`, `0154` and `0157` change no table (permissions only). Migration `0155` adds
+  the laboratory's order sets (`docs/domains/laboratory.md`, "Order sets") and `0156` the prescription domain's medicine settings
+  (`docs/domains/prescription.md`, "Medicine settings"), not assistant tables.
 
 ## Rules
 
@@ -135,15 +141,27 @@ is turned on.
 - Suggestions for a surface at the selected facility (`inventory`, `billing`, `appointments` with an optional `date`, `queue`, `encounter` with the
   `encounterId`, `laboratory`, `laboratory-quality`, `security`, `settings`, `outreach`, `dental` with the `patientId`, `pharmacy` with an optional
   `prescriptionId`; `prescribing` reads nothing without a draft); each request audits `assistant.view` with the surface, rule ids, the number shown
-  and the consultation's, patient's or prescription's id, never a finding. Rules whose source permission the caller lacks are listed in `withheld` by
+  and the consultation's, patient's or prescription's id, never a finding, and adds what it showed to each rule's count for the facility's day
+  (`assistant_rule_shown`). Rules whose source permission the caller lacks are listed in `withheld` by
   title, with no counts. A stored setting the rule no longer accepts keeps the rule silent until it is saved again. At most 20 suggestions a request.
 - A draft checked before it is saved: `POST /assistant/suggestions/check` with `surface: prescribing`, the consultation, the
   drafted medicines (name, strength, dose, unit, frequency) and the prescription being replaced, if any. The same answer as a
   screen's (items, dismissed, withheld), from the rules turned on; audited `assistant.view` with the surface, rule ids, the
   consultation and the number of medicines, never a medicine. `404` for a consultation of another organization.
-- Rules with the setting in force for a scope (and, for a facility, the organization's); the replay; insights (answers
-  per rule over a period; `reviewSuggested` once at least 20 answers have been given and 70% or more were dismissed or not
-  useful. A prompt for the administrator, never an automatic change).
+- Rules with the setting in force for a scope (and, for a facility, the organization's) and each rule's latest review; the replay; insights per rule
+  over 1–365 days (`assistant.insights.read`): where it is on (organization, number of facilities), times shown, followed (`accepted`), dismissed and
+  not useful, `reviewSuggested` (at least 20 answers, 70% or more dismissed or not useful), `reviewDue` (on, and never reviewed, reviewed over 92 days
+  ago or on an earlier rule version), the latest five reasons given and the latest review — prompts for the administrator, never an automatic change;
+  a rule's reviews, newest first, with who recorded each.
+
+- Record a review of a rule (`assistant.configure`): `keep`, `adjust` (thresholds changed on the settings screen) or `retire`,
+  with a note, the false positives found and the date (not in the future: `422 review_date_in_future`). Retiring inserts,
+  in the same transaction, a disabled version of every setting of the rule that is on (the organization's and each
+  facility's; parameters kept). Audited `assistant.rule-review` with the rule, version, outcome and how many scopes were
+  turned off — never the note.
+- Following a suggestion's link records `accepted` (the staff app's `/assistant/followed` route, sent with
+  `navigator.sendBeacon`); it hides nothing. "Not useful" may carry the person's own words (`reason`, up to 500
+  characters; the panel asks for no patient details).
 
 ## Events
 
@@ -162,8 +180,8 @@ above); without it the rule is withheld.
 ## API
 
 `/api/v1/assistant`: `GET /suggestions?surface=&date=&encounterId=&patientId=&prescriptionId=` (facility header), `POST /suggestions/check` (a draft),
-`POST /suggestions/:id/feedback`,
-`GET /rules[?facilityId=]`, `PUT /rules/:ruleId/settings`, `POST /rules/:ruleId/replay`, `GET /insights?days=`.
+`POST /suggestions/:id/feedback`, `GET /rules[?facilityId=]`, `PUT /rules/:ruleId/settings`, `POST /rules/:ruleId/replay`, `GET /insights?days=`, `GET
+/rules/:ruleId/reviews` (`assistant.insights.read`), `POST /rules/:ruleId/reviews` (`assistant.configure`).
 
 ## UI
 
@@ -198,13 +216,14 @@ the new segment form on `/outreach` with its name and criteria (`?segment=new&�
 `apps/staff/src/lib/outreach-draft.ts`: only known criteria within the API's ranges; the address drops them when the form
 closes).
 
-Settings: staff `/admin/assistant` (**Settings → Assistant**, `assistant.configure`) shows every rule for the whole
-organization or one facility (`?facility=`): its state, an on/off switch and its parameters labelled from the rule's own
-`parameterLabels`, so a new rule needs no screen change; **Try these values** replays the rule over the last 14 days at the
-facility of the scope (else the one selected in the top bar) with the values in the form, saved or not, and says how often it
-would have spoken. With `assistant.insights.read` the page also shows how staff answered each rule over 90 days. Wording
-helpers in `apps/staff/src/lib/assistant-settings.ts` (unit-tested). Manual: chapter 13, "How to turn on the assistant's
-suggestions", and each screen's chapter (3, 4, 5, 6, 7, 8, 9, 10, 11).
+Settings: staff `/admin/assistant` (**Settings → Assistant**, `assistant.configure`) shows every rule for the whole organization or one facility
+(`?facility=`): its state, an on/off switch and its parameters labelled from the rule's own `parameterLabels`, so a new rule needs no screen change;
+**Try these values** replays the rule over the last 14 days at the facility of the scope (else the one selected in the top bar) with the values in the
+form, saved or not, and says how often it would have spoken. With `assistant.insights.read` the page links to **Insights and reviews**
+(`/admin/assistant/insights`: every rule with where it is on, times shown, followed, dismissed and not useful, review due and mostly dismissed first,
+over 30, 90 or 365 days; `/admin/assistant/insights/[ruleId]`: the counts, what staff said, the review form and the reviews), and each rule card shows
+its latest review and known false positives. Wording helpers in `apps/staff/src/lib/assistant-settings.ts` (unit-tested). Manual: chapter 13, "How to
+turn on the assistant's suggestions", and each screen's chapter (3, 4, 5, 6, 7, 8, 9, 10, 11).
 
 ## Command bar
 
@@ -288,3 +307,7 @@ No API, permission or migration was added.
   went to the care team before it was shown (patients see one only after it was acknowledged), and that the doctor explains
   what it means. It never interprets a value. Organizations record who reviewed it under Settings → Compliance ("Results
   shown to patients", `patient_results`, migration `0158`), which `admin.compliance-gaps` also lists until it is reviewed.
+- Governance counts are impressions: a suggestion seen on five page loads is shown five times; followed counts link
+  opens, not what was done on the screen it opened. Staff's reasons are their own words, read only by administrators;
+  the panel asks for no patient details, and nothing checks the words. A review records the organization's decision and
+  is its clinical sign-off for a clinical rule; the platform changes no threshold by itself.

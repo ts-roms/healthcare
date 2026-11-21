@@ -20,6 +20,7 @@ import {
   Textarea,
   toast,
 } from "@healthcare/ui/primitives";
+import { followSuggestion } from "@/components/assistant-suggestions";
 import type { AllergyWarning, AssistantSuggestions, Prescription, PrescriptionFrequency, PrescriptionRoute } from "@/lib/api/types";
 import type { PrescriptionControls } from "@/lib/encounter-mapping";
 import { label } from "@/lib/patient-mapping";
@@ -216,8 +217,8 @@ function PrescriptionDialog({
     setChecked(null);
   };
 
-  const answer = async (id: string, outcome: AssistantOutcome) => {
-    const result = await answerSuggestion({ surface: "prescribing", id, outcome });
+  const answer = async (id: string, outcome: AssistantOutcome, reason?: string) => {
+    const result = await answerSuggestion({ surface: "prescribing", id, outcome, reason });
     if (!result.ok) {
       toast.error(result.message);
       return;
@@ -464,6 +465,7 @@ function PrescriptionDialog({
                 dismissedCount={checked?.answer.dismissed ?? 0}
                 withheldCount={checked?.answer.withheld.length ?? 0}
                 onAnswer={answer}
+                onFollow={followSuggestion}
               />
             </div>
           ) : null}

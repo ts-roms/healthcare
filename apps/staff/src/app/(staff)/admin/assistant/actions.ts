@@ -20,13 +20,43 @@ export async function saveAssistantRule(input: z.input<typeof schema>): Promise<
   if (!parsed.success) return { ok: false, message: "Check the settings." };
   const { ruleId, ...body } = parsed.data;
   const result = await actionResult(() => api<{ version: number }>(`/assistant/rules/${encodeURIComponent(ruleId)}/settings`, { method: "PUT", body }));
-  revalidatePath("/admin/assistant");
-  // The screens whose suggestions a rule may feed.
+  revalidateAssistantScreens();
+  return result;
+}
+
+/** The settings and insights pages, and the screens whose suggestions a rule may feed. */
+function revalidateAssistantScreens() {
+  revalidatePath("/admin/assistant", "layout");
   for (const path of ["/inventory", "/billing", "/appointments", "/queue", "/laboratory/worklist", "/laboratory/qc", "/admin/audit", "/admin", "/outreach"])
     revalidatePath(path);
   revalidatePath("/clinic/encounters", "layout");
   revalidatePath("/dental/patients", "layout");
   revalidatePath("/pharmacy", "layout");
+}
+
+const reviewSchema = z.object({
+  ruleId: z.string().regex(/^[a-z0-9][a-z0-9.-]{1,80}$/),
+  outcome: z.enum(["keep", "adjust", "retire"]),
+  note: z.string().trim().min(3, "Say what you decided and why (at least 3 characters).").max(1000),
+  falsePositives: z.string().trim().max(1000),
+  reviewedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter the review date."),
+});
+
+/**
+ * Records the organization's review of a rule (the API authorizes with assistant.configure, audits it and, for "retire",
+ * turns the rule off wherever it is on in the organization).
+ */
+export async function recordRuleReview(input: z.input<typeof reviewSchema>): Promise<ActionResult<{ id: string; turnedOff: number }>> {
+  const parsed = reviewSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, message: parsed.error.issues[0]?.message ?? "Check the review." };
+  const { ruleId, falsePositives, ...body } = parsed.data;
+  const result = await actionResult(() =>
+    api<{ id: string; turnedOff: number }>(`/assistant/rules/${encodeURIComponent(ruleId)}/reviews`, {
+      method: "POST",
+      body: { ...body, ...(falsePositives.length >= 3 ? { falsePositives } : {}) },
+    }),
+  );
+  if (result.ok) revalidateAssistantScreens();
   return result;
 }
 

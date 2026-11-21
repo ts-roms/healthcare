@@ -70,3 +70,14 @@ export class RulesQueryDto extends createZodDto(rulesQuerySchema) {}
 
 export const insightsQuerySchema = z.object({ days: z.coerce.number().int().min(1).max(365).default(90) });
 export class InsightsQueryDto extends createZodDto(insightsQuerySchema) {}
+
+/** The organization's review of a rule: keep it, adjust it, or retire it (turned off everywhere in the organization). */
+export const ruleReviewSchema = z.object({
+  outcome: z.enum(["keep", "adjust", "retire"]),
+  /** What was decided and why (shown to administrators; never a patient's details). */
+  note: z.string().trim().min(3).max(1000),
+  /** The false positives the review found, in the reviewer's words. */
+  falsePositives: z.string().trim().min(3).max(1000).optional(),
+  reviewedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD"),
+});
+export class RuleReviewDto extends createZodDto(ruleReviewSchema) {}

@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { AssistantRule, AssistantRuleSettingValue } from "./api/types";
-import { expectedVersion, parameterFields, readParameters, replaySummary, ruleState, ruleStateLabel } from "./assistant-settings";
+import type { AssistantRule, AssistantRuleInsight, AssistantRuleSettingValue } from "./api/types";
+import {
+  dismissedShare,
+  expectedVersion,
+  insightsOrder,
+  parameterFields,
+  readParameters,
+  replaySummary,
+  reviewSummary,
+  ruleState,
+  ruleStateLabel,
+  whereOn,
+} from "./assistant-settings";
 
 const setting = (enabled: boolean, parameters: Record<string, unknown> = {}, version = 1): AssistantRuleSettingValue => ({
   version,
@@ -25,6 +36,7 @@ const rule = (over: Partial<AssistantRule> = {}): AssistantRule => ({
   scope: { facilityId: null },
   setting: null,
   organizationSetting: null,
+  lastReview: null,
   ...over,
 });
 
@@ -110,5 +122,52 @@ describe("replay summary", () => {
 
   it("says when nothing would have shown", () => {
     expect(replaySummary(replay([0, 0]), "Main Clinic")).toBe("Over the last 2 days at Main Clinic, these values would not have shown anything.");
+  });
+});
+
+describe("insights", () => {
+  const insight = (over: Partial<AssistantRuleInsight> = {}): AssistantRuleInsight => ({
+    ruleId: "inventory.days-of-cover",
+    ruleVersion: 2,
+    title: "Stock may run out",
+    description: "…",
+    domain: "inventory",
+    enabled: { organization: false, facilities: 0 },
+    shown: 0,
+    accepted: 0,
+    dismissed: 0,
+    notUseful: 0,
+    answered: 0,
+    reviewSuggested: false,
+    reviewDue: false,
+    reasons: [],
+    lastReview: null,
+    ...over,
+  });
+
+  it("says where a rule is on", () => {
+    expect(whereOn({ organization: true, facilities: 0 })).toBe("Whole organization");
+    expect(whereOn({ organization: true, facilities: 2 })).toBe("Whole organization and 2 facilities");
+    expect(whereOn({ organization: false, facilities: 1 })).toBe("1 facility");
+    expect(whereOn({ organization: false, facilities: 0 })).toBe("Off");
+  });
+
+  it("sums up the latest review, noting one made on an earlier version", () => {
+    const review = { id: "r", ruleVersion: 2, outcome: "retire" as const, note: "Too noisy", falsePositives: null, reviewedOn: "2026-11-20" };
+    expect(reviewSummary(null, 2)).toBe("Not reviewed yet");
+    expect(reviewSummary(review, 2)).toBe("Retired after review on 2026-11-20");
+    expect(reviewSummary({ ...review, outcome: "keep", ruleVersion: 1 }, 2)).toBe("Kept after review on 2026-11-20, an earlier version (1)");
+  });
+
+  it("gives the dismissed share of answers and lists rules due for review first", () => {
+    expect(dismissedShare({ dismissed: 3, notUseful: 4, answered: 10 })).toBe(70);
+    expect(dismissedShare({ dismissed: 0, notUseful: 0, answered: 0 })).toBeNull();
+    const ordered = insightsOrder([
+      insight({ ruleId: "off", title: "A off" }),
+      insight({ ruleId: "on", title: "B on", enabled: { organization: true, facilities: 0 } }),
+      insight({ ruleId: "noisy", title: "C noisy", reviewSuggested: true }),
+      insight({ ruleId: "due", title: "D due", reviewDue: true }),
+    ]);
+    expect(ordered.map((r) => r.ruleId)).toEqual(["due", "noisy", "on", "off"]);
   });
 });

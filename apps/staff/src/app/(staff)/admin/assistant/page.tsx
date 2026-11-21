@@ -1,21 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangleIcon } from "lucide-react";
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@healthcare/ui/primitives";
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { StaffSettingsPage } from "@/components/settings-page";
 import { api } from "@/lib/api/client";
 import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
@@ -36,6 +21,8 @@ export default async function AssistantSettingsPage({ searchParams }: { searchPa
     can(session, "assistant.insights.read") ? api<AssistantInsights>("/assistant/insights", { query: { days: 90 } }) : null,
   ]);
   const scopeName = facility?.name ?? WHOLE_ORGANIZATION;
+  const reviewDue = insights?.rules.filter((r) => r.reviewDue).length ?? 0;
+  const mostlyDismissed = insights?.rules.filter((r) => r.reviewSuggested).length ?? 0;
   // "Try these values" reads one facility: this scope's, else the one selected in the top bar.
   const replayFacility = facility ?? selected;
 
@@ -83,45 +70,18 @@ export default async function AssistantSettingsPage({ searchParams }: { searchPa
       {insights ? (
         <Card>
           <CardHeader>
-            <CardTitle>How staff answered (last {insights.days} days)</CardTitle>
+            <CardTitle>Insights and reviews</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3">
             <CardDescription className="text-table">
-              Counts only, for the whole organization. A rule that is mostly dismissed is worth a look: its thresholds may not suit how you work.
+              {reviewDue === 0 && mostlyDismissed === 0
+                ? "No rule is due for review, and none is mostly dismissed."
+                : `${reviewDue} ${reviewDue === 1 ? "rule is" : "rules are"} due for review; ${mostlyDismissed} ${mostlyDismissed === 1 ? "is" : "are"} mostly dismissed.`}{" "}
+              See how often each rule was shown, followed and dismissed, what staff said, and record your review: keep, adjust or retire a rule.
             </CardDescription>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Rule</TableHead>
-                  <TableHead className="text-right">Accepted</TableHead>
-                  <TableHead className="text-right">Dismissed</TableHead>
-                  <TableHead className="text-right">Not useful</TableHead>
-                  <TableHead className="text-right">Answered</TableHead>
-                  <TableHead>Review</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {insights.rules.map((r) => (
-                  <TableRow key={r.ruleId}>
-                    <TableCell>{r.title}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.accepted}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.dismissed}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.notUseful}</TableCell>
-                    <TableCell className="text-right tabular-nums">{r.answered}</TableCell>
-                    <TableCell>
-                      {r.reviewSuggested ? (
-                        <Badge variant="warning">
-                          <AlertTriangleIcon className="size-3.5" aria-hidden />
-                          Mostly dismissed
-                        </Badge>
-                      ) : (
-                        <span className="text-meta text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <Button asChild size="sm" variant="outline" className="self-start">
+              <Link href="/admin/assistant/insights">Open insights and reviews</Link>
+            </Button>
           </CardContent>
         </Card>
       ) : null}

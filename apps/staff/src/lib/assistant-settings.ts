@@ -1,4 +1,4 @@
-import type { AssistantReplay, AssistantRule } from "./api/types";
+import type { AssistantReplay, AssistantReviewOutcome, AssistantRule, AssistantRuleInsight, AssistantRuleReviewSummary } from "./api/types";
 
 /**
  * What the assistant settings screen (`/admin/assistant`) shows for one rule. The API decides what is in force and
@@ -81,4 +81,38 @@ export function replaySummary(replay: AssistantReplay, facilityName: string): st
   const average = replay.averagePerDay === 1 ? "1 suggestion" : `${replay.averagePerDay} suggestions`;
   const quietText = quiet === 0 ? "" : quiet === 1 ? ", and nothing on 1 day" : `, and nothing on ${quiet} days`;
   return `Over the last ${days} days at ${facilityName}, these values would have shown about ${average} a day (at most ${replay.maxPerDay}${quietText}). Each day was read at ${replay.readAt}.`;
+}
+
+// ---- insights and reviews (/admin/assistant/insights; docs/runbooks/assistant-rule-review.md) ------------------------
+
+export const REVIEW_OUTCOME_LABEL: Record<AssistantReviewOutcome, string> = {
+  keep: "Keep as it is",
+  adjust: "Adjust its thresholds",
+  retire: "Retire it",
+};
+
+/** Where a rule is on, in words: "Whole organization and 2 facilities", "1 facility", "Off". */
+export function whereOn(enabled: AssistantRuleInsight["enabled"]): string {
+  const facilities = enabled.facilities === 0 ? "" : `${enabled.facilities} ${enabled.facilities === 1 ? "facility" : "facilities"}`;
+  if (enabled.organization) return facilities ? `Whole organization and ${facilities}` : "Whole organization";
+  return facilities || "Off";
+}
+
+/** The latest review in one line: "Retired after review on 2026-11-21 (version 1)". */
+export function reviewSummary(review: AssistantRuleReviewSummary | null, currentVersion: number): string {
+  if (!review) return "Not reviewed yet";
+  const verb = review.outcome === "retire" ? "Retired" : review.outcome === "adjust" ? "Adjusted" : "Kept";
+  const older = review.ruleVersion < currentVersion ? `, an earlier version (${review.ruleVersion})` : "";
+  return `${verb} after review on ${review.reviewedOn}${older}`;
+}
+
+/** Share of answers that were dismissals or "not useful", as a whole percent; null without answers. */
+export function dismissedShare(rule: Pick<AssistantRuleInsight, "dismissed" | "notUseful" | "answered">): number | null {
+  return rule.answered === 0 ? null : Math.round(((rule.dismissed + rule.notUseful) / rule.answered) * 100);
+}
+
+/** The order of the insights table: due for review first, then mostly dismissed, then rules on, then the rest, by title. */
+export function insightsOrder(rules: readonly AssistantRuleInsight[]): AssistantRuleInsight[] {
+  const rank = (r: AssistantRuleInsight) => (r.reviewDue ? 0 : r.reviewSuggested ? 1 : whereOn(r.enabled) !== "Off" ? 2 : 3);
+  return [...rules].sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title));
 }

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
+import { UsersService } from "@healthcare/auth";
 import {
   type Actor,
   asPgError,
@@ -13,6 +14,7 @@ import {
   NotFoundError,
   parseSuggestionId,
   PgErrorCode,
+  PH_TIMEZONE,
   requireFacilityId,
   type RuleParameterLabel,
   type Suggestion,
@@ -23,7 +25,14 @@ import {
 import { facility } from "@healthcare/organization";
 import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
 import { AssistantRules, type PrescriptionDraft, type RuleBinding, type RuleMoment } from "./assistant-rules";
-import { assistantFeedback, assistantRuleSetting, type AssistantOutcome } from "./assistant.schema";
+import {
+  assistantFeedback,
+  assistantRuleReview,
+  assistantRuleSetting,
+  assistantRuleShown,
+  type AssistantOutcome,
+  type RuleReviewOutcome,
+} from "./assistant.schema";
 
 /** A dismissed suggestion stays hidden from the person who dismissed it for this long; the same finding may then return. */
 export const DISMISSAL_DAYS = 14;
@@ -33,6 +42,12 @@ const MAX_SUGGESTIONS = 20;
 
 /** The most past days one replay reads. */
 export const MAX_REPLAY_DAYS = 31;
+
+/** A rule turned on is due for review when its last review is older than this (the quarterly review, with some slack). */
+export const REVIEW_DUE_DAYS = 92;
+
+/** The most recent reasons staff gave, per rule, on the insights page. */
+const REASONS_PER_RULE = 5;
 
 export interface ReplayAnswer {
   ruleId: string;
@@ -69,6 +84,7 @@ export class AssistantService {
     private readonly rules: AssistantRules,
     private readonly audit: AuditService,
     private readonly events: DomainEventPublisher,
+    private readonly users: UsersService,
   ) {}
 
   // ---- suggestions -------------------------------------------------------------------------------------------------
@@ -115,6 +131,7 @@ export class AssistantService {
 
     const hidden = await this.recentlyAnswered(actor, items);
     const shown = items.filter((s) => !hidden.has(s.id)).slice(0, MAX_SUGGESTIONS);
+    await this.countShown(actor.organizationId, facilityId, moment.today, shown);
     await this.audit.recordStandalone(actor, {
       action: "assistant.view",
       resourceType: "assistant_surface",
@@ -179,6 +196,7 @@ export class AssistantService {
     const org = scope ? await this.latestInScope(actor.organizationId, null, this.rules.bindings) : rows;
     const view = (row: SettingRow | undefined) =>
       row ? { version: row.version, enabled: row.enabled, parameters: row.parameters, updatedAt: row.updatedAt.toISOString() } : null;
+    const reviews = await this.latestReviews(actor.organizationId);
     return this.rules.bindings.map(({ definition }) => ({
       ruleId: definition.id,
       ruleVersion: definition.version,
@@ -192,6 +210,7 @@ export class AssistantService {
       scope: { facilityId: scope },
       setting: view(rows.get(definition.id)),
       organizationSetting: view(org.get(definition.id)),
+      lastReview: reviews.get(definition.id) ?? null,
     }));
   }
 
@@ -291,9 +310,14 @@ export class AssistantService {
 
   // ---- insights ----------------------------------------------------------------------------------------------------
 
-  /** How staff answered each rule's suggestions over the last `days` days (counts only). */
+  /**
+   * How each rule did over the last `days` days in the organization, for its periodic review (docs/runbooks/
+   * assistant-rule-review.md): times shown, followed (`accepted`), dismissed and marked not useful, the latest reasons
+   * staff gave, where it is on, and its last review. Counts and the reasons' words only — never a finding or a person.
+   */
   async insights(actor: Actor, days: number) {
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const org = actor.organizationId;
     const rows = await this.db
       .select({
         ruleId: assistantFeedback.ruleId,
@@ -301,8 +325,29 @@ export class AssistantService {
         count: sql<number>`count(*)::int`,
       })
       .from(assistantFeedback)
-      .where(and(eq(assistantFeedback.organizationId, actor.organizationId), gte(assistantFeedback.createdAt, since)))
+      .where(and(eq(assistantFeedback.organizationId, org), gte(assistantFeedback.createdAt, since)))
       .groupBy(assistantFeedback.ruleId, assistantFeedback.outcome);
+    const shown = await this.db
+      .select({ ruleId: assistantRuleShown.ruleId, shown: sql<number>`sum(${assistantRuleShown.shown})::int` })
+      .from(assistantRuleShown)
+      .where(and(eq(assistantRuleShown.organizationId, org), gte(assistantRuleShown.day, localDate(since, PH_TIMEZONE))))
+      .groupBy(assistantRuleShown.ruleId);
+    const reasons = await this.db
+      .select({ ruleId: assistantFeedback.ruleId, outcome: assistantFeedback.outcome, reason: assistantFeedback.reason, at: assistantFeedback.createdAt })
+      .from(assistantFeedback)
+      .where(
+        and(
+          eq(assistantFeedback.organizationId, org),
+          gte(assistantFeedback.createdAt, since),
+          sql`${assistantFeedback.reason} IS NOT NULL`,
+          or(eq(assistantFeedback.outcome, "dismissed"), eq(assistantFeedback.outcome, "not_useful")),
+        ),
+      )
+      .orderBy(desc(assistantFeedback.createdAt))
+      .limit(500);
+    const enabled = await this.enabledScopes(org);
+    const reviews = await this.latestReviews(org);
+    const today = localDate(new Date(), PH_TIMEZONE);
     await this.audit.recordStandalone(actor, { action: "assistant.insights.view", resourceType: "assistant_rule", metadata: { days } });
     return {
       days,
@@ -313,21 +358,156 @@ export class AssistantService {
         const dismissed = count("dismissed");
         const notUseful = count("not_useful");
         const answered = accepted + dismissed + notUseful;
+        const on = enabled.get(definition.id) ?? { organization: false, facilities: 0 };
+        const lastReview = reviews.get(definition.id) ?? null;
+        const isOn = on.organization || on.facilities > 0;
         return {
           ruleId: definition.id,
+          ruleVersion: definition.version,
           title: definition.title,
+          description: definition.description,
+          domain: definition.domain,
+          enabled: on,
+          shown: shown.find((r) => r.ruleId === definition.id)?.shown ?? 0,
           accepted,
           dismissed,
           notUseful,
           answered,
           // Flagged for the administrator to look at, never changed on its own (the sample must be meaningful).
           reviewSuggested: answered >= 20 && (dismissed + notUseful) / answered >= 0.7,
+          // On somewhere and never reviewed, reviewed too long ago, or reviewed on an earlier version of its logic.
+          reviewDue: isOn && (!lastReview || lastReview.ruleVersion < definition.version || daysBetween(lastReview.reviewedOn, today) > REVIEW_DUE_DAYS),
+          reasons: reasons
+            .filter((r) => r.ruleId === definition.id)
+            .slice(0, REASONS_PER_RULE)
+            .map((r) => ({ outcome: r.outcome, reason: r.reason!, at: r.at.toISOString() })),
+          lastReview,
         };
       }),
     };
   }
 
+  /** A rule's reviews, newest first, with who recorded each. */
+  async reviews(actor: Actor, ruleId: string) {
+    if (!this.rules.find(ruleId)) throw new NotFoundError("Assistant rule");
+    const rows = await this.db
+      .select()
+      .from(assistantRuleReview)
+      .where(and(eq(assistantRuleReview.organizationId, actor.organizationId), eq(assistantRuleReview.ruleId, ruleId)))
+      .orderBy(desc(assistantRuleReview.recordedAt))
+      .limit(100);
+    const names = await this.users.displayNames(actor.organizationId, [...new Set(rows.map((r) => r.recordedBy))]);
+    return rows.map((r) => ({ ...reviewView(r), recordedBy: names.get(r.recordedBy) ?? "A staff account", recordedAt: r.recordedAt.toISOString() }));
+  }
+
+  /**
+   * Records the organization's review of a rule: keep it, adjust it (its thresholds are changed on the settings screen),
+   * or retire it — then it is turned off, in the same transaction, wherever it is on in the organization (a new setting
+   * version for each such scope, parameters kept). Append-only; audited with the outcome, never the note.
+   */
+  async recordReview(
+    actor: Actor,
+    ruleId: string,
+    input: { outcome: RuleReviewOutcome; note: string; falsePositives?: string; reviewedOn: string },
+  ): Promise<{ id: string; outcome: RuleReviewOutcome; turnedOff: number }> {
+    const binding = this.rules.find(ruleId);
+    if (!binding) throw new NotFoundError("Assistant rule");
+    if (input.reviewedOn > localDate(new Date(), PH_TIMEZONE)) throw new BusinessRuleError("A review cannot be dated in the future", "review_date_in_future");
+    try {
+      return await this.db.transaction(async (tx) => {
+        const [review] = await tx
+          .insert(assistantRuleReview)
+          .values({
+            organizationId: actor.organizationId,
+            ruleId,
+            ruleVersion: binding.definition.version,
+            outcome: input.outcome,
+            note: input.note,
+            falsePositives: input.falsePositives ?? null,
+            reviewedOn: input.reviewedOn,
+            recordedBy: actor.userId,
+          })
+          .returning({ id: assistantRuleReview.id });
+        let turnedOff = 0;
+        if (input.outcome === "retire") {
+          const latest = await tx.execute<{ facility_id: string | null; version: number; parameters: Record<string, unknown>; enabled: boolean }>(sql`
+            SELECT DISTINCT ON (facility_id) facility_id, version, parameters, enabled
+            FROM assistant_rule_setting
+            WHERE organization_id = ${actor.organizationId}::uuid AND rule_id = ${ruleId}
+            ORDER BY facility_id, version DESC
+          `);
+          for (const row of latest.rows) {
+            if (!row.enabled) continue;
+            await tx.insert(assistantRuleSetting).values({
+              organizationId: actor.organizationId,
+              facilityId: row.facility_id,
+              ruleId,
+              version: row.version + 1,
+              enabled: false,
+              parameters: row.parameters,
+              updatedBy: actor.userId,
+            });
+            turnedOff += 1;
+          }
+        }
+        await this.audit.record(tx, actor, {
+          action: "assistant.rule-review",
+          resourceType: "assistant_rule",
+          resourceId: review!.id,
+          metadata: { ruleId, ruleVersion: binding.definition.version, outcome: input.outcome, turnedOff },
+        });
+        return { id: review!.id, outcome: input.outcome, turnedOff };
+      });
+    } catch (error) {
+      // A setting saved for the same scope at the same moment: the unique version index lets one win.
+      if (asPgError(error)?.code === PgErrorCode.uniqueViolation) throw new VersionConflictError("Assistant rule setting", 0);
+      throw error;
+    }
+  }
+
   // ---- internals ---------------------------------------------------------------------------------------------------
+
+  /** Adds what a request showed to each rule's count for the facility's day (counts only; nothing of a suggestion). */
+  private async countShown(organizationId: string, facilityId: string, day: string, shown: readonly Suggestion[]): Promise<void> {
+    const byRule = new Map<string, number>();
+    for (const suggestion of shown) byRule.set(suggestion.ruleId, (byRule.get(suggestion.ruleId) ?? 0) + 1);
+    if (byRule.size === 0) return;
+    await this.db
+      .insert(assistantRuleShown)
+      .values([...byRule].map(([ruleId, count]) => ({ organizationId, facilityId, ruleId, day, shown: count })))
+      .onConflictDoUpdate({
+        target: [assistantRuleShown.organizationId, assistantRuleShown.facilityId, assistantRuleShown.ruleId, assistantRuleShown.day],
+        set: { shown: sql`${assistantRuleShown.shown} + excluded.shown` },
+      });
+  }
+
+  /** Where each rule is on now: the organization's own setting, and how many facilities' settings. */
+  private async enabledScopes(organizationId: string): Promise<Map<string, { organization: boolean; facilities: number }>> {
+    const { rows } = await this.db.execute<{ facility_id: string | null; rule_id: string; enabled: boolean }>(sql`
+      SELECT DISTINCT ON (facility_id, rule_id) facility_id, rule_id, enabled
+      FROM assistant_rule_setting
+      WHERE organization_id = ${organizationId}::uuid
+      ORDER BY facility_id, rule_id, version DESC
+    `);
+    const out = new Map<string, { organization: boolean; facilities: number }>();
+    for (const row of rows) {
+      const state = out.get(row.rule_id) ?? { organization: false, facilities: 0 };
+      if (row.facility_id === null) state.organization = row.enabled;
+      else if (row.enabled) state.facilities += 1;
+      out.set(row.rule_id, state);
+    }
+    return out;
+  }
+
+  /** Each rule's latest review in the organization. */
+  private async latestReviews(organizationId: string): Promise<Map<string, ReturnType<typeof reviewView>>> {
+    const rows = await this.db
+      .selectDistinctOn([assistantRuleReview.ruleId])
+      .from(assistantRuleReview)
+      .where(eq(assistantRuleReview.organizationId, organizationId))
+      .orderBy(assistantRuleReview.ruleId, desc(assistantRuleReview.recordedAt));
+    return new Map(rows.map((r) => [r.ruleId, reviewView(r)]));
+  }
 
   /** The first wrong parameter, named in the settings screen's own words. */
   private invalidParameters(binding: RuleBinding, issues: ReadonlyArray<{ path: PropertyKey[]; code?: string; message?: string }>): BusinessRuleError {
@@ -434,4 +614,20 @@ function liveMoment(timeZone: string, date?: string): RuleMoment {
 function pastMoment(timeZone: string, date: string, time: string): RuleMoment {
   const { start, end } = localDayBounds(date, timeZone);
   return { asOf: zonedToUtc(date, time, timeZone), date, dayStart: start, dayEnd: end, today: date, timeZone, live: false };
+}
+
+function reviewView(row: typeof assistantRuleReview.$inferSelect) {
+  return {
+    id: row.id,
+    ruleVersion: row.ruleVersion,
+    outcome: row.outcome,
+    note: row.note,
+    falsePositives: row.falsePositives,
+    reviewedOn: row.reviewedOn,
+  };
+}
+
+/** Whole days from one local date (YYYY-MM-DD) to another. */
+function daysBetween(from: string, to: string): number {
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000);
 }
