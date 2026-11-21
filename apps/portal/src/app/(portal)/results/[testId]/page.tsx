@@ -7,7 +7,7 @@ import { ResultMeaning } from "@/components/result-meaning";
 import { portalApi } from "@/lib/api/client";
 import { getMe } from "@/lib/api/session";
 import type { PortalTrend } from "@/lib/api/types";
-import { resultDate, resultValue, usualRange } from "@/lib/records";
+import { resultDate, resultExplanation, resultValue, usualRange } from "@/lib/records";
 
 export const metadata = { title: "Result" };
 
@@ -47,6 +47,15 @@ export default async function ResultPage({ params }: { params: Promise<{ testId:
           {latest.performingLaboratory ? ` · tested at ${latest.performingLaboratory}` : ""}
         </p>
       </div>
+
+      <section aria-labelledby="about-result" className="flex flex-col gap-1.5 rounded-xl border bg-card p-4 text-body">
+        <h2 id="about-result" className="text-section-lg font-semibold">
+          About this result
+        </h2>
+        {resultExplanation(latest).map((sentence) => (
+          <p key={sentence}>{sentence}</p>
+        ))}
+      </section>
 
       {numeric.length > 1 && sameUnit ? (
         <section className="flex flex-col gap-2 rounded-xl border bg-card p-4">

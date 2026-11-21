@@ -37,4 +37,10 @@ export const COMPLIANCE_AREAS: Record<ComplianceArea, { label: string; covers: s
     covers: "Estimate validity, the note under estimates and whether a signed estimate is required",
     href: "/dental/settings",
   },
+  patient_results: {
+    label: "Results shown to patients",
+    covers:
+      "Which tests patients see in MyHealth once released (each test's setting in the catalog), and the fixed wording that explains a result against the laboratory's usual range (wording version 1)",
+    href: "/laboratory/catalog",
+  },
 };

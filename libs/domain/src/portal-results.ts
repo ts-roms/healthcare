@@ -73,6 +73,81 @@ export function usualRange(result: Pick<PortalResult, "refLow" | "refHigh" | "re
   return result.refText ? `Expected: ${result.refText}` : null;
 }
 
+/**
+ * The version of the result wording below (`resultExplanation`). Organizations record who reviewed it under Settings →
+ * Compliance ("Results shown to patients"); raise it whenever a sentence changes, so a review names what it covered.
+ */
+export const RESULT_WORDING_VERSION = 1;
+
+/** The range as a phrase: "3.9 to 5.5 mmol/L", "up to 5.5 mmol/L", "3.9 mmol/L or more"; null without numeric limits. */
+function rangePhrase(result: Pick<PortalResult, "refLow" | "refHigh" | "unit">): string | null {
+  const unit = result.unit ? ` ${result.unit}` : "";
+  if (result.refLow !== null && result.refHigh !== null) return `${result.refLow} to ${result.refHigh}${unit}`;
+  if (result.refHigh !== null) return `up to ${result.refHigh}${unit}`;
+  if (result.refLow !== null) return `${result.refLow}${unit} or more`;
+  return null;
+}
+
+/**
+ * A result explained in fixed words (version `RESULT_WORDING_VERSION`): where the value sits against the usual range of
+ * the laboratory that did the test — the range recorded with the result — what a usual range is, and that the doctor
+ * explains the rest. It never says what a value means for the patient's health, and a critical result says only that the
+ * care team was told (patients see one only after the care team acknowledged it).
+ */
+export function resultExplanation(
+  result: Pick<
+    PortalResult,
+    "resultType" | "valueNumeric" | "valueText" | "valueCoded" | "unit" | "flag" | "refLow" | "refHigh" | "refText" | "corrected" | "performingLaboratory"
+  >,
+): string[] {
+  const value = `${resultValue(result)}${result.resultType === "numeric" && result.unit ? ` ${result.unit}` : ""}`;
+  const range = rangePhrase(result);
+  const at = result.performingLaboratory ? `at ${result.performingLaboratory}` : "at the laboratory that did it";
+  const against = range ? `: ${range}` : "";
+  const sentences: string[] = [];
+  switch (result.flag) {
+    case "normal":
+      sentences.push(`Your result, ${value}, is within the usual range for this test ${at}${against}.`);
+      break;
+    case "high":
+    case "low":
+      sentences.push(`Your result, ${value}, is ${result.flag === "high" ? "higher" : "lower"} than the usual range for this test ${at}${against}.`);
+      break;
+    case "critical_high":
+    case "critical_low":
+      sentences.push(
+        `Your result, ${value}, is much ${result.flag === "critical_high" ? "higher" : "lower"} than the usual range for this test ${at}${against}.`,
+        "Results this far from the usual range are reported to your care team as soon as the laboratory finds them; your care team was told about this one before it was shown here.",
+      );
+      break;
+    case "abnormal":
+      sentences.push(
+        range
+          ? `Your result, ${value}, is outside the usual range for this test ${at}${against}.`
+          : result.refText
+            ? `Your result, ${value}, is not what is usually expected for this test (expected: ${result.refText}).`
+            : `Your result, ${value}, is outside what is usually expected for this test.`,
+      );
+      break;
+    default:
+      sentences.push(
+        range
+          ? `Your result is ${value}. The usual range for this test ${at} is ${range}.`
+          : result.refText
+            ? `Your result is ${value}. What is usually expected for this test: ${result.refText}.`
+            : `Your result is ${value}. There is no usual range to compare it with.`,
+      );
+  }
+  if (range || result.refText || (result.flag && result.flag !== "normal")) {
+    sentences.push(
+      "A usual range describes the results of most healthy people tested by that laboratory, so a result outside it is not always a problem, and one inside it does not rule a problem out.",
+    );
+  }
+  if (result.corrected) sentences.push("The laboratory updated this result after it was first released; this is the current value.");
+  sentences.push("Your doctor will explain what your result means for you.");
+  return sentences;
+}
+
 /** The latest visible result per test, newest first. */
 export function latestPerTest(results: PortalResult[]): Array<{ latest: PortalResult; count: number }> {
   const byTest = new Map<string, PortalResult[]>();

@@ -711,6 +711,12 @@ Compliance** (`/admin/compliance`; `compliance.review.manage`, organization admi
 
 A recorded review is your organization's evidence, not a certification by the platform.
 
+**Results shown to patients** covers what MyHealth shows of laboratory results: which tests patients see once released (each test's setting in the
+laboratory catalogue) and the fixed sentences that explain a result under **About this result** (where the value sits against the laboratory's usual
+range, what a usual range is, that a critical result went to the care team first, and that the doctor explains what it means). Have your laboratory
+head or a physician read them in MyHealth, then record the review with the wording version (version 1) in **Reviewed against**. Record a new
+review when a release notes a new wording version.
+
 ## The audit trail
 
 Every sensitive action is recorded in an append-only audit trail that cannot be changed or deleted. Each entry records who, what action, when, which

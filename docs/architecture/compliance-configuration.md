@@ -10,12 +10,19 @@ official requirements. Migration `0074_compliance_configuration.sql`.
 ## Compliance reviews (all areas)
 
 `compliance_review` (`libs/organization/src/lib/compliance`, append-only): the area (`billing_tax`, `procurement`,
-`controlled_drugs`, `laboratory_licensing`, `doh_reporting`, `data_privacy`, `dental_estimates`), the outcome
+`controlled_drugs`, `laboratory_licensing`, `doh_reporting`, `data_privacy`, `dental_estimates`, and since migration `0158` `patient_results`), the outcome
 (`validated` or `changes_needed`), the reviewer's name and role (e.g. external accountant, pharmacist, pathologist, Data
 Protection Officer), what the review was made against (their words), the review date (not in the future) and a note.
 `GET /compliance/reviews` lists each area with its latest review and the history; `POST /compliance/reviews` records one
 (`compliance.review.manage`, org_admin; audited `compliance.review.record`). Staff `/admin/compliance` (Admin →
 Compliance) links each area to its settings.
+
+**Results shown to patients** (`patient_results`, migration `0158`): what MyHealth shows of laboratory results — which
+tests patients see once released (each test's `patient_releasable` in the catalogue; critical results only after the care
+team acknowledged them) and the fixed wording that explains a result against the laboratory's usual range
+(`resultExplanation` in `@healthcare/domain/portal-results`, version `RESULT_WORDING_VERSION`, docs/architecture/portal-app.md).
+The platform decides neither what may be shown nor what the wording should say; the organization's clinicians or
+laboratory head record their review here, naming the wording version, and review again when the version changes.
 
 ## Tax and procurement (inventory)
 

@@ -2,23 +2,22 @@
 
 ## Purpose
 
-Decision support that notices what a screen does not, using fixed rules and simple statistics over data the caller may
-already read. It suggests and links; it never changes a record, never diagnoses and uses no language model. Design and
-phases: `docs/architecture/heuristic-assistant.md`; decision: ADR-0018. Built: phase 0 (the kernel, settings and feedback,
-the API, the first stock rule, the settings screen), phase 1 (operational rules on the inventory, billing, appointments
-and queue screens, and the replay behind **Try these values**) and phase 2: the doctor's workspace (the consultation
-checklist, code suggestions and the laboratory delta check), integrity and security (unusual record access, compliance
-areas to review, invoices that may have been issued twice), order sets and outreach (an order set offered in a
-consultation; when patients use MyHealth, audiences worth a segment and patients receiving many campaigns on the outreach
-screen), and the staff command bar (Ctrl+K); and the first slice of phase 3, prescribing checks (the same medicine or class
-already prescribed, a daily dose above the organization's maximum, and checks it asks for), run in the prescribing dialog
-before a prescription is issued, laboratory timing and quality (orders past their usual turnaround on the workbench; QC
-values drifting or shifted and specimen rejections concentrated on a collector or a facility on the QC page), and dental and
-care plans (on a patient's dental record, treatment plan items the chart says cannot be carried out and items waiting for
-the patient's decision; in a consultation, the tests one of the organization's order sets lists for a chronic diagnosis
-that have no released result for months), and the pharmacy and online consultations (on the pharmacy's home, medicines that
-waiting prescriptions need more of than the facility holds; on the dispense screen, stock that would expire before the
-course ends; in an online consultation, reasons to consider seeing the patient in person).
+Decision support that notices what a screen does not, using fixed rules and simple statistics over data the caller may already read. It suggests and
+links; it never changes a record, never diagnoses and uses no language model. Design and phases: `docs/architecture/heuristic-assistant.md`; decision:
+ADR-0018. Built: phase 0 (the kernel, settings and feedback, the API, the first stock rule, the settings screen), phase 1 (operational rules on the
+inventory, billing, appointments and queue screens, and the replay behind **Try these values**) and phase 2: the doctor's workspace (the consultation
+checklist, code suggestions and the laboratory delta check), integrity and security (unusual record access, compliance areas to review, invoices that
+may have been issued twice), order sets and outreach (an order set offered in a consultation; when patients use MyHealth, audiences worth a segment
+and patients receiving many campaigns on the outreach screen), and the staff command bar (Ctrl+K); and the first slice of phase 3, prescribing checks
+(the same medicine or class already prescribed, a daily dose above the organization's maximum, and checks it asks for), run in the prescribing dialog
+before a prescription is issued, laboratory timing and quality (orders past their usual turnaround on the workbench; QC values drifting or shifted and
+specimen rejections concentrated on a collector or a facility on the QC page), and dental and care plans (on a patient's dental record, treatment plan
+items the chart says cannot be carried out and items waiting for the patient's decision; in a consultation, the tests one of the organization's order
+sets lists for a chronic diagnosis that have no released result for months), and the pharmacy and online consultations (on the pharmacy's home,
+medicines that waiting prescriptions need more of than the facility holds; on the dispense screen, stock that would expire before the course ends; in
+an online consultation, reasons to consider seeing the patient in person). Phase 3's MyHealth item, result wording, is not a rule: MyHealth's result
+page explains each result in fixed, versioned sentences (`resultExplanation`), and the organization records its review of them as a compliance area
+("Results shown to patients", migration `0158`); see Integration points and limits.
 
 ## Entities
 
@@ -283,3 +282,9 @@ No API, permission or migration was added.
 - The online-consultation rule's red flags are the questionnaire's fixed list (`RED_FLAGS`); an organization's own list is
   not built. "Never seen in person here" counts this organization's consultations only. It never escalates: the doctor
   does, from the online consultation panel.
+- MyHealth shows no suggestion. Phase 3's result wording is fixed text in `@healthcare/domain/portal-results`
+  (`resultExplanation`, `RESULT_WORDING_VERSION`), shown under **About this result** on MyHealth's result page: where the
+  value sits against the usual range of the laboratory that did the test, what a usual range is, that a critical result
+  went to the care team before it was shown (patients see one only after it was acknowledged), and that the doctor explains
+  what it means. It never interprets a value. Organizations record who reviewed it under Settings → Compliance ("Results
+  shown to patients", `patient_results`, migration `0158`), which `admin.compliance-gaps` also lists until it is reviewed.

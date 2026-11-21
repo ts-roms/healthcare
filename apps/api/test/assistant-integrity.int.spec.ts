@@ -81,7 +81,7 @@ describe("heuristic assistant, integrity and security", () => {
     await turnOn("admin.compliance-gaps");
     const [before] = (await items(admin, "settings")).items;
     expect(before).toMatchObject({ ruleId: "admin.compliance-gaps", severity: "advice", action: { href: "/admin/compliance" } });
-    expect(before!.title).toBe("7 compliance areas to review: 7 never reviewed");
+    expect(before!.title).toBe("8 compliance areas to review: 8 never reviewed");
     await api(admin)
       .post("/compliance/reviews", {
         area: "data_privacy",
@@ -94,7 +94,7 @@ describe("heuristic assistant, integrity and security", () => {
       .expect(201);
     const [after] = (await items(admin, "settings")).items;
     expect(after!.severity).toBe("warning");
-    expect(after!.title).toBe("7 compliance areas to review: 1 found changes needed, 6 never reviewed");
+    expect(after!.title).toBe("8 compliance areas to review: 1 found changes needed, 7 never reviewed");
     expect(after!.id).not.toBe(before!.id);
   });
 

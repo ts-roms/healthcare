@@ -40,6 +40,7 @@ export const COMPLIANCE_AREA_NAME: Record<ComplianceArea, string> = {
   doh_reporting: "DOH reporting",
   data_privacy: "Data privacy",
   dental_estimates: "Dental written estimates",
+  patient_results: "Results shown to patients",
 };
 
 export interface ComplianceAreaState {

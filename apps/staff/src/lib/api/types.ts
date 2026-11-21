@@ -4439,7 +4439,7 @@ export interface FacilityBookingRules {
 // ---- Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md) ----
 
 export type ComplianceArea =
-  "billing_tax" | "procurement" | "controlled_drugs" | "laboratory_licensing" | "doh_reporting" | "data_privacy" | "dental_estimates";
+  "billing_tax" | "procurement" | "controlled_drugs" | "laboratory_licensing" | "doh_reporting" | "data_privacy" | "dental_estimates" | "patient_results";
 
 export interface ComplianceReview {
   id: string;
