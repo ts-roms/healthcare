@@ -130,6 +130,34 @@ patient's dental record or a prescription speak only on that screen: the Overvie
 and simple statistics over your organization's own records; it never changes a record, and nothing is sent outside the system. An administrator
 turns checks on under **Settings → Assistant** ([Administration](13-administration.md#how-to-turn-on-the-assistants-suggestions)).
 
+## How to ask the assistant a question
+
+**Ask** answers everyday questions about your clinic's figures — no-shows, patients seen, waiting times, laboratory turnaround, revenue,
+collections, what is owed, stock running low or expiring, what to order, today's appointments, who is waiting, the laboratory's work today — from
+the screens that already show them.
+
+1. In the menu, under **Assistant**, choose **Ask** (`/assistant/ask`).
+2. Type your question in your own words, for example _No-shows last week_, _Revenue this month vs last month_ or _What is running low?_, and select
+   **Ask**. You can name a period (_today_, _yesterday_, _last week_, _this month_, _in October_, _last 30 days_, _from Nov 1 to 15_; also _ngayon_,
+   _kahapon_, _noong Oktubre_) and a comparison (_vs last month_, _compared to last year_). Or select one of the examples under **Questions you can
+   ask**.
+3. Read the answer. It repeats the question, the dates and the facility it used — check them — then gives one sentence, the figures (with the period
+   compared and how each changed, by an arrow and in words), **How this was calculated**, and a link to the screen with the full figures.
+4. To keep a question, select **Save**. **Your questions** lists your saved questions and the ones you asked lately; select one to ask it again with
+   fresh figures. The star saves or stops saving, × removes one, and **Clear recent** forgets the recent ones (saved ones stay).
+
+Good to know:
+
+- Ask answers only what your role can already open. If a question reads figures you cannot open (for example the management dashboard), the answer
+  says so and shows nothing; the questions offered to you are the ones you may ask.
+- Tick **Answer for all facilities I report on** for dashboard questions about every facility you report on; other questions answer for the
+  facility selected in the top bar.
+- Ask reads your words with fixed word lists, not artificial intelligence. If it does not recognise a question it says so and keeps your words in
+  the box: try the examples' wording. If your words fit two questions, it asks which one you meant.
+- Ask never answers about a patient. To find a patient, use **Patients** or the search box.
+- Your words are not kept, and they never appear in the address bar or the audit log. Only the question found, its dates, comparison and facility
+  are kept in **Your questions** (until you remove them), and each answer is recorded in the audit log without your words.
+
 ## How to change your password or turn on two-step verification
 
 Open the **Account menu** (your initials in the top bar) and choose **My account** (`/account`).

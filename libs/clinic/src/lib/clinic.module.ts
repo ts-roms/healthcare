@@ -148,6 +148,7 @@ export class ClinicModule {
       ],
       exports: [
         AutomaticNoShows,
+        ClinicDashboardService,
         VisitService,
         ClinicAssistantQueries,
         EncounterAssistantQueries,

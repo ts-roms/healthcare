@@ -79,6 +79,14 @@ describe("navigationForPermissions", () => {
     expect(item).toMatchObject({ label: "Suggestions", group: "Assistant" });
   });
 
+  it("puts Ask first in the Assistant group, for those who may ask", () => {
+    expect(hrefs(["assistant.use"])).not.toContain("/assistant/ask");
+    const group = navigationForPermissions(["assistant.use", "assistant.ask"]).filter((i) => i.group === "Assistant");
+    expect(group.map((i) => i.label)).toEqual(["Ask", "Suggestions"]);
+    // Ask has no tabs of its own: it is not one of the Suggestions areas.
+    expect(moduleTabsFor("/assistant/ask", ["assistant.use", "assistant.ask", "inventory.read"])).toBeNull();
+  });
+
   it("lists the assistant settings only for those who may configure it", () => {
     const pages = (permissions: string[]) => settingsForPermissions(permissions).flatMap((g) => g.pages.map((p) => p.href));
     expect(pages(["assistant.configure"])).toContain("/admin/assistant");

@@ -12,6 +12,7 @@ import {
   LightbulbIcon,
   ListOrderedIcon,
   MegaphoneIcon,
+  MessageCircleQuestionMarkIcon,
   MessageSquareIcon,
   MonitorIcon,
   PackageIcon,
@@ -119,7 +120,9 @@ export const STAFF_NAVIGATION: NavItem[] = [
   { label: "Communications", href: "/communications", icon: MessageSquareIcon, group: "Engagement" },
   { label: "Outreach", href: "/outreach", icon: MegaphoneIcon, group: "Engagement", roles: ["admin"] },
 
-  // The assistant's own section: what its checks say now, by area (docs/domains/assistant.md, "Assistant section").
+  // The assistant's own section (docs/domains/assistant.md, "Assistant section"): questions from a fixed list, and what
+  // its checks say now, by area.
+  { label: "Ask", href: "/assistant/ask", icon: MessageCircleQuestionMarkIcon, group: "Assistant" },
   { label: "Suggestions", href: "/assistant/suggestions", icon: LightbulbIcon, group: "Assistant" },
 
   {

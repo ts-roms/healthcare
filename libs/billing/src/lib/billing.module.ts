@@ -60,6 +60,7 @@ export class BillingModule {
         BillingDocuments,
         BillingRecordQueries,
         BillingReportingQueries,
+        PaymentService,
         ChargeService,
         DepositService,
         InvoiceService,

@@ -149,6 +149,8 @@ export const PERMISSIONS = [
   "assistant.use",
   "assistant.configure",
   "assistant.insights.read",
+  // The assistant's Ask (migration 0160): questions from a fixed list, each answered only with its own figures' permissions.
+  "assistant.ask",
   // Records requests: review patients' requests for copies of their records, share documents or decline (migration 0068).
   "patient.records-request.manage",
   // Two-way messaging: read patients' MyHealth conversations; reply, start, assign, close (migration 0076).

@@ -248,6 +248,7 @@ advises.
 | Permission                | What it allows                                                                               | Default roles (besides Organization administrator)                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Pharmacist, Physician, Receptionist |
+| `assistant.ask`           | Ask the assistant questions about figures your role can already open (**Assistant → Ask**)   | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Pharmacist, Physician, Receptionist |
 | `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                                                                                  |
 | `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                                                                                  |
 

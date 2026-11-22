@@ -417,7 +417,7 @@ and the `AssistantPanel` component, shown on staff `/inventory`.
 
 ## ADR-0019 Assistant section: what the checks say, in one place, without naming what a person may not read
 
-**Status:** accepted (2026-11-22; part 1, the Suggestions pages, built; part 2, Ask, planned). **Context:** ADR-0018's
+**Status:** accepted (2026-11-22; part 1, the Suggestions pages, and part 2, Ask, built). **Context:** ADR-0018's
 suggestions appear only inside each module's screen, and only when a rule is on and has something to say: nobody sees in
 one place what the assistant says today, and staff cannot tell which checks exist or are on. The owner's other product
 gives its assistant a section of its own, with a page per analysis and a box for typed questions.
@@ -433,8 +433,14 @@ rule is named only to people who may read what it reads: everyone else gets a co
 tells staff they are measured, and how staff are told is the organization's). Routes a whole clinic calls from one address
 are counted per signed-in person (`@RateLimitPerPerson`, `ActorRateLimitGuard`), the overview 30 a minute. Part 2, **Ask**:
 a closed catalogue of operational questions answered by the public method of the route that already shows each figure, with
-that route's permission (checked against its decorator by a test), its own audit plus `assistant.ask`, the typed words read
-by a route that touches no data and never stored, logged or audited, and a history that keeps the question and period only.
+that route's permission (an integration test asks every question as every built-in role and requires an answer exactly when
+the role may open the source route), its own audit plus `assistant.ask`, the typed words read by a route that touches no
+data and never stored, logged or audited, and a history that keeps the question and period only. Built as fifteen
+questions (`apps/api/src/app/assistant/ask/`), the reader in `libs/core/src/lib/assistant/ask/` (word groups and fixed
+period patterns; a tie is a choice for the person, never a guess), permission `assistant.ask` for the roles that hold
+`assistant.use` with no organization switch (it shows nothing the person cannot already open and has no thresholds to
+validate), and `assistant_asked_question` (migration `0160`). A withheld answer is audited as a result, not a refusal: the
+record-access rule counts refusals per account.
 
 **Alternatives rejected.** One sidebar entry per analysis, as in the other product (the staff sidebar has no collapsible
 sections; an administrator would get eight more entries); calling `GET /assistant/suggestions` once per surface (up to ten

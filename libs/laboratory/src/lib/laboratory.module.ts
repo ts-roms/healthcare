@@ -105,6 +105,7 @@ export class LaboratoryModule {
         },
       ],
       exports: [
+        LabWorklistService,
         LabOrderService,
         LabQualityService,
         LabQualityDue,
