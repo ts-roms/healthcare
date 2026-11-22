@@ -38,7 +38,7 @@ describe("prescribing checks", () => {
         .expect(200)
     ).body as {
       items: Suggestion[];
-      withheld: Array<{ ruleId: string }>;
+      withheld: number;
     };
   /** A prescription line, with the fields the prescribing rules compare typed. */
   interface Line {
@@ -149,7 +149,7 @@ describe("prescribing checks", () => {
     // A nurse may use the assistant but does not prescribe: the rules are withheld, without findings.
     const theirs = await check(nurse, medicines);
     expect(theirs.items).toEqual([]);
-    expect(theirs.withheld.map((w) => w.ruleId).sort()).toEqual(["prescription.check-prompts", "prescription.dose-limit", "prescription.duplicate-therapy"]);
+    expect(theirs.withheld).toBe(3);
 
     // Nothing is blocked: the same prescription is issued as written.
     await api(doctor).post("/prescriptions", { encounterId, items: draft }).expect(201);

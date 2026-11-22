@@ -56,6 +56,10 @@ export async function answerSuggestion(input: z.input<typeof answerSchema>): Pro
   const result = await actionResult(() =>
     api<{ id: string }>(`/assistant/suggestions/${encodeURIComponent(id)}/feedback`, { method: "POST", body: { outcome, ...(reason ? { reason } : {}) } }),
   );
-  if (result.ok) revalidatePath(SURFACE_PATH[surface].path, SURFACE_PATH[surface].type);
+  if (result.ok) {
+    revalidatePath(SURFACE_PATH[surface].path, SURFACE_PATH[surface].type);
+    // The Assistant section shows the same suggestions, and hides an answered one too.
+    revalidatePath("/assistant/suggestions", "layout");
+  }
   return result;
 }

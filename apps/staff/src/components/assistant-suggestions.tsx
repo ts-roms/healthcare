@@ -1,5 +1,6 @@
 "use client";
 
+import type * as React from "react";
 import { AssistantPanel, type AssistantOutcome } from "@healthcare/ui/healthcare";
 import { toast } from "@healthcare/ui/primitives";
 import { answerSuggestion } from "@/app/(staff)/assistant-actions";
@@ -25,10 +26,31 @@ export function followSuggestion(id: string) {
   void fetch("/assistant/followed", { method: "POST", body, headers: { "content-type": "application/json" }, keepalive: true }).catch(() => undefined);
 }
 
-/** The assistant's suggestions for one screen (docs/domains/assistant.md); answers go through the server action. */
-export function AssistantSuggestions({ surface, suggestions }: { surface: AssistantSurface; suggestions: Suggestions }) {
+/**
+ * The assistant's suggestions for one screen (docs/domains/assistant.md); answers go through the server action. Each
+ * answer refreshes the screen the suggestion belongs to (its own `surface`, so a list gathering several screens, as in
+ * the Assistant section, refreshes the right one), and the Assistant section.
+ */
+export function AssistantSuggestions({
+  surface,
+  suggestions,
+  title,
+  description,
+  actions,
+  emptyText,
+  footnote,
+}: {
+  surface: AssistantSurface;
+  suggestions: Suggestions;
+  title?: string;
+  description?: React.ReactNode;
+  actions?: React.ReactNode;
+  emptyText?: React.ReactNode;
+  footnote?: boolean;
+}) {
   async function onAnswer(id: string, outcome: AssistantOutcome, reason?: string) {
-    const result = await answerSuggestion({ surface, id, outcome, reason });
+    const own = suggestions.items.find((s) => s.id === id)?.surface ?? surface;
+    const result = await answerSuggestion({ surface: own, id, outcome, reason });
     if (result.ok) toast.success(DONE[outcome]);
     else toast.error(result.message);
   }
@@ -36,9 +58,14 @@ export function AssistantSuggestions({ surface, suggestions }: { surface: Assist
     <AssistantPanel
       suggestions={suggestions.items}
       dismissedCount={suggestions.dismissed}
-      withheldCount={suggestions.withheld.length}
+      withheldCount={suggestions.withheld}
       onAnswer={onAnswer}
       onFollow={followSuggestion}
+      title={title}
+      description={description}
+      actions={actions}
+      emptyText={emptyText}
+      footnote={footnote}
     />
   );
 }

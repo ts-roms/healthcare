@@ -30,7 +30,7 @@ describe("heuristic assistant, integrity and security", () => {
   });
   const turnOn = (ruleId: string) => api(admin).put(`/assistant/rules/${ruleId}/settings`, { enabled: true, expectedVersion: 0 }).expect(200);
   const items = async (token: string, surface: string) =>
-    (await api(token).get(`/assistant/suggestions?surface=${surface}`).expect(200)).body as { items: Suggestion[]; withheld: Array<{ ruleId: string }> };
+    (await api(token).get(`/assistant/suggestions?surface=${surface}`).expect(200)).body as { items: Suggestion[]; withheld: number };
 
   /** Audit rows for an account: `count` distinct patients at `hoursAgo`, with an outcome. */
   const accesses = (userId: string, count: number, at: string, outcome = "success") =>
@@ -74,7 +74,7 @@ describe("heuristic assistant, integrity and security", () => {
     // A cashier may use the assistant but cannot read the audit trail: the rule is withheld, with no counts.
     const theirs = await items(cashier, "security");
     expect(theirs.items).toEqual([]);
-    expect(theirs.withheld.map((w) => w.ruleId)).toEqual(["security.unusual-access"]);
+    expect(theirs.withheld).toBe(1);
   });
 
   it("lists compliance areas to review in one suggestion, and follows the reviews", async () => {

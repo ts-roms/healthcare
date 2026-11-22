@@ -54,7 +54,7 @@ describe("pharmacy and online consultation suggestions", () => {
       .put(`/assistant/rules/${ruleId}/settings`, { enabled: true, expectedVersion: 0, ...(parameters ? { parameters } : {}) })
       .expect(200);
   const suggestions = async (token: string, query: string) =>
-    (await api(token).get(`/assistant/suggestions?${query}`).expect(200)).body as { items: Suggestion[]; withheld: Array<{ ruleId: string }> };
+    (await api(token).get(`/assistant/suggestions?${query}`).expect(200)).body as { items: Suggestion[]; withheld: number };
   const pharmacy = async (ruleId: string, query = "") => (await suggestions(pharmacist, `surface=pharmacy${query}`)).items.filter((s) => s.ruleId === ruleId);
 
   beforeAll(async () => {
@@ -133,7 +133,7 @@ describe("pharmacy and online consultation suggestions", () => {
     // A receptionist may use the assistant but does not dispense: withheld, without counts.
     const reception = await suggestions(receptionist, "surface=pharmacy");
     expect(reception.items).toEqual([]);
-    expect(reception.withheld.map((w) => w.ruleId)).toContain("dispensing.short-stock");
+    expect(reception.withheld).toBeGreaterThanOrEqual(1);
     // It belongs to the pharmacy's home, not to the dispense screen.
     expect(await pharmacy("dispensing.short-stock", `&prescriptionId=${ids.rx}`)).toEqual([]);
   });
@@ -257,9 +257,7 @@ describe("pharmacy and online consultation suggestions", () => {
     // Never the patient's words or name.
     expect(JSON.stringify(s)).not.toMatch(/discomfort|Lourdes|Villanueva/i);
     // A receptionist may use the assistant but reads no consultations: withheld. An in-person consultation: nothing.
-    expect((await suggestions(receptionist, `surface=encounter&encounterId=${encounterId}`)).withheld.map((w) => w.ruleId)).toContain(
-      "telemedicine.in-person-care",
-    );
+    expect((await suggestions(receptionist, `surface=encounter&encounterId=${encounterId}`)).withheld).toBeGreaterThanOrEqual(1);
     expect(await inPerson(ids.encounter)).toEqual([]);
 
     // Two more online consultations this month and an in-person one two months ago.

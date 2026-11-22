@@ -1,4 +1,5 @@
 export * from "./assistant-panel";
+export * from "./ask-answer";
 export * from "./action-dashboard";
 export * from "./allergy-badge";
 export * from "./app-download";

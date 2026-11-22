@@ -248,6 +248,7 @@ advises.
 | Permission                | What it allows                                                                               | Default roles (besides Organization administrator)                                                                 |
 | ------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Pharmacist, Physician, Receptionist |
+| `assistant.ask`           | Ask the assistant questions about figures your role can already open (**Assistant → Ask**)   | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Pharmacist, Physician, Receptionist |
 | `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                                                                                  |
 | `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                                                                                  |
 
@@ -596,6 +597,10 @@ someone decides. Every rule is off until you turn it on.
 1. Choose **Settings → Assistant** (`assistant.configure`).
 2. Under **Settings for**, choose **Whole organization**, or a facility to set it differently there.
 3. On the rule's card, tick **Show these suggestions at …**, check **Your thresholds** and select **Save**.
+
+Staff then see the rule's suggestions on its screen, and all of them in one place under **Assistant → Suggestions** in the menu
+([Getting started](01-getting-started.md#how-to-see-everything-the-assistant-suggests)), with each check they may read shown as on or off. A
+check whose source a person may not read is never named to them, only counted.
 
 The rules, and the screen each speaks on:
 

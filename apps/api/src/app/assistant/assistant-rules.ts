@@ -123,8 +123,18 @@ export interface PrescriptionDraft {
  * A rule with the means to load what it reads. Rules are pure and live in their domain; this is where the API, the
  * composition root, connects them to each domain's read queries (docs/architecture/heuristic-assistant.md).
  */
+/** What a live request must name for a rule to speak: nothing, or the record a screen shows. */
+export type RuleNeed = "nothing" | "encounter" | "patient" | "prescription" | "draft";
+
 export interface RuleBinding {
   definition: RuleDefinition<unknown>;
+  /**
+   * `nothing`: the rule reads the facility at the moment, so it can speak anywhere (the overview runs these). Otherwise
+   * it speaks only where its record is on screen and returns nothing on a live request without it: the consultation
+   * (`encounter`), the patient of a dental record (`patient`), the prescription being dispensed (`prescription`) or a
+   * prescription being written (`draft`).
+   */
+  needs: RuleNeed;
   /** The facility's local time a replay reads each past day at (the moment the rule's screen is most often open). */
   replayAt: string;
   /** `parameters` is the stored setting, checked against the rule's schema by the service before it runs. */
@@ -262,6 +272,7 @@ export class AssistantRules {
     this.bindings = [
       {
         definition: erase(DAYS_OF_COVER_RULE),
+        needs: "nothing",
         replayAt: "08:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = DAYS_OF_COVER_RULE.parametersSchema.parse(raw);
@@ -271,6 +282,7 @@ export class AssistantRules {
       },
       {
         definition: erase(USAGE_SPIKE_RULE),
+        needs: "nothing",
         replayAt: "08:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = USAGE_SPIKE_RULE.parametersSchema.parse(raw);
@@ -279,6 +291,7 @@ export class AssistantRules {
       },
       {
         definition: erase(EXPIRY_EXPOSURE_RULE),
+        needs: "nothing",
         replayAt: "08:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = EXPIRY_EXPOSURE_RULE.parametersSchema.parse(raw);
@@ -288,6 +301,7 @@ export class AssistantRules {
       },
       {
         definition: erase(UNCHARGED_WORK_RULE),
+        needs: "nothing",
         replayAt: "17:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = UNCHARGED_WORK_RULE.parametersSchema.parse(raw);
@@ -311,6 +325,7 @@ export class AssistantRules {
       },
       {
         definition: erase(NO_SHOW_RISK_RULE),
+        needs: "nothing",
         replayAt: "07:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = NO_SHOW_RISK_RULE.parametersSchema.parse(raw);
@@ -326,6 +341,7 @@ export class AssistantRules {
       },
       {
         definition: erase(QUEUE_WAIT_RULE),
+        needs: "nothing",
         replayAt: "10:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = QUEUE_WAIT_RULE.parametersSchema.parse(raw);
@@ -339,6 +355,7 @@ export class AssistantRules {
       },
       {
         definition: erase(ENCOUNTER_CHECKLIST_RULE),
+        needs: "encounter",
         replayAt: "16:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = ENCOUNTER_CHECKLIST_RULE.parametersSchema.parse(raw);
@@ -352,6 +369,7 @@ export class AssistantRules {
       },
       {
         definition: erase(CODE_SUGGESTIONS_RULE),
+        needs: "encounter",
         replayAt: "16:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = CODE_SUGGESTIONS_RULE.parametersSchema.parse(raw);
@@ -365,6 +383,7 @@ export class AssistantRules {
       },
       {
         definition: erase(DELTA_CHECK_RULE),
+        needs: "nothing",
         replayAt: "15:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = DELTA_CHECK_RULE.parametersSchema.parse(raw);
@@ -374,6 +393,7 @@ export class AssistantRules {
       // The laboratory's timing (workbench) and quality (QC page): times, z-scores and counts, never a patient.
       {
         definition: erase(TURNAROUND_RISK_RULE),
+        needs: "nothing",
         replayAt: "15:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = TURNAROUND_RISK_RULE.parametersSchema.parse(raw);
@@ -383,6 +403,7 @@ export class AssistantRules {
       },
       {
         definition: erase(QC_TREND_RULE),
+        needs: "nothing",
         replayAt: "10:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = QC_TREND_RULE.parametersSchema.parse(raw);
@@ -396,6 +417,7 @@ export class AssistantRules {
       },
       {
         definition: erase(REJECTION_RATE_RULE),
+        needs: "nothing",
         replayAt: "17:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = REJECTION_RATE_RULE.parametersSchema.parse(raw);
@@ -411,6 +433,7 @@ export class AssistantRules {
       },
       {
         definition: erase(ORDER_SETS_RULE),
+        needs: "encounter",
         replayAt: "16:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = ORDER_SETS_RULE.parametersSchema.parse(raw);
@@ -430,6 +453,7 @@ export class AssistantRules {
       },
       {
         definition: erase(MONITORING_GAP_RULE),
+        needs: "encounter",
         replayAt: "16:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = MONITORING_GAP_RULE.parametersSchema.parse(raw);
@@ -458,12 +482,14 @@ export class AssistantRules {
       // Dental: on the patient's dental record; a replay reads the patients with an open plan at the facility.
       {
         definition: erase(CHART_CONSISTENCY_RULE),
+        needs: "patient",
         replayAt: "16:00",
         run: async (actor, facilityId, _raw, moment) =>
           (await dentalPlansFor(actor, facilityId, moment)).flatMap((input) => chartConsistencySuggestions(input, moment.timeZone)),
       },
       {
         definition: erase(PLAN_DECISIONS_RULE),
+        needs: "patient",
         replayAt: "16:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = PLAN_DECISIONS_RULE.parametersSchema.parse(raw);
@@ -473,6 +499,7 @@ export class AssistantRules {
       },
       {
         definition: erase(UNUSUAL_ACCESS_RULE),
+        needs: "nothing",
         replayAt: "21:00",
         run: async (actor, _facilityId, raw, moment) => {
           const params = UNUSUAL_ACCESS_RULE.parametersSchema.parse(raw);
@@ -496,6 +523,7 @@ export class AssistantRules {
       },
       {
         definition: erase(COMPLIANCE_GAPS_RULE),
+        needs: "nothing",
         replayAt: "09:00",
         run: async (actor, _facilityId, raw, moment) => {
           const params = COMPLIANCE_GAPS_RULE.parametersSchema.parse(raw);
@@ -504,6 +532,7 @@ export class AssistantRules {
       },
       {
         definition: erase(DUPLICATE_INVOICE_RULE),
+        needs: "nothing",
         replayAt: "17:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = DUPLICATE_INVOICE_RULE.parametersSchema.parse(raw);
@@ -518,6 +547,7 @@ export class AssistantRules {
       // Outreach is organization-wide and its times are Asia/Manila time (quiet hours, send times), whatever the facility's zone.
       {
         definition: erase(SEND_HOUR_RULE),
+        needs: "nothing",
         replayAt: "10:00",
         run: async (actor, _facilityId, raw, moment) => {
           const params = SEND_HOUR_RULE.parametersSchema.parse(raw);
@@ -530,6 +560,7 @@ export class AssistantRules {
       },
       {
         definition: erase(AUDIENCE_IDEAS_RULE),
+        needs: "nothing",
         replayAt: "10:00",
         run: async (actor, _facilityId, raw, moment) => {
           const params = AUDIENCE_IDEAS_RULE.parametersSchema.parse(raw);
@@ -545,6 +576,7 @@ export class AssistantRules {
       },
       {
         definition: erase(FREQUENCY_LOAD_RULE),
+        needs: "nothing",
         replayAt: "10:00",
         run: async (actor, _facilityId, raw, moment) => {
           const params = FREQUENCY_LOAD_RULE.parametersSchema.parse(raw);
@@ -555,6 +587,7 @@ export class AssistantRules {
       },
       {
         definition: erase(IN_PERSON_RULE),
+        needs: "encounter",
         replayAt: "16:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = IN_PERSON_RULE.parametersSchema.parse(raw);
@@ -589,6 +622,7 @@ export class AssistantRules {
       // dispensing workflow's own categories.
       {
         definition: erase(SHORT_STOCK_RULE),
+        needs: "nothing",
         replayAt: "09:00",
         run: async (actor, facilityId, raw, moment) => {
           if (moment.prescriptionId) return [];
@@ -604,6 +638,7 @@ export class AssistantRules {
       },
       {
         definition: erase(COURSE_EXPIRY_RULE),
+        needs: "prescription",
         replayAt: "17:00",
         run: async (actor, facilityId, raw, moment) => {
           const params = COURSE_EXPIRY_RULE.parametersSchema.parse(raw);
@@ -639,6 +674,7 @@ export class AssistantRules {
       // Prescribing: checked in the prescribing dialog before issuing; a replay reads the whole day's prescriptions.
       {
         definition: erase(DUPLICATE_THERAPY_RULE),
+        needs: "draft",
         replayAt: "23:59",
         run: async (actor, facilityId, raw, moment) => {
           const params = DUPLICATE_THERAPY_RULE.parametersSchema.parse(raw);
@@ -647,6 +683,7 @@ export class AssistantRules {
       },
       {
         definition: erase(DOSE_LIMIT_RULE),
+        needs: "draft",
         replayAt: "23:59",
         run: async (actor, facilityId, raw, moment) => {
           const params = DOSE_LIMIT_RULE.parametersSchema.parse(raw);
@@ -655,6 +692,7 @@ export class AssistantRules {
       },
       {
         definition: erase(CHECK_PROMPTS_RULE),
+        needs: "draft",
         replayAt: "23:59",
         run: async (actor, facilityId, raw, moment) => {
           const params = CHECK_PROMPTS_RULE.parametersSchema.parse(raw);

@@ -15,6 +15,7 @@ export * from "./lib/domain/patient-booking";
 export * from "./lib/clinic.module";
 export * from "./lib/clinic.schema";
 export * from "./lib/clinic-queries.service";
+export * from "./lib/dashboard/clinic-dashboard.service";
 export * from "./lib/dashboard/clinic-reporting.queries";
 export * from "./lib/domain/availability";
 export * from "./lib/domain/queue-state";

@@ -91,6 +91,19 @@ const MODULES: Record<string, string[]> = {
     "/admin/consent-wording",
     "/admin/integrations",
   ],
+  Assistant: [
+    "/assistant",
+    "/assistant/ask",
+    "/assistant/ask?question=clinic.no-shows&period=last-week&compare=previous",
+    "/assistant/suggestions",
+    "/assistant/suggestions/stock",
+    "/assistant/suggestions/billing",
+    "/assistant/suggestions/clinic",
+    "/assistant/suggestions/laboratory",
+    "/assistant/suggestions/pharmacy",
+    "/assistant/suggestions/outreach",
+    "/assistant/suggestions/security",
+  ],
   "Account and help": ["/account", "/help", "/offline"],
 };
 

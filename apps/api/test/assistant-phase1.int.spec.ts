@@ -58,7 +58,7 @@ describe("heuristic assistant, phase 1", () => {
         .expect(200)
     ).body as {
       items: Suggestion[];
-      withheld: Array<{ ruleId: string }>;
+      withheld: number;
     };
 
   beforeAll(async () => {
@@ -87,7 +87,7 @@ describe("heuristic assistant, phase 1", () => {
     await turnOn("clinic.queue-wait");
     const queue = await suggestions(cashier, "queue");
     expect(queue.items).toEqual([]);
-    expect(queue.withheld.map((w) => w.ruleId)).toEqual(["clinic.queue-wait"]);
+    expect(queue.withheld).toBe(1);
   });
 
   it("finds procedures with no charge, grouped by code and the likely reason, without naming a patient", async () => {
@@ -137,7 +137,7 @@ describe("heuristic assistant, phase 1", () => {
     expect(found[1]!.action!.href).toBe("/billing/settings");
     expect(JSON.stringify(found)).not.toMatch(/Juan|Dela Cruz|Laceration/i);
     // A nurse may use the assistant but holds no billing.charge.read: the rule is withheld from her.
-    expect((await suggestions(nurse, "billing")).withheld.map((w) => w.ruleId)).toEqual(["billing.uncharged-work"]);
+    expect((await suggestions(nurse, "billing")).withheld).toBe(1);
   });
 
   it("flags today's unconfirmed appointment of a patient who often misses, by time and with a link", async () => {

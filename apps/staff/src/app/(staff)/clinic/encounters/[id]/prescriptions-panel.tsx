@@ -463,7 +463,7 @@ function PrescriptionDialog({
               <AssistantPanel
                 suggestions={findings}
                 dismissedCount={checked?.answer.dismissed ?? 0}
-                withheldCount={checked?.answer.withheld.length ?? 0}
+                withheldCount={checked?.answer.withheld ?? 0}
                 onAnswer={answer}
                 onFollow={followSuggestion}
               />

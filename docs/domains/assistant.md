@@ -20,7 +20,10 @@ followed, the reasons staff give for "Not useful", an insights page per rule, th
 with the false positives found) with a quarterly review runbook (`docs/runbooks/assistant-rule-review.md`), and each rule's documented limits — what
 it reads, its known false positives and what it does not see — shown where it is turned on and reviewed. Phase 3's MyHealth item, result wording,
 is not a rule: MyHealth's result page explains each result in fixed, versioned sentences (`resultExplanation`), and the organization records its
-review of them as a compliance area ("Results shown to patients", migration `0158`); see Integration points and limits.
+review of them as a compliance area ("Results shown to patients", migration `0158`); see Integration points and limits. The **Assistant section**
+(ADR-0019) gives the assistant a place of its own in the staff app: **Assistant → Suggestions** shows what every check turned on at the facility says
+now, by area, with each check's state (see UI), and **Assistant → Ask** answers typed questions from a fixed list of operational questions, from the
+figures the person may already open on each one's own screen (see Ask).
 
 ## Entities
 
@@ -35,6 +38,11 @@ Migration `0152_assistant.sql`; Drizzle mirrors in `apps/api/src/app/assistant/a
   every suggestions request (counts only; never a finding, subject or person).
 - `assistant_rule_review` (migration `0159`) — append-only: the organization's review of a rule — its version, `keep | adjust | retire`, what was
   decided and why (`note`), the false positives found, the review date and who recorded it.
+- `assistant_asked_question` (migration `0160`, Drizzle mirror `apps/api/src/app/assistant/ask/ask.schema.ts`) — a person's questions in Ask: the
+  catalogue question, the period as asked (`''` for the question's default), the comparison, the scope (`facility | organization`), how many times
+  and when last asked, and when saved; one row per person and combination (unique), never the words typed (no text column). At most 50 unsaved rows
+  per person (the oldest are dropped when another is asked) and 20 saved. Updated in place and deleted by the person; the audit trail is the durable
+  record.
 - Suggestions are computed on demand and not stored. Migrations `0153`, `0154` and `0157` change no table (permissions only). Migration `0155` adds
   the laboratory's order sets (`docs/domains/laboratory.md`, "Order sets") and `0156` the prescription domain's medicine settings
   (`docs/domains/prescription.md`, "Medicine settings"), not assistant tables.
@@ -158,8 +166,16 @@ is turned on.
   `encounterId`, `laboratory`, `laboratory-quality`, `security`, `settings`, `outreach`, `dental` with the `patientId`, `pharmacy` with an optional
   `prescriptionId`; `prescribing` reads nothing without a draft); each request audits `assistant.view` with the surface, rule ids, the number shown
   and the consultation's, patient's or prescription's id, never a finding, and adds what it showed to each rule's count for the facility's day
-  (`assistant_rule_shown`). Rules whose source permission the caller lacks are listed in `withheld` by
-  title, with no counts. A stored setting the rule no longer accepts keeps the rule silent until it is saved again. At most 20 suggestions a request.
+  (`assistant_rule_shown`). Rules turned on whose source permission the caller lacks are counted in `withheld`, never named (ADR-0019: a title such
+  as the record-access rule's tells staff they are measured, which is the organization's to say). A stored setting the rule no longer accepts keeps
+  the rule silent until it is saved again. At most 20 suggestions a request.
+- Several screens at once for the Assistant section: `GET /assistant/overview?surfaces=&limit=` (`assistant.use`, facility required, every surface
+  when `surfaces` is left out, `limit` 1–20 per surface). Per surface: the rules the caller may read with whether each is on at the facility and what
+  it needs on screen (`RuleBinding.needs`: `nothing`, or `encounter`, `patient`, `prescription`, `draft`), the suggestions of those that need nothing
+  (warnings first, at most `limit`, the rest counted in `more`), `dismissed`, `withheld` (a count) and `failed` (one rule could not be read; the others
+  still answer, and the error is logged as `assistant.rule_failed`). Rules that need a record on screen are listed and never run. One request is one
+  `assistant.view` audit row (`via: "overview"`, the surfaces, the rule ids that ran, the number shown) and one update of the shown counts, however
+  many surfaces it reads. Counted per signed-in person, 30 a minute (`@RateLimitPerPerson`, `ActorRateLimitGuard`): a clinic shares one address.
 - A draft checked before it is saved: `POST /assistant/suggestions/check` with `surface: prescribing`, the consultation, the
   drafted medicines (name, strength, dose, unit, frequency) and the prescription being replaced, if any. The same answer as a
   screen's (items, dismissed, withheld), from the rules turned on; audited `assistant.view` with the surface, rule ids, the
@@ -191,13 +207,17 @@ physician, dentist, medical_technologist, pathologist (0154); the integrity and 
 `assistant.use` since 0154), the dental rules (dentists hold it since 0154; dental assistants do not) and the outreach rules (the outreach permissions
 are organization administrators'). Migration `0157` grants `assistant.use` to pharmacists for the pharmacy rules (nurses, who also dispense, hold it
 since 0153). `assistant.configure` and `assistant.insights.read`: org_admin. A rule's suggestions also need the permission of what it reads (table
-above); without it the rule is withheld.
+above); without it the rule is withheld. `assistant.ask` (migration `0160`): the roles that hold `assistant.use` (org_admin, inventory_officer,
+cashier, receptionist, nurse, physician, dentist, medical_technologist, pathologist, pharmacist); each question also needs its source route's
+permissions (see Ask). No organization switch: Ask shows nothing the person cannot already open, and has no thresholds to validate.
 
 ## API
 
-`/api/v1/assistant`: `GET /suggestions?surface=&date=&encounterId=&patientId=&prescriptionId=` (facility header), `POST /suggestions/check` (a draft),
-`POST /suggestions/:id/feedback`, `GET /rules[?facilityId=]`, `PUT /rules/:ruleId/settings`, `POST /rules/:ruleId/replay`, `GET /insights?days=`, `GET
-/rules/:ruleId/reviews` (`assistant.insights.read`), `POST /rules/:ruleId/reviews` (`assistant.configure`).
+`/api/v1/assistant`: `GET /suggestions?surface=&date=&encounterId=&patientId=&prescriptionId=` (facility header), `GET /overview?surfaces=&limit=`
+(facility header; the Assistant section), `POST /suggestions/check` (a draft), `POST /suggestions/:id/feedback`, `GET /rules[?facilityId=]`, `PUT /rules/:ruleId/settings`, `POST /rules/:ruleId/replay`, `GET /insights?days=`, `GET
+/rules/:ruleId/reviews` (`assistant.insights.read`), `POST /rules/:ruleId/reviews` (`assistant.configure`). Ask (`assistant.ask`, facility header):
+`GET /ask/questions`, `POST /ask/interpret`, `POST /ask/answer`, `GET /ask/history`, `POST /ask/history/clear`, `POST /ask/history/:id/save | unsave
+| remove`.
 
 ## UI
 
@@ -217,6 +237,25 @@ with its id, above the prescribed lines, while the prescription is active), the 
 in parallel with the page's own data and shows the panel only when there is something to say; a failed assistant request never breaks the page.
 `AssistantSuggestions` (`apps/staff/src/components`) sends answers through `answerSuggestion` (`apps/staff/src/app/(staff)/assistant-actions.ts`),
 which refreshes that screen.
+
+**Assistant section** (ADR-0019): the sidebar's **Assistant** heading holds **Suggestions** (`/assistant/suggestions`, `assistant.use`; `/assistant`
+leads there for those who cannot ask), where the person sees in one place what the checks turned on at the selected facility say now, without visiting each screen. Its
+tabs are the areas (`apps/staff/src/lib/assistant-areas.ts`): **Overview**, **Stock** (inventory), **Billing**, **Clinic today** (appointments and
+queue), **Laboratory** (workbench and quality control), **Pharmacy**, **Outreach** and **Security and compliance** (audit log and compliance
+areas), each offered with `assistant.use` and one of the permissions its rules read (a tab's `requires` holds what all of them need, e.g. stock
+for the pharmacy's). The overview shows each area's first three suggestions, how many of its checks are on, and the checks that speak only inside a
+patient's record (consultation, dental record, dispensing, prescribing) with their state; an area's tab shows, per screen, every suggestion and
+each check the person may read with **On** or **Off** (never its thresholds) and a link to the screen. Answers work as on the screens: a dismissal
+here hides the finding there too (the same suggestion id, 14 days, for that person), and `answerSuggestion` refreshes both. One
+`GET /assistant/overview` per page; no sidebar count (it would run every rule for everyone each minute), no stored or cached suggestions. Journey
+`apps/e2e/tests/35-assistant-suggestions.journey.ts`. **Ask** (`/assistant/ask`, `assistant.ask`) comes first under the heading, and `/assistant`
+leads there for those who hold it (see Ask).
+
+End to end: journey `apps/e2e/tests/34-assistant.journey.ts` follows the stock rule `inventory.days-of-cover` through these screens and the
+settings below. An administrator turns it on for the organization, stock is received and issued until it would not last a delivery, and an
+inventory officer sees the suggestion on `/inventory` (Decision support, **Why?** with its evidence, rule and version), follows its link (counted as
+followed) and marks it **Not useful** with a reason (hidden for them). The administrator then reads the counts and the reason on the rule's insights
+page and records a review that retires it, and the rule's settings card shows it off with that review.
 
 The prescribing dialog in the consultation (`prescriptions-panel.tsx`) checks the draft when the person holds
 `assistant.use` (`checkPrescriptionDraft`, `apps/staff/src/lib/prescribing-check.ts`): on **Issue** (or **Replace**), findings
@@ -242,6 +281,70 @@ and each rule card shows its latest review with the false positives it found and
 documented limits (`RuleLimits`, `apps/staff/src/app/(staff)/admin/assistant/rule-limits.tsx`, also on the insights page). Wording helpers in
 `apps/staff/src/lib/assistant-settings.ts` (unit-tested). Manual: chapter 13, "How to
 turn on the assistant's suggestions", and each screen's chapter (3, 4, 5, 6, 7, 8, 9, 10, 11).
+
+## Ask
+
+Not a rule: the Assistant section's second part (ADR-0019), typed operational questions answered from a closed catalogue. Staff **Assistant → Ask**
+(`/assistant/ask`, `assistant.ask`).
+
+**Catalogue** (`apps/api/src/app/assistant/ask/ask-catalogue.ts`, API-owned like the management dashboard, ADR-0011): each question has an id, a
+version (raised when what it answers changes), a title, examples, the word groups it needs (each group its synonyms), the kind of period it takes
+(`none`, `now`, one `day` or a `range` of days, with a default), whether it compares, whether it can be answered for every facility the person
+reports on, the permissions of its source route (`requires`) and that route, and the screen with the full figures. Fifteen questions:
+
+| Questions                                                                                     | Source (public service method)                                            | Needs                                                                                                                      |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| No-shows, patients seen, waiting time, laboratory turnaround, revenue, stock used, dispensing | `GET /management/dashboard` (`ManagementDashboardService.dashboard`)      | `management.dashboard.read`; revenue, stock and dispensing also their sections' permissions (withheld as on the dashboard) |
+| Appointments (a day), who is waiting now                                                      | `GET /clinic/dashboard` (`ClinicDashboardService.forFacility`)            | `clinic.dashboard.read`                                                                                                    |
+| Collections (a day), what we are owed (facility totals)                                       | `GET /billing/reports/daily` (`PaymentService.dailyReport`)               | `billing.report.read`                                                                                                      |
+| Low stock, expiring stock                                                                     | `GET /inventory/stock` (`InventoryStockService.stock`)                    | `inventory.read`                                                                                                           |
+| What to order                                                                                 | `GET /inventory/reorder-suggestions` (`PurchaseOrderService.suggestions`) | `inventory.read`                                                                                                           |
+| Laboratory today (by stage, overdue, critical results not acknowledged)                       | `GET /laboratory/dashboard` (`LabWorklistService.dashboard`)              | `lab.dashboard.read`                                                                                                       |
+
+Ask is never a side door: a question needs its source route's permissions (an integration test asks every question as every built-in role and
+requires an answer exactly when the role gets `200` from the source route with the section not withheld), it calls the method that route calls (so
+the facility scope, withheld sections, "<5" masking of small patient counts and that route's own audit row apply unchanged), and no question returns
+a patient: counts, amounts and item names only. Left out on purpose: unpaid invoices by patient and today's prescriptions (their queries load
+patient names and audit each patient), messages sent, who owes the most and claims.
+
+**Reading a question** (`libs/core/src/lib/assistant/ask/`, pure, unit-tested): `readPeriod` finds the period in the facility's time zone — today,
+yesterday, tomorrow, this or last week (Monday to Sunday), this or last month or year, the last N days, a month by name ("in October", "noong
+Oktubre"), a date or "from X to Y", at most 366 days — a comparison ("vs last month", "compared to last year": the period before of the same
+length, or the same dates a year earlier; a period still in progress against the same days of the one before), "now" and "for all facilities";
+`interpretQuestion` takes the questions whose every word group is found in the rest (plurals made singular), keeps those that take the kind of
+period named, and chooses the one with the most groups and hints found, preferring one the person may see between equals; still tied, the person
+chooses, and nothing is answered. What does not apply is said back as a note (a period on a question about the present, a range on a one-day
+question, a comparison on a question that does not compare). No model and no fuzzy guess: anything else is not recognised.
+
+**Two routes keep the words away from the figures.** `POST /assistant/ask/interpret { text, allFacilities? }` reads the text (the first 200
+characters) and answers which question, period, comparison and scope it asks, reading no figure and writing nothing — the text is never stored,
+logged or audited; per person 30 a minute. `POST /assistant/ask/answer { questionId, period?, compare?, scope?, notes? }` takes a catalogue question,
+never a text, checks the period again (`422 invalid_period` when it cannot be read; a period that has not started is answered as unavailable), reads
+the figures through the source method (twice for a comparison) and answers the question, version and title, a status (`answered`, `withheld` —
+the person's role cannot open the source, said plainly, not recorded as a refusal — or `unavailable`), one sentence, the period and comparison with
+their dates, the facility or organization, the figures with each change in words and whether it is better (the dashboard's own rule), notes, how the
+figures are worked out (the source screen's definitions) and the screen's link; per person 20 a minute. Each answer is audited `assistant.ask` with
+the question id and version, the period key and dates, the comparison, the scope and the result (outcome `success` even when withheld: the
+record-access rule counts refusals per account and a person cannot know beforehand what they may ask), never any text. `GET /assistant/ask/questions`
+lists the catalogue with whether each question is the caller's to see and each example as it reads (its period and comparison), so a screen opens an
+example's answer without sending its words.
+
+**Your questions:** an answered question is added to the person's `assistant_asked_question` rows (asked again: counted, moved to the top) and the
+answer names that entry (`entry.id`); `GET /assistant/ask/history` lists saved and recent ones with a label from the catalogue ("No-shows, This
+month, vs the period before"); `POST …/history/:id/save | unsave | remove` (the person's own rows only, `404` otherwise; at most 20 saved,
+`422 saved_question_limit`) and `POST …/history/clear` (recent only). Withheld and unavailable answers are not kept. Nothing is shared between people.
+
+**Screen** (`apps/staff/src/app/(staff)/assistant/ask/`): the question box (with **Answer for all facilities I report on** when a question offered
+can be), the answer (`AskAnswerCard` in `@healthcare/ui/healthcare`, Storybook "Healthcare/Assistant/Ask answer": the question, its dates and
+facility, the sentence, the figures with the comparison as an arrow, words and colour — never colour alone —, notes, **How this was calculated** and
+the screen's link; "From your own records"), **Which did you mean?** after a tie, **Questions you can ask** (the questions the person may see, each
+example a link to its answer; the others counted) and **Your questions** (saved, then recent; save, stop saving, remove, **Clear recent**). The
+typed words go to a server action in the request body (`askQuestion`), which interprets them and opens the answer's address
+(`/assistant/ask?question=&period=&compare=&scope=all&notes=`, built and read by `apps/staff/src/lib/assistant-ask.ts`): the address, the audit
+trail and the history never hold them; a question not recognised stays in the box with "I did not recognise that question" and a pointer to
+Patients for people. Links to answers are never prefetched (opening an answer asks its question), and saving or removing changes the list without
+refreshing the page (which would ask again). Journey `apps/e2e/tests/36-assistant-ask.journey.ts`. Manual: chapter 1, "How to ask the assistant a
+question".
 
 ## Command bar
 

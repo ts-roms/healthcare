@@ -38,6 +38,6 @@ import { InventoryValuationService } from "./stock/inventory-valuation.service";
     InventoryReportingQueries,
     InventoryAssistantQueries,
   ],
-  exports: [InventoryStockService, InventoryQueries, InventoryComplianceService, InventoryReportingQueries, InventoryAssistantQueries],
+  exports: [PurchaseOrderService, InventoryStockService, InventoryQueries, InventoryComplianceService, InventoryReportingQueries, InventoryAssistantQueries],
 })
 export class InventoryModule {}

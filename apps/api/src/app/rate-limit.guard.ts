@@ -1,8 +1,9 @@
-import { type ExecutionContext, Injectable } from "@nestjs/common";
+import { applyDecorators, type ExecutionContext, Injectable, SetMetadata, UseGuards } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import {
   InjectThrottlerOptions,
   InjectThrottlerStorage,
+  Throttle,
   ThrottlerGuard,
   type ThrottlerLimitDetail,
   type ThrottlerModuleOptions,
@@ -11,6 +12,8 @@ import {
 import { RedisThrottlerStorage } from "./redis-throttler-storage";
 
 const KIOSK_URL = /^\/api\/v\d+\/kiosk\//;
+/** Metadata marking a route counted per signed-in person (`@RateLimitPerPerson`). */
+const PER_PERSON_RATE_LIMIT = "rate-limit:per-person";
 
 /**
  * The rate limiter, counting each refusal by route and day for platform administrators
@@ -28,10 +31,14 @@ export class RateLimitGuard extends ThrottlerGuard {
     super(options, storageService, reflector);
   }
 
-  /** Kiosk routes are counted by `DeviceRateLimitGuard` (per signed-in device account), which runs after the access guard. */
+  /**
+   * Kiosk routes are counted by `DeviceRateLimitGuard` (per signed-in device account) and routes marked
+   * `@RateLimitPerPerson` by `ActorRateLimitGuard` (per signed-in person); both run after the access guard.
+   */
   protected override async shouldSkip(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{ originalUrl?: string }>();
-    return KIOSK_URL.test(request.originalUrl ?? "");
+    if (KIOSK_URL.test(request.originalUrl ?? "")) return true;
+    return this.reflector.getAllAndOverride<boolean | undefined>(PER_PERSON_RATE_LIMIT, [context.getHandler(), context.getClass()]) === true;
   }
 
   protected override async throwThrottlingException(context: ExecutionContext, detail: ThrottlerLimitDetail): Promise<void> {
@@ -59,3 +66,27 @@ export class DeviceRateLimitGuard extends RateLimitGuard {
     return actor?.userId ? `device:${actor.userId}` : super.getTracker(req);
   }
 }
+
+/**
+ * The rate limiter for routes a person calls from a workstation that shares its address with the whole clinic: counted
+ * per signed-in person, so one person's requests never use up their colleagues' allowance. Applied with
+ * `@RateLimitPerPerson`, after the access guard has set the verified actor.
+ */
+@Injectable()
+export class ActorRateLimitGuard extends RateLimitGuard {
+  protected override async shouldSkip(): Promise<boolean> {
+    return false;
+  }
+
+  protected override async getTracker(req: Record<string, unknown>): Promise<string> {
+    const actor = req["actor"] as { userId?: string } | undefined;
+    return actor?.userId ? `user:${actor.userId}` : super.getTracker(req);
+  }
+}
+
+/**
+ * Counts a route per signed-in person instead of per address: at most `limit` requests in `ttl` milliseconds each. The
+ * global limiter leaves the route to `ActorRateLimitGuard`.
+ */
+export const RateLimitPerPerson = (limit: number, ttl = 60_000) =>
+  applyDecorators(SetMetadata(PER_PERSON_RATE_LIMIT, true), Throttle({ default: { limit, ttl } }), UseGuards(ActorRateLimitGuard));

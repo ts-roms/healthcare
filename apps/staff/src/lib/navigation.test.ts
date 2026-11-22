@@ -73,6 +73,20 @@ describe("navigationForPermissions", () => {
     expect(settings?.match?.("/clinic/encounters")).toBe(false);
   });
 
+  it("shows the assistant's Suggestions in a group of its own, to those who use the assistant", () => {
+    expect(hrefs(["inventory.read"])).not.toContain("/assistant/suggestions");
+    const item = navigationForPermissions(["assistant.use"]).find((i) => i.href === "/assistant/suggestions");
+    expect(item).toMatchObject({ label: "Suggestions", group: "Assistant" });
+  });
+
+  it("puts Ask first in the Assistant group, for those who may ask", () => {
+    expect(hrefs(["assistant.use"])).not.toContain("/assistant/ask");
+    const group = navigationForPermissions(["assistant.use", "assistant.ask"]).filter((i) => i.group === "Assistant");
+    expect(group.map((i) => i.label)).toEqual(["Ask", "Suggestions"]);
+    // Ask has no tabs of its own: it is not one of the Suggestions areas.
+    expect(moduleTabsFor("/assistant/ask", ["assistant.use", "assistant.ask", "inventory.read"])).toBeNull();
+  });
+
   it("lists the assistant settings only for those who may configure it", () => {
     const pages = (permissions: string[]) => settingsForPermissions(permissions).flatMap((g) => g.pages.map((p) => p.href));
     expect(pages(["assistant.configure"])).toContain("/admin/assistant");
@@ -310,6 +324,19 @@ describe("moduleTabsFor", () => {
     expect(moduleTabsFor("/dental", ["dental.record.read"])).toBeNull();
     expect(moduleTabsFor("/billing", ["billing.charge.read"])).toMatchObject({ tabs: [{ href: "/billing" }, { href: "/billing/invoices" }] });
     expect(moduleTabsFor("/inventory/valuation", ["inventory.read"])?.tabs.map((t) => t.href)).not.toContain("/inventory/valuation");
+  });
+
+  it("offers an assistant area as a tab only with the assistant's permission and one of the area's own", () => {
+    const tabs = (permissions: string[]) => moduleTabsFor("/assistant/suggestions", permissions)?.tabs.map((t) => t.label) ?? null;
+    // An inventory officer: the overview and stock.
+    expect(tabs(["assistant.use", "inventory.read"])).toEqual(["Overview", "Stock"]);
+    // Reading stock without the assistant opens no tab, and the overview alone is nothing to switch between.
+    expect(tabs(["inventory.read"])).toBeNull();
+    expect(tabs(["assistant.use"])).toBeNull();
+    // The pharmacy's rules need both dispensing and stock.
+    expect(tabs(["assistant.use", "prescription.dispense"])).toBeNull();
+    expect(tabs(["assistant.use", "prescription.dispense", "inventory.read"])).toEqual(["Overview", "Stock", "Pharmacy"]);
+    expect(moduleTabsFor("/assistant/suggestions/billing", ["assistant.use", "billing.charge.read"])?.label).toBe("Suggestions sections");
   });
 
   it("keeps the module's tabs on its detail pages", () => {

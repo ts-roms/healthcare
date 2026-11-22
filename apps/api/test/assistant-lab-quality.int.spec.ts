@@ -36,7 +36,7 @@ describe("laboratory timing and quality suggestions", () => {
       .put(`/assistant/rules/${ruleId}/settings`, { enabled: true, expectedVersion: 0, ...(parameters ? { parameters } : {}) })
       .expect(200);
   const surface = async (token: string, name: string) =>
-    (await api(token).get(`/assistant/suggestions?surface=${name}`).expect(200)).body as { items: Suggestion[]; withheld: Array<{ ruleId: string }> };
+    (await api(token).get(`/assistant/suggestions?surface=${name}`).expect(200)).body as { items: Suggestion[]; withheld: number };
   /** An order of one test, its specimen collected by `token`. */
   const collected = async (testId: string, token = medtech) => {
     const order = (
@@ -176,7 +176,7 @@ describe("laboratory timing and quality suggestions", () => {
     // A technologist reads QC suggestions but not rejection rates: that rule is withheld, without counts.
     const theirs = await surface(medtech, "laboratory-quality");
     expect(theirs.items.map((s) => s.ruleId)).not.toContain("laboratory.rejection-rate");
-    expect(theirs.withheld.map((w) => w.ruleId)).toContain("laboratory.rejection-rate");
+    expect(theirs.withheld).toBeGreaterThanOrEqual(1);
     const audit = await auditRows(ctx.pool, "action = 'assistant.view' AND metadata->>'surface' = 'laboratory-quality'");
     expect(audit.map((a) => a.metadata)).toContainEqual(expect.objectContaining({ rules: ["laboratory.qc-trend", "laboratory.rejection-rate"] }));
   });

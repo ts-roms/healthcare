@@ -5875,8 +5875,96 @@ export interface AssistantSuggestions {
   items: AssistantSuggestion[];
   /** Hidden because this person dismissed them recently. */
   dismissed: number;
-  /** Rules on here that need a permission this person lacks. */
-  withheld: Array<{ ruleId: string; title: string }>;
+  /** How many rules on here need a permission this person lacks (never which). */
+  withheld: number;
+}
+
+/** What a rule must be shown to speak: nothing, or the record a screen shows. */
+export type AssistantRuleNeed = "nothing" | "encounter" | "patient" | "prescription" | "draft";
+
+/** One screen's part of `GET /assistant/overview`. */
+export interface AssistantOverviewSurface {
+  surface: AssistantSurface;
+  /** The surface's rules this person may read, with whether each is on at the selected facility. */
+  rules: Array<{ ruleId: string; ruleVersion: number; title: string; description: string; on: boolean; needs: AssistantRuleNeed }>;
+  /** Suggestions of the rules that need nothing on screen, warnings first. */
+  items: AssistantSuggestion[];
+  /** Suggestions beyond the request's limit. */
+  more: number;
+  dismissed: number;
+  withheld: number;
+  /** A rule could not be read; the others are still answered. */
+  failed: boolean;
+}
+
+export interface AssistantOverview {
+  surfaces: AssistantOverviewSurface[];
+}
+
+/** A question of the assistant's Ask (`GET /assistant/ask/questions`). */
+export interface AskQuestion {
+  id: string;
+  title: string;
+  /** Examples as they read: a chip opens its answer from these, never sending the words. */
+  examples: Array<{ text: string; period?: string; compare?: AskCompare }>;
+  period: "none" | "now" | "day" | "range";
+  comparable: boolean;
+  organization: boolean;
+  /** The caller may see its figures. */
+  allowed: boolean;
+  link: { label: string; href: string };
+}
+
+export type AskCompare = "previous" | "last-year";
+export type AskScope = "facility" | "organization";
+export type AskNoteCode = "period-not-applicable" | "day-only" | "not-comparable";
+
+/** `POST /assistant/ask/interpret`: which question a typed text asks (the text itself is never returned or kept). */
+export type AskInterpretation =
+  | { kind: "question"; questionId: string; title: string; period?: string; compare?: AskCompare; scope: AskScope; notes: AskNoteCode[] }
+  /** The period, comparison and scope read go with whichever question the person chooses. */
+  | { kind: "ambiguous"; candidates: Array<{ id: string; title: string }>; period?: string; compare?: AskCompare; scope: AskScope }
+  | { kind: "unrecognised" };
+
+export interface AskAnswerRow {
+  label: string;
+  value: string;
+  previous?: string;
+  change?: { text: string; direction: "up" | "down" | "flat"; assessment: "better" | "worse" | "unchanged" | "neutral" };
+}
+
+/** `POST /assistant/ask/answer`. */
+export interface AskAnswer {
+  question: { id: string; version: number; title: string };
+  status: "answered" | "withheld" | "unavailable";
+  sentence: string;
+  period: { key: string; label: string; from: string; to: string; text: string } | null;
+  comparison: { mode: AskCompare; label: string; from: string; to: string; text: string } | null;
+  scope: { kind: AskScope; name: string };
+  rows: AskAnswerRow[];
+  notes: string[];
+  definition: string | null;
+  link: { label: string; href: string } | null;
+  /** The person's own entry among their questions (to save it); null when the answer was not kept. */
+  entry: { id: string } | null;
+}
+
+export interface AskHistoryItem {
+  id: string;
+  questionId: string;
+  label: string;
+  period: string | null;
+  compare: AskCompare | null;
+  scope: AskScope;
+  timesAsked: number;
+  lastAskedAt: string;
+  savedAt: string | null;
+}
+
+/** `GET /assistant/ask/history`: saved and recent questions (never the words typed). */
+export interface AskHistory {
+  saved: AskHistoryItem[];
+  recent: AskHistoryItem[];
 }
 
 export interface AssistantRuleSettingValue {

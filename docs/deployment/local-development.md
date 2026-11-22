@@ -73,6 +73,14 @@ journeys with Playwright against the built applications, each person in their ow
    (the only step that does not go through the applications). No video server runs, so the consultation uses the
    callback-number fallback.
 
+Further journeys in `tests/` follow single modules and screens, numbered in the order they were added; among them the
+heuristic assistant's (`tests/34-assistant.journey.ts`): the stock rule turned on under **Settings → Assistant**, its
+suggestion on the inventory screen with **Why?**, its link followed and the suggestion marked not useful, then the rule's
+insights read and a review that retires it; the Assistant section's Suggestions pages (`tests/35-assistant-suggestions.journey.ts`);
+and Ask (`tests/36-assistant-ask.journey.ts`): a question typed in one's own words answered with its dates and comparison,
+the address and the audit trail holding the question and never the words, the question saved, a question about a patient not
+recognised, and a receptionist told plainly that a dashboard question reads figures their role cannot open.
+
 It needs PostgreSQL and Redis (`pnpm dev:deps`) and Chromium (`pnpm --filter e2e exec playwright install chromium`;
 already present in Claude Code cloud sessions). It uses its own database (`E2E_DATABASE_URL`, default
 `healthcare_e2e`, dropped and recreated on every run — its name must contain `e2e`) and its own ports (API 3433, staff
