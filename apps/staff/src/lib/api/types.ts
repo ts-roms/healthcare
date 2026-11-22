@@ -5875,8 +5875,30 @@ export interface AssistantSuggestions {
   items: AssistantSuggestion[];
   /** Hidden because this person dismissed them recently. */
   dismissed: number;
-  /** Rules on here that need a permission this person lacks. */
-  withheld: Array<{ ruleId: string; title: string }>;
+  /** How many rules on here need a permission this person lacks (never which). */
+  withheld: number;
+}
+
+/** What a rule must be shown to speak: nothing, or the record a screen shows. */
+export type AssistantRuleNeed = "nothing" | "encounter" | "patient" | "prescription" | "draft";
+
+/** One screen's part of `GET /assistant/overview`. */
+export interface AssistantOverviewSurface {
+  surface: AssistantSurface;
+  /** The surface's rules this person may read, with whether each is on at the selected facility. */
+  rules: Array<{ ruleId: string; ruleVersion: number; title: string; description: string; on: boolean; needs: AssistantRuleNeed }>;
+  /** Suggestions of the rules that need nothing on screen, warnings first. */
+  items: AssistantSuggestion[];
+  /** Suggestions beyond the request's limit. */
+  more: number;
+  dismissed: number;
+  withheld: number;
+  /** A rule could not be read; the others are still answered. */
+  failed: boolean;
+}
+
+export interface AssistantOverview {
+  surfaces: AssistantOverviewSurface[];
 }
 
 export interface AssistantRuleSettingValue {

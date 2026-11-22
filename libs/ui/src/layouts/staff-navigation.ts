@@ -9,6 +9,7 @@ import {
   FlaskConicalIcon,
   InboxIcon,
   LayoutDashboardIcon,
+  LightbulbIcon,
   ListOrderedIcon,
   MegaphoneIcon,
   MessageSquareIcon,
@@ -27,7 +28,7 @@ import {
 import type { StaffRole } from "@healthcare/domain";
 
 /** The sidebar's sections, in order. Items of one group sit together under its label. */
-export const NAV_GROUPS = ["Today", "Patients", "Clinical", "Operations", "Engagement"] as const;
+export const NAV_GROUPS = ["Today", "Patients", "Clinical", "Operations", "Engagement", "Assistant"] as const;
 export type NavGroup = (typeof NAV_GROUPS)[number];
 
 export interface NavItem {
@@ -117,6 +118,9 @@ export const STAFF_NAVIGATION: NavItem[] = [
 
   { label: "Communications", href: "/communications", icon: MessageSquareIcon, group: "Engagement" },
   { label: "Outreach", href: "/outreach", icon: MegaphoneIcon, group: "Engagement", roles: ["admin"] },
+
+  // The assistant's own section: what its checks say now, by area (docs/domains/assistant.md, "Assistant section").
+  { label: "Suggestions", href: "/assistant/suggestions", icon: LightbulbIcon, group: "Assistant" },
 
   {
     label: "Settings",

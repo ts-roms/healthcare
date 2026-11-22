@@ -39,7 +39,7 @@ describe("order sets and the outreach assistant", () => {
       .put(`/assistant/rules/${ruleId}/settings`, { enabled: true, expectedVersion: 0, ...(parameters ? { parameters } : {}) })
       .expect(200);
   const suggestions = async (token: string, query: string) =>
-    (await api(token).get(`/assistant/suggestions?${query}`).expect(200)).body as { items: Suggestion[]; withheld: Array<{ ruleId: string }> };
+    (await api(token).get(`/assistant/suggestions?${query}`).expect(200)).body as { items: Suggestion[]; withheld: number };
   const outreach = async (ruleId: string) => (await suggestions(admin, "surface=outreach")).items.filter((s) => s.ruleId === ruleId);
   const patient = async (familyName: string, givenName: string, birthDate: string, mobile: string) =>
     (
@@ -142,7 +142,7 @@ describe("order sets and the outreach assistant", () => {
     expect((await ctx.pool.query("SELECT count(*)::int AS n FROM lab_order WHERE encounter_id = $1", [encounter])).rows[0].n).toBe(0);
     // A receptionist may use the assistant but cannot order tests: the rule is withheld.
     const reception = await suggestions(receptionist, `surface=encounter&encounterId=${encounter}`);
-    expect(reception.withheld.map((w) => w.ruleId)).toContain("laboratory.order-sets");
+    expect(reception.withheld).toBeGreaterThanOrEqual(1);
 
     // Once the doctor ordered part of it, the rest is still offered; once all of it, nothing.
     await api(doctor)
@@ -185,7 +185,7 @@ describe("order sets and the outreach assistant", () => {
     // A receptionist may use the assistant but plans no campaign: withheld, without counts.
     const reception = await suggestions(receptionist, "surface=outreach");
     expect(reception.items).toEqual([]);
-    expect(reception.withheld.map((w) => w.ruleId)).toContain("crm.send-hour");
+    expect(reception.withheld).toBeGreaterThanOrEqual(1);
     // Each past day would have said the same.
     const replay = (await api(admin).post("/assistant/rules/crm.send-hour/replay", { days: 3 }).expect(200)).body;
     expect(replay).toMatchObject({ readAt: "10:00" });

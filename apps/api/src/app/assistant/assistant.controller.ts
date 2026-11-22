@@ -1,8 +1,25 @@
 import { Body, Controller, Get, HttpCode, Param, Post, Put, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, RequireFacility, RequirePermissions } from "@healthcare/core";
+import { RateLimitPerPerson } from "../rate-limit.guard";
 import { AssistantService } from "./assistant.service";
-import { CheckDto, FeedbackDto, InsightsQueryDto, ReplayDto, RuleReviewDto, RuleSettingDto, RulesQueryDto, SuggestionsQueryDto } from "./assistant.dto";
+import {
+  CheckDto,
+  FeedbackDto,
+  InsightsQueryDto,
+  OverviewQueryDto,
+  ReplayDto,
+  RuleReviewDto,
+  RuleSettingDto,
+  RulesQueryDto,
+  SuggestionsQueryDto,
+} from "./assistant.dto";
+
+/**
+ * Overview requests a person may make a minute: each runs every rule turned on for the screens it names. Room for moving
+ * between the Suggestions tabs and the refresh after each answer.
+ */
+const OVERVIEW_LIMIT = 30;
 
 /**
  * The heuristic assistant (docs/architecture/heuristic-assistant.md): decision support computed from rules over data the
@@ -25,6 +42,18 @@ export class AssistantController {
       patientId: query.patientId,
       prescriptionId: query.prescriptionId,
     });
+  }
+
+  @Get("overview")
+  @RequireFacility()
+  @RequirePermissions("assistant.use")
+  @RateLimitPerPerson(OVERVIEW_LIMIT)
+  @ApiOperation({
+    summary:
+      "What the assistant says now across several screens: per surface, the rules the caller may read with their state and the suggestions of those that need nothing on screen (one audit row, rule ids only)",
+  })
+  overview(@CurrentActor() actor: Actor, @Query() query: OverviewQueryDto) {
+    return this.assistant.overview(actor, query.surfaces, query.limit);
   }
 
   @Post("suggestions/check")

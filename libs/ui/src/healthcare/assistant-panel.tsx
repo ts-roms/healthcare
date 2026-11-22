@@ -51,6 +51,11 @@ export function AssistantPanel({
   withheldCount = 0,
   onAnswer,
   onFollow,
+  title = "Suggestions",
+  description,
+  actions,
+  emptyText = "Nothing to suggest right now.",
+  footnote = true,
   className,
 }: {
   suggestions: readonly AssistantSuggestionView[];
@@ -61,6 +66,16 @@ export function AssistantPanel({
   onAnswer?: AssistantAnswerHandler;
   /** Called when the person opens a suggestion's link (counted as followed; must not delay the navigation). */
   onFollow?: (id: string) => void;
+  /** The panel's heading, and its region's name ("Suggestions" on a module's screen; an area's name in the Assistant section). */
+  title?: string;
+  /** A line under the heading, e.g. how many checks are on. */
+  description?: React.ReactNode;
+  /** Links beside the "Decision support" badge, e.g. to the screen these suggestions belong to. */
+  actions?: React.ReactNode;
+  /** What an empty list says (e.g. that no check is turned on here). */
+  emptyText?: React.ReactNode;
+  /** The closing sentence ("…not a diagnosis. You decide."); a page that shows it once leaves it out of each panel. */
+  footnote?: boolean;
   className?: string;
 }) {
   const headingId = React.useId();
@@ -69,12 +84,16 @@ export function AssistantPanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id={headingId} className="text-page-sm flex items-center gap-2 font-semibold">
           <LightbulbIcon className="size-4" aria-hidden />
-          Suggestions
+          {title}
         </h2>
-        <Badge variant="neutral">Decision support</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          {actions}
+          <Badge variant="neutral">Decision support</Badge>
+        </div>
       </div>
+      {description ? <p className="mt-1 text-table text-muted-foreground">{description}</p> : null}
       {suggestions.length === 0 ? (
-        <p className="mt-3 text-body text-muted-foreground">Nothing to suggest right now.</p>
+        <p className="mt-3 text-body text-muted-foreground">{emptyText}</p>
       ) : (
         <ul className="mt-3 flex flex-col gap-3">
           {suggestions.map((s) => (
@@ -91,7 +110,7 @@ export function AssistantPanel({
           {withheldCount > 0 ? "Some suggestions are not available to you." : null}
         </p>
       ) : null}
-      <p className="mt-3 text-table text-muted-foreground">Suggestions come from fixed rules, not a diagnosis. You decide.</p>
+      {footnote ? <p className="mt-3 text-table text-muted-foreground">Suggestions come from fixed rules, not a diagnosis. You decide.</p> : null}
     </section>
   );
 }

@@ -113,6 +113,23 @@ It only offers screens and actions you may open, and it changes nothing by itsel
 lists, not artificial intelligence, so if it does not understand, use **Search patients for …** at the bottom, the menu, or Help. Each search
 for patients is recorded in the audit log, as when you search from the top bar.
 
+## How to see everything the assistant suggests
+
+The assistant's suggestions appear on the screens they are about (stock on **Inventory**, missing charges on **Billing**, and so on). To see them all
+in one place:
+
+1. In the menu, under **Assistant**, choose **Suggestions**. The **Overview** shows, for each area you may open, its most pressing suggestions and
+   how many of its checks are turned on at your facility.
+2. Choose an area's tab (**Stock**, **Billing**, **Clinic today**, **Laboratory**, **Pharmacy**, **Outreach**, **Security and compliance**) to see
+   all its suggestions, each check you may read with **On** or **Off**, and a link to the screen where you act.
+3. Answer a suggestion as you would on its screen: **Why?** shows what it is based on, its link opens the screen, and **Dismiss** or **Not useful**
+   hides it from you for 14 days, here and on that screen.
+
+You see only the areas and checks your role can read; others that are turned on are counted, never named. Checks that read a consultation, a
+patient's dental record or a prescription speak only on that screen: the Overview lists them with their state. The assistant runs fixed rules
+and simple statistics over your organization's own records; it never changes a record, and nothing is sent outside the system. An administrator
+turns checks on under **Settings → Assistant** ([Administration](13-administration.md#how-to-turn-on-the-assistants-suggestions)).
+
 ## How to change your password or turn on two-step verification
 
 Open the **Account menu** (your initials in the top bar) and choose **My account** (`/account`).

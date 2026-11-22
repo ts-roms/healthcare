@@ -38,3 +38,23 @@ export const Default: Story = {
 export const Empty: Story = { args: { suggestions: [] } };
 
 export const SomeNotAvailable: Story = { args: { suggestions: [stock], withheldCount: 1 } };
+
+/** One area of the Assistant section's Suggestions page: named, with its checks' state and a link to its screen. */
+export const AssistantSectionArea: Story = {
+  args: {
+    title: "Stock",
+    description: "2 of 3 checks on at Main Clinic.",
+    actions: (
+      <a href="/assistant/suggestions/stock" className="text-table text-primary hover:underline">
+        Open Stock
+      </a>
+    ),
+    suggestions: [{ ...stock, id: "c", severity: "warning", title: "Gauze pad 4x4: about 2 days of stock left" }, stock],
+    footnote: false,
+    onAnswer: () => undefined,
+  },
+};
+
+export const NoCheckOn: Story = {
+  args: { title: "Billing", suggestions: [], emptyText: "None of these checks is turned on at Main Clinic.", footnote: false },
+};

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { AuditService } from "@healthcare/audit";
 import { UsersService } from "@healthcare/auth";
 import {
@@ -24,7 +24,7 @@ import {
 } from "@healthcare/core";
 import { facility } from "@healthcare/organization";
 import { and, desc, eq, gte, inArray, isNull, or, sql } from "drizzle-orm";
-import { AssistantRules, type PrescriptionDraft, type RuleBinding, type RuleMoment } from "./assistant-rules";
+import { AssistantRules, type PrescriptionDraft, type RuleBinding, type RuleMoment, type RuleNeed } from "./assistant-rules";
 import {
   assistantFeedback,
   assistantRuleReview,
@@ -68,9 +68,35 @@ export interface SuggestionsAnswer {
   items: Suggestion[];
   /** Hidden because this person dismissed them recently. */
   dismissed: number;
-  /** Rules turned on here whose suggestions need a permission the caller lacks ("Not available to you"); no counts. */
-  withheld: Array<{ ruleId: string; title: string }>;
+  /**
+   * How many rules turned on here need a permission the caller lacks ("Not available to you"). A number only: a rule's
+   * title can say that staff are being measured (record access, rejection rates), and how staff are told is the
+   * organization's decision.
+   */
+  withheld: number;
 }
+
+/** One screen's part of the overview: the rules the caller may read with their state, and what those that need nothing say now. */
+export interface OverviewSurface {
+  surface: SuggestionSurface;
+  /** The surface's rules whose source the caller may read. Rules they may not read are counted in `withheld`, never named. */
+  rules: Array<{ ruleId: string; ruleVersion: number; title: string; description: string; on: boolean; needs: RuleNeed }>;
+  /** Suggestions of the rules that need nothing, warnings first, at most the request's `limit`. */
+  items: Suggestion[];
+  /** Suggestions beyond `limit`. */
+  more: number;
+  /** Hidden because this person dismissed them recently. */
+  dismissed: number;
+  withheld: number;
+  /** A rule could not be read; the others are still answered. */
+  failed: boolean;
+}
+
+export interface OverviewAnswer {
+  surfaces: OverviewSurface[];
+}
+
+const SEVERITY_ORDER: Record<Suggestion["severity"], number> = { warning: 0, advice: 1, info: 2 };
 
 /**
  * The heuristic assistant (docs/architecture/heuristic-assistant.md, ADR-0018): which rules an organization or facility
@@ -79,6 +105,8 @@ export interface SuggestionsAnswer {
  */
 @Injectable()
 export class AssistantService {
+  private readonly logger = new Logger(AssistantService.name);
+
   constructor(
     @Inject(DATABASE) private readonly db: Database,
     private readonly rules: AssistantRules,
@@ -112,22 +140,7 @@ export class AssistantService {
     const encounterId = context.encounterId ?? context.prescriptionDraft?.encounterId;
     const bindings = this.rules.bindings.filter((b) => b.definition.surfaces.includes(surface));
     const settings = await this.effectiveSettings(actor.organizationId, facilityId, bindings);
-
-    const items: Suggestion[] = [];
-    const withheld: SuggestionsAnswer["withheld"] = [];
-    const ran: string[] = [];
-    for (const binding of bindings) {
-      const setting = settings.get(binding.definition.id);
-      if (!setting?.enabled) continue;
-      if (!binding.definition.requires.every((p) => actor.permissions.has(p))) {
-        withheld.push({ ruleId: binding.definition.id, title: binding.definition.title });
-        continue;
-      }
-      const parsed = binding.definition.parametersSchema.safeParse(setting.parameters);
-      if (!parsed.success) continue; // a stored setting the rule no longer accepts: the rule stays silent until it is saved again
-      items.push(...(await binding.run(actor, facilityId, parsed.data, moment)));
-      ran.push(binding.definition.id);
-    }
+    const { items, withheld, ran } = await this.run(actor, facilityId, bindings, settings, moment, { tolerant: false });
 
     const hidden = await this.recentlyAnswered(actor, items);
     const shown = items.filter((s) => !hidden.has(s.id)).slice(0, MAX_SUGGESTIONS);
@@ -146,6 +159,81 @@ export class AssistantService {
       },
     });
     return { items: shown, dismissed: items.filter((s) => hidden.has(s.id)).length, withheld };
+  }
+
+  /**
+   * What the assistant says now across several screens, for the Assistant section's Suggestions pages: per surface, the
+   * rules the caller may read with whether each is on at the facility, and the suggestions of those that need nothing on
+   * screen (`RuleBinding.needs`). Rules that need a consultation, a patient, a prescription or a draft are listed with
+   * their state and never run here: they speak on their own screens. One request is one `assistant.view` audit row and
+   * one update of the shown counts, however many surfaces it reads.
+   */
+  async overview(actor: Actor, surfaces: readonly SuggestionSurface[], limit = MAX_SUGGESTIONS): Promise<OverviewAnswer> {
+    const facilityId = requireFacilityId(actor);
+    const timeZone = await this.facilityTimeZone(actor, facilityId);
+    const moment = liveMoment(timeZone);
+    const wanted = [...new Set(surfaces)];
+    const settings = await this.effectiveSettings(
+      actor.organizationId,
+      facilityId,
+      this.rules.bindings.filter((b) => wanted.some((s) => b.definition.surfaces.includes(s))),
+    );
+
+    const read: Array<{ surface: SuggestionSurface; rules: OverviewSurface["rules"]; items: Suggestion[]; withheld: number; failed: boolean }> = [];
+    const ran: string[] = [];
+    for (const surface of wanted) {
+      const bindings = this.rules.bindings.filter((b) => b.definition.surfaces.includes(surface));
+      const readable = bindings.filter((b) => b.definition.requires.every((p) => actor.permissions.has(p)));
+      const result = await this.run(
+        actor,
+        facilityId,
+        bindings.filter((b) => b.needs === "nothing"),
+        settings,
+        moment,
+        { tolerant: true },
+      );
+      ran.push(...result.ran);
+      read.push({
+        surface,
+        rules: readable.map((b) => ({
+          ruleId: b.definition.id,
+          ruleVersion: b.definition.version,
+          title: b.definition.title,
+          description: b.definition.description,
+          on: settings.get(b.definition.id)?.enabled === true,
+          needs: b.needs,
+        })),
+        items: result.items,
+        // Rules on here that the caller may not read, whatever they need on screen.
+        withheld: bindings.filter((b) => !readable.includes(b) && settings.get(b.definition.id)?.enabled === true).length,
+        failed: result.failed,
+      });
+    }
+
+    const hidden = await this.recentlyAnswered(
+      actor,
+      read.flatMap((r) => r.items),
+    );
+    const answer = read.map((r): OverviewSurface => {
+      const visible = r.items.filter((s) => !hidden.has(s.id)).sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity]);
+      return {
+        surface: r.surface,
+        rules: r.rules,
+        items: visible.slice(0, limit),
+        more: Math.max(0, visible.length - limit),
+        dismissed: r.items.length - visible.length,
+        withheld: r.withheld,
+        failed: r.failed,
+      };
+    });
+    const shown = answer.flatMap((s) => s.items);
+    await this.countShown(actor.organizationId, facilityId, moment.today, shown);
+    await this.audit.recordStandalone(actor, {
+      action: "assistant.view",
+      resourceType: "assistant_surface",
+      metadata: { via: "overview", surfaces: wanted, rules: ran, shown: shown.length },
+    });
+    return { surfaces: answer };
   }
 
   /** Records what the caller did with a suggestion. Rejects ids of rules that do not exist. */
@@ -466,6 +554,45 @@ export class AssistantService {
   }
 
   // ---- internals ---------------------------------------------------------------------------------------------------
+
+  /**
+   * Runs the given bindings at a moment for the caller: a rule that is off is skipped, one whose source the caller may
+   * not read is counted as withheld, and a stored setting the rule no longer accepts keeps it silent until it is saved
+   * again. `tolerant` (the overview): a rule that throws is logged and reported as `failed`, so the other rules still
+   * answer; otherwise the error is the request's.
+   */
+  private async run(
+    actor: Actor,
+    facilityId: string,
+    bindings: readonly RuleBinding[],
+    settings: ReadonlyMap<string, SettingRow>,
+    moment: RuleMoment,
+    options: { tolerant: boolean },
+  ): Promise<{ items: Suggestion[]; withheld: number; ran: string[]; failed: boolean }> {
+    const items: Suggestion[] = [];
+    const ran: string[] = [];
+    let withheld = 0;
+    let failed = false;
+    for (const binding of bindings) {
+      const setting = settings.get(binding.definition.id);
+      if (!setting?.enabled) continue;
+      if (!binding.definition.requires.every((p) => actor.permissions.has(p))) {
+        withheld += 1;
+        continue;
+      }
+      const parsed = binding.definition.parametersSchema.safeParse(setting.parameters);
+      if (!parsed.success) continue;
+      try {
+        items.push(...(await binding.run(actor, facilityId, parsed.data, moment)));
+        ran.push(binding.definition.id);
+      } catch (error) {
+        if (!options.tolerant) throw error;
+        failed = true;
+        this.logger.error({ event: "assistant.rule_failed", ruleId: binding.definition.id, message: `Rule ${binding.definition.id} failed: ${String(error)}` });
+      }
+    }
+    return { items, withheld, ran, failed };
+  }
 
   /** Adds what a request showed to each rule's count for the facility's day (counts only; nothing of a suggestion). */
   private async countShown(organizationId: string, facilityId: string, day: string, shown: readonly Suggestion[]): Promise<void> {

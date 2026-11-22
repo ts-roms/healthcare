@@ -34,6 +34,8 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
     "outside-result.submission.manage",
   ],
   "/messages": ["patient.message.read"],
+  // The Assistant section; each area tab also needs that area's own permission (module-tabs.ts).
+  "/assistant/suggestions": ["assistant.use"],
 };
 
 /** The platform console's entry, pinned to the sidebar's foot for platform administrators. */

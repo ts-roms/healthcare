@@ -130,13 +130,14 @@ Phase in brackets. Every item is a rule or statistic, not a model.
 | 2     | Documentation and data quality: encounter checklist, code suggestions, delta checks, order sets, outreach segments, access anomalies, help search and command bar | Dismissal rate per rule under review                      |
 | 3     | Prescribing, dental, telemedicine, laboratory timing and portal wording                                                                                           | Clinical review of each rule by a physician or pharmacist |
 | 4     | Governance: insights page, rule retirement, documented false positives                                                                                            | Quarterly rule review is a runbook                        |
+| 5     | Assistant section (ADR-0019): Suggestions pages by area (built), then Ask, typed questions from a fixed catalogue (planned)                                       | A journey per part; Ask never answers past a route's gate |
 
 ## 7. Testing and validation
 
 - **Unit:** each rule with fixtures: matched, not matched, too little data, setting missing (returns nothing).
 - **Integration:** permission gating (a withheld source is never leaked into evidence), organization isolation (RLS), suppression after dismissal, audit written without values.
 - **Backtest harness:** replays a rule over historical rows and reports how often it would have fired, so a threshold is chosen from data before it goes on.
-- **E2E:** one journey per phase (a suggestion appears, "Why?" shows evidence, dismissal sticks). Built for phases 0 and 4: `apps/e2e/tests/34-assistant.journey.ts` turns the stock rule on in Settings, shows its suggestion on the inventory screen with "Why?", counts its link as followed, hides it after "Not useful" with a reason, and reads the rule's insights before a review retires it. Phases 1 to 3 have unit and integration tests, no journey yet.
+- **E2E:** one journey per phase (a suggestion appears, "Why?" shows evidence, dismissal sticks). Built for phases 0 and 4: `apps/e2e/tests/34-assistant.journey.ts` turns the stock rule on in Settings, shows its suggestion on the inventory screen with "Why?", counts its link as followed, hides it after "Not useful" with a reason, and reads the rule's insights before a review retires it. Phase 5's Suggestions pages: `apps/e2e/tests/35-assistant-suggestions.journey.ts` (the suggestion under its area with each check's state, dismissed there and hidden on its screen, an area never offered to a role that cannot read it). Phases 1 to 3 have unit and integration tests, no journey yet.
 - **Safety review:** every clinical rule is signed off by a clinician before default-on in any organization; none is default-on in the product.
 
 ## 8. Risks and compliance

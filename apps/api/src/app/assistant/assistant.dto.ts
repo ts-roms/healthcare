@@ -19,6 +19,19 @@ export const suggestionsQuerySchema = z.object({
 });
 export class SuggestionsQueryDto extends createZodDto(suggestionsQuerySchema) {}
 
+/** The Assistant section's overview: several screens in one request (comma-separated; every surface when left out). */
+export const overviewQuerySchema = z.object({
+  surfaces: z
+    .string()
+    .max(400)
+    .optional()
+    .transform((value) => (value ? value.split(",").map((s) => s.trim()) : [...SUGGESTION_SURFACES]))
+    .pipe(z.array(z.enum(SUGGESTION_SURFACES)).min(1).max(SUGGESTION_SURFACES.length)),
+  /** The most suggestions answered per surface (the rest are counted in `more`). */
+  limit: z.coerce.number().int().min(1).max(20).optional(),
+});
+export class OverviewQueryDto extends createZodDto(overviewQuerySchema) {}
+
 /** A medicine as written in a prescription being drafted: only what the prescribing rules compare. */
 const draftMedicineSchema = z.object({
   genericName: z.string().trim().min(1).max(200),

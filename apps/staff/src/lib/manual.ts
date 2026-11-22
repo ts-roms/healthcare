@@ -55,6 +55,7 @@ const CHAPTER_BY_ROUTE: [prefix: string, slug: string][] = [
   ["/communications", "records-reporting-and-integrations"],
   ["/outreach", "records-reporting-and-integrations"],
   ["/admin", "administration"],
+  ["/assistant", "getting-started"],
   ["/account", "getting-started"],
   ["/notifications", "getting-started"],
 ];

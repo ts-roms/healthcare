@@ -42,7 +42,7 @@ describe("dental and care-plan suggestions", () => {
       .put(`/assistant/rules/${ruleId}/settings`, { enabled: true, expectedVersion: 0, ...(parameters ? { parameters } : {}) })
       .expect(200);
   const suggestions = async (token: string, query: string) =>
-    (await api(token).get(`/assistant/suggestions?${query}`).expect(200)).body as { items: Suggestion[]; withheld: Array<{ ruleId: string }> };
+    (await api(token).get(`/assistant/suggestions?${query}`).expect(200)).body as { items: Suggestion[]; withheld: number };
   const dental = async (ruleId: string, token = dentist) =>
     (await suggestions(token, `surface=dental&patientId=${patientId}`)).items.filter((s) => s.ruleId === ruleId);
 
@@ -126,7 +126,7 @@ describe("dental and care-plan suggestions", () => {
     expect((await suggestions(dentist, "surface=dental")).items).toEqual([]);
     const reception = await suggestions(receptionist, `surface=dental&patientId=${patientId}`);
     expect(reception.items).toEqual([]);
-    expect(reception.withheld.map((w) => w.ruleId)).toContain("dental.chart-consistency");
+    expect(reception.withheld).toBeGreaterThanOrEqual(1);
     // Audited with the patient's id and the rule ids, nothing else.
     const audit = await auditRows(ctx.pool, "action = 'assistant.view' AND metadata->>'surface' = 'dental' AND metadata ? 'patientId'");
     expect(audit.map((a) => a.metadata)).toContainEqual(expect.objectContaining({ patientId, rules: ["dental.chart-consistency"] }));
@@ -241,7 +241,7 @@ describe("dental and care-plan suggestions", () => {
     expect(JSON.stringify(s)).not.toMatch(/Pedro|Dela Cruz/i);
     // A receptionist may use the assistant but reads no results: withheld.
     const reception = await suggestions(receptionist, `surface=encounter&encounterId=${today}`);
-    expect(reception.withheld.map((w) => w.ruleId)).toContain("laboratory.monitoring-gap");
+    expect(reception.withheld).toBeGreaterThanOrEqual(1);
 
     // A chronic diagnosis recorded today is the order sets rule's, not a monitoring gap.
     const other = (

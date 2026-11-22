@@ -60,7 +60,7 @@ describe("heuristic assistant", () => {
 
   it("says nothing until a rule is turned on", async () => {
     const res = await suggestions(officer).expect(200);
-    expect(res.body).toEqual({ items: [], dismissed: 0, withheld: [] });
+    expect(res.body).toEqual({ items: [], dismissed: 0, withheld: 0 });
     const rules = (await api(admin).get("/assistant/rules").expect(200)).body as Array<{ ruleId: string; setting: unknown; defaultParameters: object }>;
     expect(rules.find((r) => r.ruleId === RULE)).toMatchObject({
       setting: null,

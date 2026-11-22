@@ -1,5 +1,6 @@
 import type { ModuleTab } from "@healthcare/ui/layouts";
 import type { StaffBadges } from "./api/types";
+import { ASSISTANT_AREAS, ASSISTANT_HOME } from "./assistant-areas";
 import { isSettingsPath } from "./settings-navigation";
 
 /**
@@ -12,6 +13,8 @@ interface TabDefinition {
   href: string;
   /** Any one of these permissions opens the page. */
   permissions: string[];
+  /** All of these are needed too (an assistant area: `assistant.use` beside the area's own permission). */
+  requires?: string[];
   /** The tab's count, from `GET /me/badges`; `alert` when it needs action. */
   count?: (badges: StaffBadges) => number | null;
   alert?: boolean;
@@ -120,14 +123,24 @@ const MODULES: ModuleDefinition[] = [
       { label: "Scheduled reports", href: "/management/reports", permissions: ["management.dashboard.read"] },
     ],
   },
+  {
+    label: "Suggestions",
+    prefixes: [ASSISTANT_HOME],
+    tabs: [
+      { label: "Overview", href: ASSISTANT_HOME, permissions: ["assistant.use"] },
+      ...ASSISTANT_AREAS.map((a) => ({ label: a.label, href: a.href, permissions: a.permissions, requires: a.requires })),
+    ],
+  },
 ];
+
+function opens(tab: TabDefinition, granted: ReadonlySet<string>): boolean {
+  return tab.permissions.some((p) => granted.has(p)) && (tab.requires ?? []).every((p) => granted.has(p));
+}
 
 /** Every module tab open to someone with these permissions, with its module's name (the command bar's screens). */
 export function moduleTabsForPermissions(permissions: readonly string[]): Array<{ module: string; label: string; href: string }> {
   const granted = new Set(permissions);
-  return MODULES.flatMap((m) =>
-    m.tabs.filter((tab) => tab.permissions.some((p) => granted.has(p))).map((tab) => ({ module: m.label, label: tab.label, href: tab.href })),
-  );
+  return MODULES.flatMap((m) => m.tabs.filter((tab) => opens(tab, granted)).map((tab) => ({ module: m.label, label: tab.label, href: tab.href })));
 }
 
 export interface ModuleTabsForPage {
@@ -146,7 +159,7 @@ export function moduleTabsFor(pathname: string, permissions: readonly string[], 
   if (!found) return null;
   const granted = new Set(permissions);
   const tabs = found.tabs
-    .filter((tab) => tab.permissions.some((p) => granted.has(p)))
+    .filter((tab) => opens(tab, granted))
     .map<ModuleTab>((tab) => {
       const count = badges ? (tab.count?.(badges) ?? 0) : 0;
       return { href: tab.href, label: tab.label, ...(count ? { count, alert: tab.alert } : {}) };

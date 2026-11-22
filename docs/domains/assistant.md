@@ -19,7 +19,9 @@ an online consultation, reasons to consider seeing the patient in person). Phase
 followed, the reasons staff give for "Not useful", an insights page per rule, and the organization's reviews of its rules (keep, adjust or retire,
 with the false positives found), with a quarterly review runbook (`docs/runbooks/assistant-rule-review.md`). Phase 3's MyHealth item, result wording,
 is not a rule: MyHealth's result page explains each result in fixed, versioned sentences (`resultExplanation`), and the organization records its
-review of them as a compliance area ("Results shown to patients", migration `0158`); see Integration points and limits.
+review of them as a compliance area ("Results shown to patients", migration `0158`); see Integration points and limits. The **Assistant section**
+(ADR-0019) gives the assistant a place of its own in the staff app: **Assistant → Suggestions** shows what every check turned on at the facility says
+now, by area, with each check's state (see UI). **Ask**, typed questions answered from a fixed list, is planned as its second part.
 
 ## Entities
 
@@ -142,8 +144,16 @@ is turned on.
   `encounterId`, `laboratory`, `laboratory-quality`, `security`, `settings`, `outreach`, `dental` with the `patientId`, `pharmacy` with an optional
   `prescriptionId`; `prescribing` reads nothing without a draft); each request audits `assistant.view` with the surface, rule ids, the number shown
   and the consultation's, patient's or prescription's id, never a finding, and adds what it showed to each rule's count for the facility's day
-  (`assistant_rule_shown`). Rules whose source permission the caller lacks are listed in `withheld` by
-  title, with no counts. A stored setting the rule no longer accepts keeps the rule silent until it is saved again. At most 20 suggestions a request.
+  (`assistant_rule_shown`). Rules turned on whose source permission the caller lacks are counted in `withheld`, never named (ADR-0019: a title such
+  as the record-access rule's tells staff they are measured, which is the organization's to say). A stored setting the rule no longer accepts keeps
+  the rule silent until it is saved again. At most 20 suggestions a request.
+- Several screens at once for the Assistant section: `GET /assistant/overview?surfaces=&limit=` (`assistant.use`, facility required, every surface
+  when `surfaces` is left out, `limit` 1–20 per surface). Per surface: the rules the caller may read with whether each is on at the facility and what
+  it needs on screen (`RuleBinding.needs`: `nothing`, or `encounter`, `patient`, `prescription`, `draft`), the suggestions of those that need nothing
+  (warnings first, at most `limit`, the rest counted in `more`), `dismissed`, `withheld` (a count) and `failed` (one rule could not be read; the others
+  still answer, and the error is logged as `assistant.rule_failed`). Rules that need a record on screen are listed and never run. One request is one
+  `assistant.view` audit row (`via: "overview"`, the surfaces, the rule ids that ran, the number shown) and one update of the shown counts, however
+  many surfaces it reads. Counted per signed-in person, 30 a minute (`@RateLimitPerPerson`, `ActorRateLimitGuard`): a clinic shares one address.
 - A draft checked before it is saved: `POST /assistant/suggestions/check` with `surface: prescribing`, the consultation, the
   drafted medicines (name, strength, dose, unit, frequency) and the prescription being replaced, if any. The same answer as a
   screen's (items, dismissed, withheld), from the rules turned on; audited `assistant.view` with the surface, rule ids, the
@@ -179,8 +189,8 @@ above); without it the rule is withheld.
 
 ## API
 
-`/api/v1/assistant`: `GET /suggestions?surface=&date=&encounterId=&patientId=&prescriptionId=` (facility header), `POST /suggestions/check` (a draft),
-`POST /suggestions/:id/feedback`, `GET /rules[?facilityId=]`, `PUT /rules/:ruleId/settings`, `POST /rules/:ruleId/replay`, `GET /insights?days=`, `GET
+`/api/v1/assistant`: `GET /suggestions?surface=&date=&encounterId=&patientId=&prescriptionId=` (facility header), `GET /overview?surfaces=&limit=`
+(facility header; the Assistant section), `POST /suggestions/check` (a draft), `POST /suggestions/:id/feedback`, `GET /rules[?facilityId=]`, `PUT /rules/:ruleId/settings`, `POST /rules/:ruleId/replay`, `GET /insights?days=`, `GET
 /rules/:ruleId/reviews` (`assistant.insights.read`), `POST /rules/:ruleId/reviews` (`assistant.configure`).
 
 ## UI
@@ -201,6 +211,18 @@ with its id, above the prescribed lines, while the prescription is active), the 
 in parallel with the page's own data and shows the panel only when there is something to say; a failed assistant request never breaks the page.
 `AssistantSuggestions` (`apps/staff/src/components`) sends answers through `answerSuggestion` (`apps/staff/src/app/(staff)/assistant-actions.ts`),
 which refreshes that screen.
+
+**Assistant section** (ADR-0019): the sidebar's **Assistant** heading holds **Suggestions** (`/assistant/suggestions`, `assistant.use`; `/assistant`
+leads there), where the person sees in one place what the checks turned on at the selected facility say now, without visiting each screen. Its
+tabs are the areas (`apps/staff/src/lib/assistant-areas.ts`): **Overview**, **Stock** (inventory), **Billing**, **Clinic today** (appointments and
+queue), **Laboratory** (workbench and quality control), **Pharmacy**, **Outreach** and **Security and compliance** (audit log and compliance
+areas), each offered with `assistant.use` and one of the permissions its rules read (a tab's `requires` holds what all of them need, e.g. stock
+for the pharmacy's). The overview shows each area's first three suggestions, how many of its checks are on, and the checks that speak only inside a
+patient's record (consultation, dental record, dispensing, prescribing) with their state; an area's tab shows, per screen, every suggestion and
+each check the person may read with **On** or **Off** (never its thresholds) and a link to the screen. Answers work as on the screens: a dismissal
+here hides the finding there too (the same suggestion id, 14 days, for that person), and `answerSuggestion` refreshes both. One
+`GET /assistant/overview` per page; no sidebar count (it would run every rule for everyone each minute), no stored or cached suggestions. Journey
+`apps/e2e/tests/35-assistant-suggestions.journey.ts`.
 
 End to end: journey `apps/e2e/tests/34-assistant.journey.ts` follows the stock rule `inventory.days-of-cover` through these screens and the
 settings below. An administrator turns it on for the organization, stock is received and issued until it would not last a delivery, and an
