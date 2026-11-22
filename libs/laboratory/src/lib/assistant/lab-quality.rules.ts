@@ -59,6 +59,17 @@ export const TURNAROUND_RISK_RULE: RuleDefinition<TurnaroundRiskParameters> = {
       hint: "With fewer, the catalog's turnaround target is used; a test with neither is not checked.",
     },
   },
+  reads:
+    "The facility's order items collected but not released (test, priority, collection time and stage), each test's first releases over the days you set, and the catalog's turnaround targets. Never a patient or a result value.",
+  knownFalsePositives: [
+    "Tests referred to a reference laboratory or recollected, and tests run in batches on set days.",
+    "A specimen collected long before it reached the laboratory: the time counts from collection.",
+  ],
+  blindSpots: [
+    "Orders not yet collected: the time from ordering to collection is not measured.",
+    "Tests with fewer releases than you set and no catalog target.",
+    "STAT orders with too few STAT releases are measured against every priority together, a longer time.",
+  ],
 };
 
 /** Where an open order item waits, as the worklist names its stages. */
@@ -196,6 +207,17 @@ export const QC_TREND_RULE: RuleDefinition<QcTrendParameters> = {
     shiftPercentSd: { label: "…at least", unit: "% of an SD away from the target mean", min: 50, max: 300 },
     lookbackDays: { label: "Read runs from the last", unit: "days", min: 7, max: 180 },
   },
+  reads: "QC runs over the days you set, per instrument, test and control lot: their z-scores, statuses and times.",
+  knownFalsePositives: [
+    "A target mean set from too few runs makes the runs look shifted.",
+    "An expected step after a recalibration or a new reagent lot, already handled, counts until enough later runs come in.",
+    "With the fewest runs allowed, a drift of runs in a row can happen by chance.",
+  ],
+  blindSpots: [
+    "Patterns other than a steady drift or a shifted average, such as a wider scatter.",
+    "Series with fewer runs than you set; each control lot is read on its own.",
+    "Rejections by the Westgard rules: the QC page shows those, not this rule.",
+  ],
 };
 
 export interface QcSeries {
@@ -302,6 +324,14 @@ export const REJECTION_RATE_RULE: RuleDefinition<RejectionRateParameters> = {
     minSpecimens: { label: "Compare only from", unit: "specimens collected", min: 5, max: 1000 },
     minRejections: { label: "…and at least", unit: "rejections", min: 2, max: 100 },
   },
+  reads:
+    "Specimens collected at the facility over the days you set and how many were rejected, per staff account that collected them, and the organization's other facilities together. Counts only, never a patient or the reason written.",
+  knownFalsePositives: [
+    "Collectors who take the harder specimens: children, older patients, home or ward collections.",
+    "Rejections caused after collection (transport, storage, handling in the laboratory) count against the collector.",
+    "A facility with a different mix of patients or tests, or a longer way to the laboratory.",
+  ],
+  blindSpots: ["Collections recorded under another person's account.", "Collectors and facilities below the specimens or rejections you set."],
 };
 
 export interface RejectionFigures {

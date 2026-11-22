@@ -43,6 +43,16 @@ export const EXPIRY_EXPOSURE_RULE: RuleDefinition<ExpiryExposureParameters> = {
       hint: "With fewer issues in the period, a suggestion is marked “Based on limited data”.",
     },
   },
+  reads: "Usable lots with an expiry date at the facility's locations, and each item's issues and returns over the period you set. Quantities and dates only.",
+  knownFalsePositives: [
+    "Stock kept on purpose though rarely used (antivenom, emergency kits): with nothing issued in the period, all of it is expected to expire.",
+    "A lot that will be moved to another facility, returned to the supplier or used at a planned event.",
+    "A seasonal item whose use is about to rise.",
+  ],
+  blindSpots: [
+    "Lots without an expiry date, and lots expiring beyond the days you chose to look at.",
+    "The facility's locations count as one stock: a lot in a store room nobody issues from is assumed to be used in expiry order with the rest.",
+  ],
 };
 
 export interface ExpiryExposureLot {

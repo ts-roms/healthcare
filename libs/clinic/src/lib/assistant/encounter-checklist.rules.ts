@@ -40,6 +40,13 @@ export const ENCOUNTER_CHECKLIST_RULE: RuleDefinition<EncounterChecklistParamete
       hint: "Only when your organization has an active coding system.",
     },
   },
+  reads:
+    "The consultation in progress: whether it holds a chief complaint, vital signs from the hours you set, an assessment, a plan and diagnoses with codes and a primary one, and whether the patient's allergies were reviewed (or an allergy is recorded). Never the text itself.",
+  knownFalsePositives: [
+    "Items a visit does not need, such as a diagnosis or a plan for a certificate-only or vaccination-only visit.",
+    "Vital signs taken but recorded on paper, or earlier than the hours you set.",
+  ],
+  blindSpots: ["It checks that items are there, never whether they are right or complete.", "Orders, prescriptions and follow-up are not checked."],
 };
 
 export interface EncounterChecklistInput {

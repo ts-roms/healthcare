@@ -11,6 +11,9 @@ interface RuleInsight {
   reviewDue: boolean;
   reasons: Array<{ outcome: string; reason: string; at: string }>;
   lastReview: { outcome: string; note: string; falsePositives: string | null; reviewedOn: string; ruleVersion: number } | null;
+  reads: string;
+  knownFalsePositives: string[];
+  blindSpots: string[];
 }
 
 /**
@@ -87,6 +90,16 @@ describe("assistant governance", () => {
       lastReview: null,
     });
     expect(row.reasons).toEqual([{ outcome: "not_useful", reason: "A standing order covers this item every week", at: expect.any(String) }]);
+    // What the rule reads and when it can be wrong come with it, on the insights and the settings screens alike.
+    expect(row.reads).toContain("stock ledger");
+    expect(row.knownFalsePositives.length).toBeGreaterThan(0);
+    expect(row.blindSpots.length).toBeGreaterThan(0);
+    const settings = (await api(admin).get("/assistant/rules").expect(200)).body as RuleInsight[];
+    expect(settings.find((r) => r.ruleId === RULE)).toMatchObject({
+      reads: row.reads,
+      knownFalsePositives: row.knownFalsePositives,
+      blindSpots: row.blindSpots,
+    });
     const { rows } = await ctx.pool.query("SELECT rule_id, shown FROM assistant_rule_shown WHERE organization_id = $1", [tenant.organizationId]);
     expect(rows).toEqual([{ rule_id: RULE, shown: 3 }]);
     // Insights and reviews are the administrator's.

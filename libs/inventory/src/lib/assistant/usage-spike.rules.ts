@@ -46,6 +46,17 @@ export const USAGE_SPIKE_RULE: RuleDefinition<UsageSpikeParameters> = {
       hint: "Small quantities swing too much to read anything into.",
     },
   },
+  reads: "Each item's issues and returns at the facility, totalled per week over the weeks you set. Quantities only.",
+  knownFalsePositives: [
+    "A planned busy week, such as a vaccination drive or a medical mission, looks like a spike.",
+    "Stock moved to another place but recorded as an issue instead of a transfer, or several days of issues entered at once.",
+    "A newly stocked item, or one issued only now and then, has mostly empty earlier weeks; such suggestions are marked as based on limited data.",
+  ],
+  blindSpots: [
+    "A slow, steady rise: each busier week raises the usual week a little.",
+    "Losses recorded as write-offs, which are not issues.",
+    "A week with fewer units issued than the minimum you set.",
+  ],
 };
 
 export interface UsageSpikeInput {

@@ -43,6 +43,19 @@ export const DAYS_OF_COVER_RULE: RuleDefinition<DaysOfCoverParameters> = {
       hint: "With fewer issues in the period, a suggestion is marked “Based on limited data”.",
     },
   },
+  reads:
+    "The facility's stock ledger: usable (unexpired) stock at its active locations, the issues and returns of the period and, on a live screen, what open purchase orders still have to deliver. Quantities only, never a patient or a cost.",
+  knownFalsePositives: [
+    "Stock that arrives without a purchase order in the platform (a transfer from another facility, a donation, an order placed elsewhere) is not counted as coming, so an item restocked that way looks short.",
+    "A one-off large issue in the period, such as an outreach day, raises the pace, so the stock seems to last less than it will.",
+    "An item being phased out or replaced is still suggested for reordering.",
+    "Try these values cannot see past open purchase orders, so a replay shows more suggestions than the live screen would have.",
+  ],
+  blindSpots: [
+    "An item issued fewer than twice in the period is never flagged, even with no stock left.",
+    "Stock that will expire before it is used counts as usable until its expiry day.",
+    "A busier season ahead: the pace is only the past period's.",
+  ],
 };
 
 export interface DaysOfCoverInput {

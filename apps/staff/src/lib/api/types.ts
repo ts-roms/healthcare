@@ -5887,7 +5887,17 @@ export interface AssistantRuleSettingValue {
 }
 
 /** GET /assistant/rules: one rule with its setting for the scope asked for (the organization, or one facility). */
-export interface AssistantRule {
+/** What a rule's definition documents about it (phase 4): what it reads and when it can be wrong. */
+export interface AssistantRuleLimits {
+  /** What the rule reads, in plain words. */
+  reads: string;
+  /** Situations, documented by the platform team, in which it may speak though nothing needs doing. */
+  knownFalsePositives: string[];
+  /** What it cannot see: its silence is never evidence that all is well. */
+  blindSpots: string[];
+}
+
+export interface AssistantRule extends AssistantRuleLimits {
   ruleId: string;
   ruleVersion: number;
   domain: string;
@@ -5942,7 +5952,7 @@ export interface AssistantInsights {
 }
 
 /** GET /assistant/insights: how one rule did over the period, for its periodic review. */
-export interface AssistantRuleInsight {
+export interface AssistantRuleInsight extends AssistantRuleLimits {
   ruleId: string;
   ruleVersion: number;
   title: string;

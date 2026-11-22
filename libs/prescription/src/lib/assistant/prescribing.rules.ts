@@ -272,6 +272,17 @@ export const DUPLICATE_THERAPY_RULE: RuleDefinition<DuplicateTherapyParameters> 
       hint: "With a duration, a course lasts its duration times one plus its refills.",
     },
   },
+  reads:
+    "The medicines being prescribed (their names), the patient's earlier prescriptions here (names, status, issue dates, durations and refills, records linked to theirs included) and the classes your organization gave its medicines. Never notes, instructions or the allergy override.",
+  knownFalsePositives: [
+    "An earlier course stopped early still counts as current: for its duration times one plus its refills, or for the days you set when it has none.",
+    "A dose change written as a new prescription instead of replacing the earlier one.",
+    "Medicines of the same class combined on purpose.",
+  ],
+  blindSpots: [
+    "A different salt, spelling or brand-only name may not match (metoprolol tartrate and metoprolol succinate).",
+    "Medicines from other prescribers, bought over the counter, or recorded in the patient's history as taken.",
+  ],
 };
 
 type DuplicateKind = "draft-same" | "current-same" | "draft-class" | "current-class" | "recent-same";
@@ -392,6 +403,18 @@ export const DOSE_LIMIT_RULE: RuleDefinition<DoseLimitParameters> = {
       max: 24,
     },
   },
+  reads:
+    "The medicines being prescribed (dose, strength and frequency) and the maximum daily dose and unit your organization set for each medicine that has one.",
+  knownFalsePositives: [
+    "A loading dose or a short high-dose course the prescriber intends.",
+    "One maximum per medicine: a dose right for another indication or age is still above it.",
+    "Frequencies count in full: every 4 hours is six doses a day, even if fewer are taken at night.",
+  ],
+  blindSpots: [
+    "Doses in another unit (no conversion), by body weight, with a custom frequency, or taken as needed unless you chose a count.",
+    "Doses are not added across medicines: two products with the same ingredient are each compared on their own.",
+    "Kidney function, age, weight and the patient's other medicines are not read.",
+  ],
 };
 
 /** The daily dose of a drafted medicine, or null when it cannot be worked out. */
@@ -476,6 +499,15 @@ export const CHECK_PROMPTS_RULE: RuleDefinition<CheckPromptsParameters> = {
     pregnancyFromAge: { label: "Ask about pregnancy from age", unit: "years", min: 8, max: 20 },
     pregnancyToAge: { label: "…up to age", unit: "years", min: 35, max: 60 },
   },
+  reads: "The medicines being prescribed, the checks and note your organization set for them and, for the pregnancy check, the patient's recorded sex and age.",
+  knownFalsePositives: [
+    "A check already done: nothing reads results or records that the check was done.",
+    "The pregnancy prompt shows for patients whose sex is not recorded, and for every female patient in the ages you set, whatever her history.",
+  ],
+  blindSpots: [
+    "Medicines your organization has not marked, or written without all the words of the setting's name.",
+    "Kidney results and pregnancy status are never read.",
+  ],
 };
 
 /** Whether the pregnancy check applies: never for a male patient; for a female one within the ages; otherwise yes. */

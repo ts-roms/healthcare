@@ -8,6 +8,7 @@ import {
   readParameters,
   replaySummary,
   reviewSummary,
+  ruleOnLabel,
   ruleState,
   ruleStateLabel,
   whereOn,
@@ -37,6 +38,9 @@ const rule = (over: Partial<AssistantRule> = {}): AssistantRule => ({
   setting: null,
   organizationSetting: null,
   lastReview: null,
+  reads: "The facility's stock ledger.",
+  knownFalsePositives: ["A one-off large issue raises the pace."],
+  blindSpots: ["A busier season ahead."],
   ...over,
 });
 
@@ -142,6 +146,9 @@ describe("insights", () => {
     reviewDue: false,
     reasons: [],
     lastReview: null,
+    reads: "The facility's stock ledger.",
+    knownFalsePositives: ["A one-off large issue raises the pace."],
+    blindSpots: ["A busier season ahead."],
     ...over,
   });
 
@@ -150,6 +157,11 @@ describe("insights", () => {
     expect(whereOn({ organization: true, facilities: 2 })).toBe("Whole organization and 2 facilities");
     expect(whereOn({ organization: false, facilities: 1 })).toBe("1 facility");
     expect(whereOn({ organization: false, facilities: 0 })).toBe("Off");
+    // As a label on its own, never "on at off".
+    expect(ruleOnLabel({ organization: false, facilities: 0 })).toBe("Off");
+    expect(ruleOnLabel({ organization: true, facilities: 0 })).toBe("On for the whole organization");
+    expect(ruleOnLabel({ organization: true, facilities: 2 })).toBe("On for the whole organization and 2 facilities");
+    expect(ruleOnLabel({ organization: false, facilities: 1 })).toBe("On at 1 facility");
   });
 
   it("sums up the latest review, noting one made on an earlier version", () => {

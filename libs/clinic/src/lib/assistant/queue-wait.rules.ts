@@ -41,6 +41,17 @@ export const QUEUE_WAIT_RULE: RuleDefinition<QueueWaitParameters> = {
     historyDays: { label: "Usual waits from the last", unit: "days", min: 7, max: 90 },
     minVisits: { label: "Past visits needed", unit: "visits", min: 5, max: 500, hint: "Visit types with fewer past visits are never flagged." },
   },
+  reads:
+    "The facility's queue by visit type: how long past visits waited from joining the line to their first call over the days you set, and how long the visits waiting now have waited. Counts and minutes only, never a patient.",
+  knownFalsePositives: [
+    "A patient waiting on purpose: for a result, for a particular doctor, or someone who stepped out.",
+    "After a lasting change such as fewer doctors on duty, the earlier weeks stay the measure until the days you set have passed.",
+  ],
+  blindSpots: [
+    "Waits after the first call, such as between triage and the doctor.",
+    "The usual wait is the facility's own past, not a target: a facility that is always slow is never flagged.",
+    "Visit types with fewer past visits than you set.",
+  ],
 };
 
 export interface QueueWaitInput {

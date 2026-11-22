@@ -32,6 +32,18 @@ export const DELTA_CHECK_RULE: RuleDefinition<DeltaCheckParameters> = {
     percent: { label: "Flag a change from the last released result of", unit: "% or more", min: 10, max: 500 },
     lookbackDays: { label: "Compare with a result released within the last", unit: "days", min: 7, max: 1825 },
   },
+  reads:
+    "Numeric results waiting for verification, approval or release at the facility, and the same patient's last released result of the same test in the same unit within the days you set. Only the order number is shown.",
+  knownFalsePositives: [
+    "A real change the care explains: after treatment, a transfusion or a procedure.",
+    "Results near zero, where a small change is a large percentage.",
+    "A test measured with another method or specimen type but reported in the same unit.",
+  ],
+  blindSpots: [
+    "A previous result in another unit or of zero, and text or coded results.",
+    "Results from other laboratories, including outside results filed on the record.",
+    "One percentage for every test: a change that matters for a test but stays under it.",
+  ],
 };
 
 export type PendingStage = "entered" | "verified" | "approved";

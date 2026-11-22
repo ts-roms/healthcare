@@ -49,6 +49,17 @@ export const CHART_CONSISTENCY_RULE: RuleDefinition<ChartConsistencyParameters> 
   parametersSchema: chartConsistencyParameters,
   defaultParameters: {},
   parameterLabels: {},
+  reads:
+    "The patient's open treatment plans (items still to do: procedure, its chart effect, tooth and status) and the chart's latest state of each tooth and since when. Never notes, images or fees.",
+  knownFalsePositives: [
+    "A tooth charted missing, impacted or not erupted by mistake: the item looks impossible until the chart is corrected.",
+    "A chart not updated since the tooth changed, such as a tooth that has erupted since: the item looks impossible until a new examination charts it.",
+  ],
+  blindSpots: [
+    "Items without a tooth, and procedures without a chart effect in your catalogue.",
+    "Other conflicts, such as a filling planned on a crowned tooth.",
+    "Teeth never charted.",
+  ],
 };
 
 const ON_ABSENT_TOOTH: ReadonlySet<ChartEffect> = new Set(["restoration", "sealant", "root_canal", "crown", "missing"]);
@@ -126,6 +137,12 @@ export const PLAN_DECISIONS_RULE: RuleDefinition<PlanDecisionsParameters> = {
   parameterLabels: {
     afterDays: { label: "Remind after", unit: "days without a decision", min: 3, max: 365 },
   },
+  reads: "The patient's open treatment plans: the items still proposed and when each was added.",
+  knownFalsePositives: [
+    "Staged treatment, where later items stay proposed on purpose until earlier ones are done.",
+    "A decision the patient made that nobody recorded on the plan: record it and the reminder stops.",
+  ],
+  blindSpots: ["Accepted items not carried out for a long time.", "Plans that are closed."],
 };
 
 export function planDecisionSuggestions(input: DentalPlanInput, params: PlanDecisionsParameters, asOf: string, timeZone: string): Suggestion[] {

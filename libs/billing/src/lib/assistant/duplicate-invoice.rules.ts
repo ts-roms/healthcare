@@ -31,6 +31,14 @@ export const DUPLICATE_INVOICE_RULE: RuleDefinition<DuplicateInvoiceParameters> 
     withinHours: { label: "Compare invoices issued within", unit: "hours of each other", min: 1, max: 168 },
     lookbackDays: { label: "Look at invoices from the last", unit: "days", min: 1, max: 90 },
   },
+  reads:
+    "The facility's invoices issued in the period and not void: the patient (records merged into theirs included), net total, services and issue time. Only invoice numbers are shown.",
+  knownFalsePositives: ["Two real visits with the same services and total within the hours you set, such as a daily injection or dressing."],
+  blindSpots: [
+    "The same visit billed twice with a different total (a discount on one) or different services.",
+    "Invoices at another facility, or issued further apart than the hours you set.",
+    "A service charged twice inside one invoice.",
+  ],
 };
 
 export interface InvoicePair {

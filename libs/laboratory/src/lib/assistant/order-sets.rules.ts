@@ -29,6 +29,14 @@ export const ORDER_SETS_RULE: RuleDefinition<OrderSetsParameters> = {
   parameterLabels: {
     maxSets: { label: "Offer at most", unit: "order sets per consultation", min: 1, max: 5 },
   },
+  reads:
+    "The consultation in progress (its diagnosis codes, its visit type and the tests ordered in it) and your organization's active order sets with their triggers. Never notes or results.",
+  knownFalsePositives: [
+    "A short diagnosis-code prefix matches far more diagnoses than intended.",
+    "A visit-type trigger offers the set at every visit of that type.",
+    "Tests done in an earlier consultation, or ordered there and still waiting for a result, are offered again: only this consultation's orders are read.",
+  ],
+  blindSpots: ["Diagnoses without a code, and consultations without a visit type.", "Sets beyond the number you allow per consultation."],
 };
 
 export interface OrderSetCandidate {

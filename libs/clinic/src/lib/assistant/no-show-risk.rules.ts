@@ -34,6 +34,17 @@ export const NO_SHOW_RISK_RULE: RuleDefinition<NoShowRiskParameters> = {
     minAppointments: { label: "Past appointments needed", unit: "appointments", min: 2, max: 20, hint: "Patients with fewer are never flagged." },
     historyDays: { label: "Count appointments from the last", unit: "days", min: 90, max: 1825 },
   },
+  reads:
+    "The day's appointments at the facility (time, confirmed or not) and each patient's past appointments here over the days you set, attended or marked no-show, records merged into theirs included. Never a diagnosis, age, sex or address.",
+  knownFalsePositives: [
+    "A no-show recorded for a patient who came but was never checked in (automatic no-shows included), or marked by mistake.",
+    "Past missed appointments whose cause has passed, such as a move or a change of work.",
+  ],
+  blindSpots: [
+    "New patients, and patients with fewer past appointments than you set.",
+    "Late cancellations: only appointments marked no-show count as missed.",
+    "Appointments at other clinics.",
+  ],
 };
 
 export interface NoShowRiskInput {

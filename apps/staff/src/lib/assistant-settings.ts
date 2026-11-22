@@ -98,6 +98,13 @@ export function whereOn(enabled: AssistantRuleInsight["enabled"]): string {
   return facilities || "Off";
 }
 
+/** Whether and where a rule is on, as a label: "Off", "On for the whole organization", "On at 2 facilities". */
+export function ruleOnLabel(enabled: AssistantRuleInsight["enabled"]): string {
+  const where = whereOn(enabled);
+  if (where === "Off") return "Off";
+  return enabled.organization ? `On for the ${where.charAt(0).toLowerCase()}${where.slice(1)}` : `On at ${where}`;
+}
+
 /** The latest review in one line: "Retired after review on 2026-11-21 (version 1)". */
 export function reviewSummary(review: AssistantRuleReviewSummary | null, currentVersion: number): string {
   if (!review) return "Not reviewed yet";

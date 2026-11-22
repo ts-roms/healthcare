@@ -31,7 +31,9 @@ finding appears on these pages.
 
 1. Open **Settings → Assistant → Open insights and reviews** (`/admin/assistant/insights`) and choose the period (90
    days for a quarterly review). Rules due for review and mostly dismissed rules are listed first.
-2. For each rule that is on, open it. Read the counts and **What staff said**. Ask the people who use it:
+2. For each rule that is on, open it. Read the counts, **When it can be wrong** (what the rule reads, its known false
+   positives and what it does not see, documented with the rule for every organization) and **What staff said**. Ask
+   the people who use it:
    - Do its suggestions point at something they would want to know, early enough to act?
    - Which suggestions were wrong, and is there a pattern (a kind of item, patient, test, time of day)? That pattern is a
      **false positive**: write it down.
@@ -58,6 +60,8 @@ finding appears on these pages.
 
 A false positive that is a fault in the rule itself (not a threshold the organization can change) is reported to the
 platform team with the rule's id and version (on the rule's insights page and under **Why?** on each suggestion) and the
-pattern, never a patient's details. The team documents known false positives per rule in
-[assistant](../domains/assistant.md) ("Integration points and limits") and raises the rule's version when its logic
-changes, which makes every organization's review of it due again.
+pattern, never a patient's details. The team adds the pattern to the rule's known false positives (its definition's
+`knownFalsePositives`, shown under **When it can be wrong** and on its settings card for every organization; see
+[assistant](../domains/assistant.md), "Known false positives") and raises the rule's version only when it changes the
+rule's logic, which makes every organization's review of it due again. A pattern already listed there needs no report:
+record it in the review if it matters to your organization.

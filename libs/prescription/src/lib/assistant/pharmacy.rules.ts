@@ -125,6 +125,14 @@ export const SHORT_STOCK_RULE: RuleDefinition<ShortStockParameters> = {
   parameterLabels: {
     withinDays: { label: "Prescriptions issued in the last", unit: "days", min: 1, max: 30 },
   },
+  reads:
+    "Active prescriptions issued at the facility in the days you set with something left to dispense (medicine names, strengths, units, quantities and prescription numbers), and the facility's stock of items named like them (names, units, lots and quantities). Never a patient.",
+  knownFalsePositives: [
+    "Patients who fill their prescriptions elsewhere still count: the shortfall assumes every waiting prescription is dispensed here.",
+    "Stock held under a brand-only or differently spelled name is not counted when another item does match, so the medicine looks shorter than it is.",
+    "Deliveries on open purchase orders and transfers on their way are not counted.",
+  ],
+  blindSpots: ["Refills: only one fill of each prescription is counted.", "Medicines not stocked here, or stocked in another unit, are skipped."],
 };
 
 /** A prescription item still to be dispensed at the moment. */
@@ -246,6 +254,16 @@ export const COURSE_EXPIRY_RULE: RuleDefinition<CourseExpiryParameters> = {
       hint: "0 points out only stock that expires before the course's last day.",
     },
   },
+  reads:
+    "The prescription being dispensed (medicine names, strengths, durations and what is left to dispense), and the stock here named like each medicine, per location, with its lots' expiry dates and quantities.",
+  knownFalsePositives: [
+    "A first lot holding only a few units: the rule speaks though most of the course would come from later lots.",
+    "A course the patient will not take in full from this fill, such as a partial hand-over or a course stopped early.",
+  ],
+  blindSpots: [
+    "Items without a duration, lots without an expiry date, and stock named differently from the prescription.",
+    "Refills: only one fill's course is checked.",
+  ],
 };
 
 /** A prescription item as the course check reads it. */

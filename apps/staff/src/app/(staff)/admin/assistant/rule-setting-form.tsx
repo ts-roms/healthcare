@@ -3,11 +3,26 @@
 import * as React from "react";
 import { CircleCheckIcon, CircleOffIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle, Checkbox, Input, Label, toast } from "@healthcare/ui/primitives";
+import {
+  Badge,
+  Button,
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Explain,
+  Input,
+  Label,
+  toast,
+} from "@healthcare/ui/primitives";
 import type { AssistantRule } from "@/lib/api/types";
 import { expectedVersion, parameterFields, readParameters, replaySummary, reviewSummary, ruleState, ruleStateLabel } from "@/lib/assistant-settings";
 import { useServerAction } from "@/lib/use-server-action";
 import { replayAssistantRule, saveAssistantRule } from "./actions";
+import { RuleLimits } from "./rule-limits";
 
 /** Past days a "Try these values" replay reads. */
 const REPLAY_DAYS = 14;
@@ -63,12 +78,17 @@ export function RuleSettingForm({
       </CardHeader>
       <CardContent className="grid gap-4">
         <CardDescription className="text-table">{rule.description}</CardDescription>
+        <Explain summary="What it reads and when it can be wrong">
+          <RuleLimits limits={rule} />
+        </Explain>
         {rule.lastReview ? (
           <div className="rounded-md bg-muted/50 p-3 text-table">
             <p>
               <span className="font-medium">{reviewSummary(rule.lastReview, rule.ruleVersion)}:</span> {rule.lastReview.note}
             </p>
-            {rule.lastReview.falsePositives ? <p className="mt-1 text-muted-foreground">Known false positives: {rule.lastReview.falsePositives}</p> : null}
+            {rule.lastReview.falsePositives ? (
+              <p className="mt-1 text-muted-foreground">False positives your review found: {rule.lastReview.falsePositives}</p>
+            ) : null}
           </div>
         ) : null}
         <form

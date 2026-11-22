@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AlertTriangleIcon, ClockIcon } from "lucide-react";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { StaffSettingsPage } from "@/components/settings-page";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { AssistantInsights, AssistantRuleReview } from "@/lib/api/types";
-import { dismissedShare, REVIEW_OUTCOME_LABEL, whereOn } from "@/lib/assistant-settings";
+import { dismissedShare, REVIEW_OUTCOME_LABEL, ruleOnLabel, whereOn } from "@/lib/assistant-settings";
 import { todayIn } from "@/lib/clinic-mapping";
+import { RuleLimits } from "../../rule-limits";
 import { RuleReviewForm } from "./rule-review-form";
 
 export const metadata = { title: "Assistant rule" };
@@ -56,7 +57,7 @@ export default async function AssistantRuleInsightPage({
       <Card>
         <CardHeader>
           <CardTitle>
-            Last {days} days · on at {whereOn(rule.enabled).toLowerCase()}
+            Last {days} days · {ruleOnLabel(rule.enabled).toLowerCase()}
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3">
@@ -91,6 +92,18 @@ export default async function AssistantRuleInsightPage({
               Rule {rule.ruleId}, version {rule.ruleVersion}.
             </span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>When it can be wrong</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          <CardDescription>
+            Documented with the rule for every organization. The false positives your organization finds go in its reviews below.
+          </CardDescription>
+          <RuleLimits limits={rule} />
         </CardContent>
       </Card>
 

@@ -32,6 +32,17 @@ export const UNCHARGED_WORK_RULE: RuleDefinition<UnchargedWorkParameters> = {
     delayHours: { label: "Wait before flagging", unit: "hours", min: 1, max: 72, hint: "Charges are captured in the background, usually within minutes." },
     lookbackDays: { label: "Look at procedures from the last", unit: "days", min: 1, max: 60 },
   },
+  reads:
+    "Clinic and dental procedures done in the period (their codes and days), and from billing whether each was charged and whether a priced service is mapped to its code. Never a patient, a note or an amount.",
+  knownFalsePositives: [
+    "Procedures free on purpose that have no billing service: they are shown as advice, so dismiss them.",
+    "Charge capture held up in the background, or a wait shorter than capture takes, flags work whose charge is on its way.",
+  ],
+  blindSpots: [
+    "Consultations, laboratory orders, dispensing and online consultations are not checked.",
+    "A charge for the wrong service or amount counts as charged.",
+    "Procedures older than the days you set.",
+  ],
 };
 
 export type UnchargedKind = "clinic_procedure" | "dental_procedure";

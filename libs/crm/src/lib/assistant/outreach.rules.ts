@@ -46,6 +46,12 @@ export const SEND_HOUR_RULE: RuleDefinition<SendHourParameters> = {
       hint: "With fewer visits there is too little to say when patients read messages.",
     },
   },
+  reads:
+    "MyHealth activity in the audit trail over the days you set, counted per hour of the day (an account active in an hour counts once), your quiet hours and the hours recent campaigns started. Counts only, never an account or what was done.",
+  knownFalsePositives: [
+    "Peaks caused by the clinic's own notices: patients open MyHealth when a result or appointment notice arrives, which is not necessarily when they prefer to read.",
+  ],
+  blindSpots: ["Patients without MyHealth, and when text messages and emails are read.", "Whether a message was read at all."],
 };
 
 export interface SendHourInput {
@@ -200,6 +206,16 @@ export const AUDIENCE_IDEAS_RULE: RuleDefinition<AudienceIdeasParameters> = {
     minPatients: { label: "Offer an idea from", unit: "patients", min: 5, max: 100_000 },
     birthdayLeadDays: { label: "Offer next month's birthdays in the last", unit: "days of the month (0: never)", min: 0, max: 28 },
   },
+  reads:
+    "Gaps between each patient's completed consultations over two years (records linked to theirs as one), your active segments, today's date and how many patients each idea's criteria match. Non-clinical criteria only.",
+  knownFalsePositives: [
+    "The recall idea includes patients who moved away, are seen elsewhere, came once for a one-off reason, or registered but were never seen.",
+    "The usual return time mixes every kind of visit: frequent follow-ups make it short, so many patients look overdue.",
+  ],
+  blindSpots: [
+    "Only two ideas exist: recall by the last visit and next month's birthdays.",
+    "Any segment that selects by the last visit hides the recall idea, whatever its period.",
+  ],
 };
 
 /** How long patients take to come back: gaps between completed consultations of the same patient. */
@@ -333,6 +349,16 @@ export const FREQUENCY_LOAD_RULE: RuleDefinition<FrequencyLoadParameters> = {
     campaigns: { label: "Count patients who received", unit: "campaigns or more", min: 2, max: 20 },
     minPatients: { label: "Warn from", unit: "such patients", min: 1, max: 100_000 },
   },
+  reads:
+    "Outreach deliveries over the days you set: how many patients received the number of campaigns you set or more (queued or delivered), the most any one patient received, and the frequency cap. Counts only.",
+  knownFalsePositives: [
+    "Each occurrence of a recurring campaign counts as a campaign, so a weekly series patients wanted reaches the count quickly.",
+    "Deliveries still queued count, even if they later fail or are cancelled.",
+  ],
+  blindSpots: [
+    "Messages that are not outreach (appointment reminders, result notices, care-plan recalls) are not counted.",
+    "Patients who opted out after too many messages are not measured.",
+  ],
 };
 
 export interface FrequencyLoadInput {

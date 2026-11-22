@@ -41,6 +41,18 @@ export const CODE_SUGGESTIONS_RULE: RuleDefinition<CodeSuggestionsParameters> = 
     minUses: { label: "Only codes used at least", unit: "times", min: 2, max: 100, hint: "A code used only once is never offered." },
     lookbackDays: { label: "Look at coding from the last", unit: "days", min: 30, max: 3650 },
   },
+  reads:
+    "The words of the consultation's diagnoses written without a code (or of its assessment), and the codes your organization used over the days you set, each with its most common description and how often it was used.",
+  knownFalsePositives: [
+    "Negations are not understood: small words such as “not” and “without” are ignored, so “without fever” still matches a code described as “Fever”.",
+    "Common words shared with unrelated codes (“acute”, “pain”, “left”) can bring a close-looking but wrong code.",
+    "A code your organization used wrongly before is offered again for the same words.",
+  ],
+  blindSpots: [
+    "Codes your organization never used, or used fewer times than you set.",
+    "Synonyms, abbreviations and misspellings do not match.",
+    "The coding system's own list is not read.",
+  ],
 };
 
 /** A code the organization used, with its most common description. */

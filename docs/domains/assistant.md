@@ -16,8 +16,9 @@ items the chart says cannot be carried out and items waiting for the patient's d
 sets lists for a chronic diagnosis that have no released result for months), and the pharmacy and online consultations (on the pharmacy's home,
 medicines that waiting prescriptions need more of than the facility holds; on the dispense screen, stock that would expire before the course ends; in
 an online consultation, reasons to consider seeing the patient in person). Phase 4, governance, is built too: how often each rule was shown and
-followed, the reasons staff give for "Not useful", an insights page per rule, and the organization's reviews of its rules (keep, adjust or retire,
-with the false positives found), with a quarterly review runbook (`docs/runbooks/assistant-rule-review.md`). Phase 3's MyHealth item, result wording,
+followed, the reasons staff give for "Not useful", an insights page per rule, the organization's reviews of its rules (keep, adjust or retire,
+with the false positives found) with a quarterly review runbook (`docs/runbooks/assistant-rule-review.md`), and each rule's documented limits — what
+it reads, its known false positives and what it does not see — shown where it is turned on and reviewed. Phase 3's MyHealth item, result wording,
 is not a rule: MyHealth's result page explains each result in fixed, versioned sentences (`resultExplanation`), and the organization records its
 review of them as a compliance area ("Results shown to patients", migration `0158`); see Integration points and limits.
 
@@ -41,10 +42,13 @@ Migration `0152_assistant.sql`; Drizzle mirrors in `apps/api/src/app/assistant/a
 ## Rules
 
 A rule is a `RuleDefinition` (`libs/core` `assistant/suggestion.ts`: id, version, domain, the screens it speaks on, the
-permissions it needs, a parameter schema, starting values and `parameterLabels`) plus a pure function in its domain
-library, a read query in that library, and a binding in `apps/api/src/app/assistant/assistant-rules.ts`. Raise `version`
-when its logic or the meaning of a parameter changes; dismissals are per version. Every starting value is a starting
-point the organization changes, never a standard.
+permissions it needs, a parameter schema, starting values, `parameterLabels`, and its documented limits `reads`,
+`knownFalsePositives` and `blindSpots`) plus a pure function in its domain library, a read query in that library, and a
+binding in `apps/api/src/app/assistant/assistant-rules.ts`. Raise `version` when its logic or the meaning of a parameter
+changes; dismissals are per version. Every starting value is a starting point the organization changes, never a standard.
+`apps/api/src/app/assistant/assistant-rules.spec.ts` checks the registry: unique ids the database accepts, starting values
+that pass the rule's schema and each have a label, the documented limits filled in as plain sentences, and a row in the
+table below for every rule.
 
 | Rule                                 | Screen        | Library (query)                                                                                                                   | Says                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Needs                                                   |
 | ------------------------------------ | ------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
@@ -92,6 +96,18 @@ diagnosis codes and when each was first recorded, the release times of the set's
 The pharmacy rules read prescribed names, strengths, quantities, units, durations, dispenses and prescription numbers, and stock names, units, lots,
 expiry dates and quantities; never a patient, an instruction or a cost. The online-consultation rule reads the red flags ticked and the number of days
 the symptoms lasted (never the patient's words), the consultations' modality and start times and when vital signs were last measured.
+
+### Known false positives
+
+Each rule's definition says in plain sentences what it reads (`reads`), the situations in which it may speak though
+nothing needs doing (`knownFalsePositives`) and what it cannot see (`blindSpots`), so that the lack of a suggestion is
+never taken to mean all is well. They document the rule's logic and are the same for every organization. They are
+shown with the rule: on its card under **Settings → Assistant** ("What it reads and when it can be wrong"), where an
+administrator decides to turn it on, and on its insights page ("When it can be wrong"), beside the false positives the
+organization's own reviews found. A pattern reported for every organization (`docs/runbooks/assistant-rule-review.md`,
+"When a rule is wrong for everyone") is added to the rule's list; its version is raised only when its logic changes,
+which makes every organization's review of it due again. Nothing hides a suggestion because it looks like a known false
+positive.
 
 ## Moments and replay
 
@@ -221,8 +237,10 @@ Settings: staff `/admin/assistant` (**Settings → Assistant**, `assistant.confi
 **Try these values** replays the rule over the last 14 days at the facility of the scope (else the one selected in the top bar) with the values in the
 form, saved or not, and says how often it would have spoken. With `assistant.insights.read` the page links to **Insights and reviews**
 (`/admin/assistant/insights`: every rule with where it is on, times shown, followed, dismissed and not useful, review due and mostly dismissed first,
-over 30, 90 or 365 days; `/admin/assistant/insights/[ruleId]`: the counts, what staff said, the review form and the reviews), and each rule card shows
-its latest review and known false positives. Wording helpers in `apps/staff/src/lib/assistant-settings.ts` (unit-tested). Manual: chapter 13, "How to
+over 30, 90 or 365 days; `/admin/assistant/insights/[ruleId]`: the counts, when it can be wrong, what staff said, the review form and the reviews),
+and each rule card shows its latest review with the false positives it found and, under **What it reads and when it can be wrong**, the rule's
+documented limits (`RuleLimits`, `apps/staff/src/app/(staff)/admin/assistant/rule-limits.tsx`, also on the insights page). Wording helpers in
+`apps/staff/src/lib/assistant-settings.ts` (unit-tested). Manual: chapter 13, "How to
 turn on the assistant's suggestions", and each screen's chapter (3, 4, 5, 6, 7, 8, 9, 10, 11).
 
 ## Command bar

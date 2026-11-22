@@ -29,6 +29,12 @@ export const COMPLIANCE_GAPS_RULE: RuleDefinition<ComplianceGapsParameters> = {
   parameterLabels: {
     maxMonths: { label: "A review is old after", unit: "months", min: 1, max: 60 },
   },
+  reads: "Your organization's compliance reviews: for each area, the date and outcome of the latest one.",
+  knownFalsePositives: [
+    "Areas that do not apply to your organization, such as dental written estimates without dentistry: dismiss them.",
+    "A review done on paper but not recorded under Settings → Compliance.",
+  ],
+  blindSpots: ["Whether the configuration is right: it only says whether someone recorded checking it.", "Rules outside the platform's compliance areas."],
 };
 
 /** How the settings screen names each area (the staff app's Compliance page uses the same words). */

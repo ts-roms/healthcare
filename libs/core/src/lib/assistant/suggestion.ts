@@ -81,6 +81,20 @@ export interface RuleDefinition<Params> {
   defaultParameters: Params;
   /** How the settings screen names each parameter, in the order it shows them. */
   parameterLabels: { [K in keyof Params]: RuleParameterLabel };
+  /**
+   * What the rule reads, in plain words: the kinds of records and figures, never their values. Shown with the rule so
+   * the organization knows what it turns on, and its privacy review can check it.
+   */
+  reads: string;
+  /**
+   * Known false positives, documented by the platform team: situations in which the rule may speak though nothing needs
+   * doing. Plain sentences, never a patient. Shown on the rule's settings card and insights page, beside the false
+   * positives the organization's own reviews found (docs/runbooks/assistant-rule-review.md). A pattern reported for every
+   * organization is added here; the version is raised only when the logic changes.
+   */
+  knownFalsePositives: readonly string[];
+  /** What the rule cannot see, so that its silence is never read as all being well. Plain sentences. */
+  blindSpots: readonly string[];
 }
 
 export interface RuleParameterLabel {

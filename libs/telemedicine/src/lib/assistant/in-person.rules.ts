@@ -38,6 +38,19 @@ export const IN_PERSON_RULE: RuleDefinition<InPersonParameters> = {
     inPersonMonths: { label: "No in-person consultation for", unit: "months", min: 0, max: 36, hint: "0 turns this check off." },
     symptomDays: { label: "Symptoms the patient said have lasted at least", unit: "days", min: 0, max: 365, hint: "0 turns this check off." },
   },
+  reads:
+    "The online consultation in progress: the red flags the patient ticked and how many days they said the symptoms lasted (never their own words), their online consultations over the days you set, and when they were last seen in person and had vital signs measured here (records linked to theirs included).",
+  knownFalsePositives: [
+    "Long-lasting symptoms already known and followed online on purpose.",
+    "Repeat online consultations for renewals or to go over results.",
+    "Patients seen in person by another provider: only your organization's consultations count.",
+    "A red flag ticked by mistake.",
+  ],
+  blindSpots: [
+    "What the patient wrote in their own words.",
+    "Red flags beyond the questionnaire's fixed list: your organization's own list is not built.",
+    "Vital signs measured at home.",
+  ],
 };
 
 export interface InPersonInput {

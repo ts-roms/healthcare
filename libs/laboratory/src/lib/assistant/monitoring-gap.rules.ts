@@ -40,6 +40,15 @@ export const MONITORING_GAP_RULE: RuleDefinition<MonitoringGapParameters> = {
       hint: "A new diagnosis is offered its order set by the order sets rule instead.",
     },
   },
+  reads:
+    "In the consultation: the patient's coded diagnoses marked chronic and when each was first recorded (records linked to theirs included), when each test of the matching order sets was last released for the patient, and the tests ordered in the consultation. Never a result value or a note.",
+  knownFalsePositives: [
+    "Tests done at another laboratory, including outside results filed on the record.",
+    "A test ordered in an earlier consultation and still waiting for its result counts as not done.",
+    "Monitoring stopped on purpose for a diagnosis still marked chronic.",
+    "One number of months for every set: a test needed less often is pointed out too early.",
+  ],
+  blindSpots: ["Diagnoses not marked chronic or not coded, and diagnoses no order set lists.", "A panel counts as done when any of its tests was released."],
 };
 
 export interface MonitoringInput {

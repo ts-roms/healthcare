@@ -662,6 +662,10 @@ with a diagnosis code is also the list of tests to repeat for that diagnosis whe
 months a test counts as not done. **When patients use MyHealth** counts MyHealth use per hour from the audit trail (counts only); before turning it on,
 confirm with your Data Protection Officer that your privacy notice covers using it to time outreach.
 
+**What it reads and when it can be wrong**, on each rule's card, opens what the rule reads, the situations in which it may speak though nothing
+needs doing (its known false positives) and what it does not see, so that the lack of a suggestion is never taken to mean all is well. Read it with the people
+who will see the rule's suggestions before you turn it on.
+
 **Try these values** shows, before you save or turn anything on, how often the rule would have spoken on each of the last 14 days with the
 values in the form: for example "about 2 suggestions a day (at most 4, and nothing on 3 days)". It reads the facility you are setting, or the one
 selected in the top bar when you set the whole organization, and the records as they stood each day. Nothing is saved or shown to anyone. Stock
@@ -686,7 +690,8 @@ The full procedure, and who should take part for each kind of rule, is the runbo
 2. The table lists every rule with where it is on, how many times its suggestions were **Shown**, **Followed** (someone opened its link),
    **Dismissed** and marked **Not useful**. **Review due** marks a rule that is on and was never reviewed, was reviewed over 92 days ago or on an
    earlier version; **Mostly dismissed**, one with at least 20 answers of which 70% or more were dismissals or "not useful". They are listed first.
-3. Open a rule. **What staff said** shows the latest reasons people gave when they dismissed it or marked it not useful.
+3. Open a rule. **When it can be wrong** shows what the rule reads, its known false positives and what it does not see, written with the rule for
+   every organization; **What staff said** shows the latest reasons people gave when they dismissed it or marked it not useful.
 4. To change its thresholds, use **Change its settings** and **Try these values** first.
 5. Under **Record a review** (`assistant.configure`), choose **Keep it as it is**, **Adjust its thresholds** or **Retire it**, write what was decided
    and why, the false positives found (a pattern, never a patient's details) and the date, and select **Record review** (or **Retire the rule**).

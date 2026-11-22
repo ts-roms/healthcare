@@ -16,6 +16,7 @@ import {
   PgErrorCode,
   PH_TIMEZONE,
   requireFacilityId,
+  type RuleDefinition,
   type RuleParameterLabel,
   type Suggestion,
   type SuggestionSurface,
@@ -211,6 +212,7 @@ export class AssistantService {
       setting: view(rows.get(definition.id)),
       organizationSetting: view(org.get(definition.id)),
       lastReview: reviews.get(definition.id) ?? null,
+      ...ruleLimits(definition),
     }));
   }
 
@@ -382,6 +384,7 @@ export class AssistantService {
             .slice(0, REASONS_PER_RULE)
             .map((r) => ({ outcome: r.outcome, reason: r.reason!, at: r.at.toISOString() })),
           lastReview,
+          ...ruleLimits(definition),
         };
       }),
     };
@@ -614,6 +617,11 @@ function liveMoment(timeZone: string, date?: string): RuleMoment {
 function pastMoment(timeZone: string, date: string, time: string): RuleMoment {
   const { start, end } = localDayBounds(date, timeZone);
   return { asOf: zonedToUtc(date, time, timeZone), date, dayStart: start, dayEnd: end, today: date, timeZone, live: false };
+}
+
+/** What a rule's definition documents about it, for the settings and insights screens: what it reads and when it can be wrong. */
+function ruleLimits(definition: RuleDefinition<unknown>) {
+  return { reads: definition.reads, knownFalsePositives: [...definition.knownFalsePositives], blindSpots: [...definition.blindSpots] };
 }
 
 function reviewView(row: typeof assistantRuleReview.$inferSelect) {

@@ -48,6 +48,16 @@ export const UNUSUAL_ACCESS_RULE: RuleDefinition<UnusualAccessParameters> = {
     minOffHoursPatients: { label: "Flag outside working hours from", unit: "patients", min: 1, max: 1000 },
     minDenials: { label: "Flag refused requests from", unit: "refusals", min: 3, max: 1000 },
   },
+  reads:
+    "The organization's audit trail over the hours you set and the 28 days before: per staff account, the distinct patients named in its successful actions, those outside working hours (in the facility's time zone) and its refused requests. Counts only.",
+  knownFalsePositives: [
+    "Legitimate busy days: covering for a colleague, a screening day, a records officer working through requests.",
+    "Night shifts and on-call work: one set of working hours applies to every account.",
+    "Lists that record each patient listed (the prescriptions issued list, outside results awaiting review) count every one of them as opened.",
+    "An account with fewer than five earlier working days has no usual day yet, so a busy day is flagged (marked as based on limited data).",
+    "Refusals from a role that lacks a permission a screen asks for.",
+  ],
+  blindSpots: ["Steady, quiet access at an account's usual volume during working hours.", "Integration accounts, and patients' own use of MyHealth."],
 };
 
 export interface UnusualAccessInput {

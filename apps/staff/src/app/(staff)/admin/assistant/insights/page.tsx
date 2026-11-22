@@ -6,7 +6,7 @@ import { StaffSettingsPage } from "@/components/settings-page";
 import { api } from "@/lib/api/client";
 import { can, getSession } from "@/lib/api/session";
 import type { AssistantInsights } from "@/lib/api/types";
-import { dismissedShare, insightsOrder, reviewSummary, whereOn } from "@/lib/assistant-settings";
+import { dismissedShare, insightsOrder, reviewSummary, ruleOnLabel } from "@/lib/assistant-settings";
 
 export const metadata = { title: "Assistant insights" };
 
@@ -67,7 +67,7 @@ export default async function AssistantInsightsPage({ searchParams }: { searchPa
                     <Link href={`/admin/assistant/insights/${r.ruleId}?days=${days}`} className="font-medium text-primary hover:underline">
                       {r.title}
                     </Link>
-                    <span className="block text-meta text-muted-foreground">On at: {whereOn(r.enabled)}</span>
+                    <span className="block text-meta text-muted-foreground">{ruleOnLabel(r.enabled)}</span>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{r.shown}</TableCell>
                   <TableCell className="text-right tabular-nums">{r.accepted}</TableCell>
