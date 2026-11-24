@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { buildAppCsp, forwardedHeaders, newNonce, parseOrigins } from "@healthcare/web-session";
+import { buildAppCsp, busyPage, forwardedHeaders, newNonce, parseOrigins } from "@healthcare/web-session";
 import { COOKIES, REALTIME_URL } from "@/lib/api/config";
 import { ACTING_COOKIE, isOwnAccountScreen } from "@/lib/proxy-access";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api/tokens";
@@ -89,12 +89,15 @@ export async function proxy(request: NextRequest) {
 
 /** The API is busy or down: keep the session and retry, rather than signing the patient out. */
 function unavailable() {
-  return new NextResponse(
-    `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="10"><title>MyHealth is busy</title>
-<body style="font:16px system-ui;margin:2rem;max-width:30rem"><h1 style="font-size:20px">MyHealth is busy right now</h1>
-<p>You are still signed in. This page will try again in a few seconds.</p><p><a href="">Try again now</a></p></body>`,
-    { status: 503, headers: { "content-type": "text/html; charset=utf-8", "retry-after": "10", "cache-control": "no-store" } },
-  );
+  const page = busyPage({
+    title: "MyHealth is busy",
+    brand: { name: "MyHealth", icon: "heart-pulse" },
+    heading: "MyHealth is busy right now",
+    message: "You are still signed in. This page will try again by itself in a few seconds.",
+    retryLabel: "Try again now",
+    note: "If this keeps happening, please contact your clinic.",
+  });
+  return new NextResponse(page.body, page.init);
 }
 
 export const config = {

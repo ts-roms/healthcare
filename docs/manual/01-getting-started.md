@@ -272,7 +272,7 @@ Always sign out of a shared workstation. The staff app does not sign you out aft
   default; your organization's deployment can set this). The next action then takes you to sign-in with the note "Your session ended. Sign in again to
   continue."
 - If the server is busy or down, you may see "The patient record service is busy". Your session is still active and the page retries by itself every 10
-  seconds. You can also select **Retry now**.
+  seconds (the bar under the message fills until the next try). You can also select **Try again now**.
 
 ## Rules the system enforces
 

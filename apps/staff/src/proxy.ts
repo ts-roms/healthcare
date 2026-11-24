@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { COOKIES, REALTIME_URL } from "@/lib/api/config";
-import { buildAppCsp, forwardedHeaders, newNonce, parseOrigins } from "@healthcare/web-session";
+import { buildAppCsp, busyPage, forwardedHeaders, newNonce, parseOrigins } from "@healthcare/web-session";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/api/tokens";
 
 /**
@@ -91,12 +91,15 @@ export async function proxy(request: NextRequest) {
 
 /** The API is rate-limiting or down: keep the session cookies and ask the user to retry, rather than signing them out. */
 function unavailable() {
-  return new NextResponse(
-    `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="10"><title>Temporarily unavailable</title>
-<body style="font:14px system-ui;margin:3rem;max-width:32rem"><h1 style="font-size:18px">The patient record service is busy</h1>
-<p>Your session is still active. This page will retry in a few seconds.</p><p><a href="">Retry now</a></p></body>`,
-    { status: 503, headers: { "content-type": "text/html; charset=utf-8", "retry-after": "10", "cache-control": "no-store" } },
-  );
+  const page = busyPage({
+    title: "Service busy · Healthcare Platform",
+    brand: { name: "Healthcare Platform", icon: "activity" },
+    heading: "The patient record service is busy",
+    message: "Your session is still active, so you do not need to sign in again. This page will try again by itself in a few seconds.",
+    retryLabel: "Try again now",
+    note: "If this keeps happening, tell your administrator.",
+  });
+  return new NextResponse(page.body, page.init);
 }
 
 export const config = {
