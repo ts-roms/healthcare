@@ -384,3 +384,71 @@ workers act across organizations by design).
 
 **Consequences.** Two pools and two login roles (the platform pool small); every `asPlatform` call site keeps working
 unchanged; integration tests run both roles. Built only after ADR-0016 (it changes the same deployment variables).
+
+## ADR-0018 Heuristic assistant: rules over the caller's own data, suggestions computed on demand, nothing written
+
+**Status:** accepted (2026-11-20; plan in `docs/architecture/heuristic-assistant.md`, phase 0 built). **Context:** staff
+under time pressure benefit from prompts that notice what a screen does not (stock that will run out, a missing charge,
+an unusual pattern). CLAUDE.md §35 allows decision support only when it is labelled, shows its basis, can be overridden,
+is logged and is configurable, and §36 forbids encoding clinical or regulatory facts the organization has not entered.
+
+**Decision.** The assistant is deterministic: named, versioned rules and simple statistics over data the caller may
+already read. No LLM, no trained model, and nothing leaves the platform. A `Suggestion` (`libs/core`
+`assistant/suggestion.ts`) carries the rule id and version, a rationale, a non-empty evidence list, its basis and a
+strength band (`matched` / `weak`, never a made-up percentage); its only action is a link to an existing screen. Rules are
+pure functions that live beside the domain they read (`libs/<domain>/src/lib/assistant`) with that domain's read query;
+the API (`apps/api/src/app/assistant`, API-owned tables as in ADR-0011 and ADR-0015) binds them, applies settings and
+permissions, hides what the same person dismissed in the last 14 days and audits each request with rule ids only. A rule
+is **off** until an administrator turns it on for the organization or one facility (`assistant_rule_setting`, append-only
+versions, parameters checked by the rule's own schema); thresholds are the organization's, never shipped as clinical
+fact. Feedback (`assistant_feedback`, append-only) feeds an insights count per rule that flags a rule for review and
+changes nothing by itself. A rule whose source permission the caller lacks is withheld without counts. Suggestions are not
+stored and events carry ids only (`AssistantSuggestionActedOn`).
+
+**Alternatives rejected.** An LLM or hosted model (patient data leaving the platform, non-reproducible output, a privacy
+and clinical-safety review that has not happened); a separate `libs/assistant` holding every rule (rules would import every
+domain, ADR-0011 says create a library only for a second consumer); storing generated suggestions (stale rows, a new place
+for clinical text); rules enabled by default (an unvalidated threshold would speak for the organization).
+
+**Consequences.** One `AssistantRules` binding per rule in the API; a new surface is a code change (`SUGGESTION_SURFACES`);
+a `SuggestionProvider` seam is left for a future model-based provider, which would need its own ADR. Phase 0 ships one
+rule (`inventory.days-of-cover`), the kernel, migration `0152` (permissions `assistant.use | configure | insights.read`)
+and the `AssistantPanel` component, shown on staff `/inventory`.
+
+## ADR-0019 Assistant section: what the checks say, in one place, without naming what a person may not read
+
+**Status:** accepted (2026-11-22; part 1, the Suggestions pages, and part 2, Ask, built). **Context:** ADR-0018's
+suggestions appear only inside each module's screen, and only when a rule is on and has something to say: nobody sees in
+one place what the assistant says today, and staff cannot tell which checks exist or are on. The owner's other product
+gives its assistant a section of its own, with a page per analysis and a box for typed questions.
+
+**Decision.** A sidebar heading **Assistant** in the staff app. Part 1, **Suggestions** (`/assistant/suggestions`): one
+tab per area (stock, billing, clinic today, laboratory, pharmacy, outreach, security and compliance) offered with
+`assistant.use` and the permissions its rules read; each lists the checks the person may read with **On** or **Off** and
+what they say now. It reads one new route, `GET /assistant/overview`: several surfaces in one request, one `assistant.view`
+audit row and one update of the shown counts. Each rule binding declares what it needs on screen (`RuleBinding.needs`); the
+eleven that read a consultation, a patient, a prescription or a draft are listed with their state and never run there. A
+rule is named only to people who may read what it reads: everyone else gets a count, on this route and on
+`GET /assistant/suggestions`, which named withheld rules before (a title such as the record-access or rejection-rate rule
+tells staff they are measured, and how staff are told is the organization's). Routes a whole clinic calls from one address
+are counted per signed-in person (`@RateLimitPerPerson`, `ActorRateLimitGuard`), the overview 30 a minute. Part 2, **Ask**:
+a closed catalogue of operational questions answered by the public method of the route that already shows each figure, with
+that route's permission (an integration test asks every question as every built-in role and requires an answer exactly when
+the role may open the source route), its own audit plus `assistant.ask`, the typed words read by a route that touches no
+data and never stored, logged or audited, and a history that keeps the question and period only. Built as fifteen
+questions (`apps/api/src/app/assistant/ask/`), the reader in `libs/core/src/lib/assistant/ask/` (word groups and fixed
+period patterns; a tie is a choice for the person, never a guess), permission `assistant.ask` for the roles that hold
+`assistant.use` with no organization switch (it shows nothing the person cannot already open and has no thresholds to
+validate), and `assistant_asked_question` (migration `0160`). A withheld answer is audited as a result, not a refusal: the
+record-access rule counts refusals per account.
+
+**Alternatives rejected.** One sidebar entry per analysis, as in the other product (the staff sidebar has no collapsible
+sections; an administrator would get eight more entries); calling `GET /assistant/suggestions` once per surface (up to ten
+audit rows per page view); a count on the sidebar entry (badges refresh every minute, so every rule would run for every
+signed-in person each minute); storing or caching suggestions (ADR-0018); naming withheld rules; a language model to read
+questions (ADR-0018's reasons stand; it would need its own ADR and a privacy review); keeping the typed words of questions.
+
+**Consequences.** A new area is an entry in `apps/staff/src/lib/assistant-areas.ts`, whose permissions mirror its rules'
+`requires`; the API decides again on every request. A dismissal answers the same suggestion id wherever it is shown.
+Module tabs gain an all-of `requires` beside their any-of `permissions`. The Ask catalogue cannot grow by learning from
+what people typed: unrecognised questions can be counted, never kept.

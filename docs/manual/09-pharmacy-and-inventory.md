@@ -66,6 +66,8 @@ dispensed here today." means the list is empty. Click a patient's name to open t
 - A red note "This prescription is cancelled/superseded … It cannot be dispensed." means it is no longer active. Ask the prescriber for the
   replacement prescription.
 - **Dispenses** — every dispense of this prescription, with date, item and quantity.
+- **Suggestions** — when your organization turned on the assistant's pharmacy rules, stock that would expire before the course ends (see
+  [How to read the pharmacy suggestions](#how-to-read-the-pharmacy-suggestions)).
 
 ### How to dispense
 
@@ -95,6 +97,24 @@ If there is no dispensable stock at the facility, the panel shows "No medicines 
 The same lots go back to the same location. A dispense can be reversed once, and only at the facility where it was made. Reversal works even if the
 prescription was cancelled afterwards.
 
+### How to read the pharmacy suggestions
+
+When your organization has turned on the assistant's pharmacy rules (**Settings → Assistant**), a **Suggestions** box marked **Decision support** may
+appear:
+
+- On **Pharmacy**, **Waiting prescriptions that stock cannot fill**, for example "Amoxicillin 500 mg: 51 capsules left to dispense on 2 prescriptions,
+  25 in stock": active prescriptions issued here in the last days (3 to start) still need more of a medicine than this facility's usable stock of the
+  items named like it. **Why?** lists the stock per location and the prescription numbers. Order or transfer more, dispense part now, or tell the
+  patients where else to get it. Refills are not counted, and medicines you do not stock (or stock in another unit) are left out.
+- On a prescription's page, **Stock that expires before the course ends**, for example "Amoxicillin 500 mg: the lot taken first at Pharmacy expires
+  25 Nov, before this 7-day course ends": dispensing always hands over the earliest expiry first, so the patient would get stock that expires during
+  the course. **Why?** shows each location's first lot: dispense from a location whose lot lasts, hand over only what is needed before the expiry, or
+  tell the patient the expiry date.
+
+Both match stock to the prescribed medicine by name and strength only, like the **From stock** list: check the item yourself. A suggestion never
+dispenses, orders or changes anything; **Dismiss** or **Not useful** hides it from you for 14 days. You see them with `assistant.use` (pharmacists and
+nurses have it), `prescription.dispense` and `inventory.read`, and a facility selected.
+
 ---
 
 ## Inventory
@@ -111,6 +131,31 @@ Status badges: **In stock**, **Low** (usable stock at or below the reorder level
 **Expired**.
 
 If the facility has no storage locations yet, you see "No storage locations at this facility yet (see Catalog)."
+
+### How to read the stock suggestions
+
+When your organization has turned on the assistant's stock rules (**Settings → Assistant**), a **Suggestions** box (marked **Decision support**)
+appears above the stock table whenever there is something to say. There are three rules, each turned on separately:
+
+- **Stock may run out before a delivery arrives:** items whose usable stock, with what is already on open purchase orders, will not last the
+  delivery time at the pace they were issued over recent weeks, and how much to order to cover the days your organization chose. **Open
+  purchase orders** takes you there; the suggestion orders nothing.
+- **An item was issued much more than usual:** an item issued far more in the last 7 days than in a usual week. It may be more patients, a
+  mistaken entry, or stock that went missing. **Review movements** takes you to the movement list.
+- **Stock may expire before it is used:** a lot that will probably still hold stock on its expiry date, using the earliest expiry first at the
+  recent pace. Consider moving it where it is used more, or using it first. **See expiring stock** shows the list.
+
+For any suggestion:
+
+1. Read the title and the sentence under it.
+2. Select **Why?** to see what it looked at (usable stock, what was issued and how often, what is on order, the lot and its expiry).
+3. Select **Dismiss** if it does not apply now, or **Not useful** if it is wrong — then say what was wrong, if you like, and select **Mark not
+   useful** (your administrator reads it when reviewing the rule; never write a patient's name or details). Either way it stays hidden for you for
+   14 days. Others still see it. Opening a suggestion's link is counted too, so administrators can see which rules help.
+
+**Check soon** means it needs attention soon (less than half the delivery time covered, the item out, or a lot that is not moving and expires
+within a month); **Consider** means there is still time. **Based on limited data** means few issues were recorded, so the pace is uncertain.
+Inventory officers, nurses and organization administrators see these suggestions.
 
 ### How to record a stock movement
 

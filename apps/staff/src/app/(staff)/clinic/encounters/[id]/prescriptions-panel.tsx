@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertTriangleIcon, InfoIcon, PillIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import type { Allergy } from "@healthcare/domain";
-import { AllergyBadge, clinicalDateTime } from "@healthcare/ui/healthcare";
+import { AllergyBadge, AssistantPanel, type AssistantOutcome, clinicalDateTime } from "@healthcare/ui/healthcare";
 import {
   Badge,
   Button,
@@ -20,7 +20,8 @@ import {
   Textarea,
   toast,
 } from "@healthcare/ui/primitives";
-import type { AllergyWarning, Prescription, PrescriptionFrequency, PrescriptionRoute } from "@/lib/api/types";
+import { followSuggestion } from "@/components/assistant-suggestions";
+import type { AllergyWarning, AssistantSuggestions, Prescription, PrescriptionFrequency, PrescriptionRoute } from "@/lib/api/types";
 import type { PrescriptionControls } from "@/lib/encounter-mapping";
 import { label } from "@/lib/patient-mapping";
 import {
@@ -35,7 +36,9 @@ import {
   parseLines,
   ROUTE_LABEL,
 } from "@/lib/prescription-form";
-import { cancelPrescription, issuePrescription, replacePrescription } from "../prescription-actions";
+import { draftKey, draftMedicines } from "@/lib/prescribing-check";
+import { answerSuggestion } from "../../../assistant-actions";
+import { cancelPrescription, checkPrescriptionDraft, issuePrescription, replacePrescription } from "../prescription-actions";
 
 type AllergyStatus = "has_allergies" | "no_known_allergies" | "not_reviewed" | "unknown";
 
@@ -51,6 +54,7 @@ export function PrescriptionsPanel({
   controls,
   allergies,
   allergyStatus,
+  canCheck = false,
 }: {
   encounterId: string;
   /** null: the user may not read prescriptions. */
@@ -58,6 +62,8 @@ export function PrescriptionsPanel({
   controls: PrescriptionControls;
   allergies: Allergy[];
   allergyStatus: AllergyStatus;
+  /** The person may see the assistant's suggestions: a draft is checked with the prescribing rules before it is issued. */
+  canCheck?: boolean;
 }) {
   const router = useRouter();
   const [editing, setEditing] = React.useState<{ mode: "issue" } | { mode: "replace"; prescription: Prescription } | null>(null);
@@ -166,6 +172,7 @@ export function PrescriptionsPanel({
         encounterId={encounterId}
         allergies={allergies}
         allergyStatus={allergyStatus}
+        canCheck={canCheck}
         onClose={() => setEditing(null)}
       />
     </section>
@@ -177,12 +184,14 @@ function PrescriptionDialog({
   encounterId,
   allergies,
   allergyStatus,
+  canCheck,
   onClose,
 }: {
   state: { mode: "issue" } | { mode: "replace"; prescription: Prescription } | null;
   encounterId: string;
   allergies: Allergy[];
   allergyStatus: AllergyStatus;
+  canCheck: boolean;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -197,11 +206,25 @@ function PrescriptionDialog({
   const [pending, startTransition] = React.useTransition();
   // One key per attempt; a resubmission with an override is a new attempt.
   const [attemptKey, setAttemptKey] = React.useState(() => crypto.randomUUID());
+  // The assistant's prescribing rules on this draft, shown once before it is issued (decision support; never blocks).
+  const [checked, setChecked] = React.useState<{ key: string; answer: AssistantSuggestions } | null>(null);
+  const findings = checked?.answer.items ?? [];
 
   const update = (index: number, field: LineField, value: string) => {
     setLines((ls) => ls.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
     // Editing a medicine invalidates warnings computed for the previous list.
     if (field === "genericName" || field === "brandName") setWarnings(null);
+    setChecked(null);
+  };
+
+  const answer = async (id: string, outcome: AssistantOutcome, reason?: string) => {
+    const result = await answerSuggestion({ surface: "prescribing", id, outcome, reason });
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
+    }
+    toast.success(outcome === "dismissed" ? "Dismissed. It stays hidden for you for 14 days." : "Marked not useful. It stays hidden for you for 14 days.");
+    setChecked((c) => (c ? { ...c, answer: { ...c.answer, items: c.answer.items.filter((s) => s.id !== id), dismissed: c.answer.dismissed + 1 } } : c));
   };
 
   const submit = (e: React.FormEvent) => {
@@ -215,6 +238,19 @@ function PrescriptionDialog({
     }
     setErrors([]);
     startTransition(async () => {
+      if (canCheck) {
+        const medicines = draftMedicines(parsed.items);
+        const key = draftKey(medicines);
+        if (checked?.key !== key) {
+          const check = await checkPrescriptionDraft({ encounterId, medicines, replacesPrescriptionId: replacing?.id });
+          // Something to check: shown first, and the next click issues. Nothing, or no answer: issued at once.
+          if (check.ok && check.data.items.length > 0) {
+            setChecked({ key, answer: check.data });
+            return;
+          }
+          setChecked(check.ok ? { key, answer: check.data } : null);
+        }
+      }
       const allergyOverrideReason = warnings ? override.trim() : undefined;
       const result = replacing
         ? await replacePrescription({ prescriptionId: replacing.id, items: parsed.items, reason, notes, allergyOverrideReason })
@@ -361,6 +397,7 @@ function PrescriptionDialog({
                       setLines((ls) => ls.filter((_, i) => i !== index));
                       setErrors((es) => es.filter((_, i) => i !== index));
                       setWarnings(null);
+                      setChecked(null);
                     }}
                   >
                     <Trash2Icon />
@@ -412,9 +449,26 @@ function PrescriptionDialog({
           ) : (
             <p className="flex items-start gap-1.5 text-meta text-muted-foreground">
               <InfoIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-              On submit, medicines are checked against recorded allergies by name (decision support). No warning does not mean a medicine is safe.
+              On submit, medicines are checked against recorded allergies by name
+              {canCheck ? ", and with the prescribing checks your organization turned on" : ""} (decision support). No warning does not mean a medicine is safe.
             </p>
           )}
+
+          {findings.length > 0 ? (
+            <div className="flex flex-col gap-2" role="status">
+              <p className="text-table font-medium">
+                Before you {replacing ? "replace" : "issue"}: check {findings.length === 1 ? "this" : "these"}. You can still {replacing ? "replace" : "issue"}{" "}
+                the prescription as it is.
+              </p>
+              <AssistantPanel
+                suggestions={findings}
+                dismissedCount={checked?.answer.dismissed ?? 0}
+                withheldCount={checked?.answer.withheld ?? 0}
+                onAnswer={answer}
+                onFollow={followSuggestion}
+              />
+            </div>
+          ) : null}
 
           {error ? (
             <p role="alert" className="flex items-start gap-2 rounded-md border border-danger/30 bg-danger-subtle px-3 py-2 text-table text-danger-foreground">
@@ -437,9 +491,13 @@ function PrescriptionDialog({
                   ? replacing
                     ? "Override and replace"
                     : "Override and issue"
-                  : replacing
-                    ? "Replace prescription"
-                    : "Issue prescription"}
+                  : findings.length > 0
+                    ? replacing
+                      ? "Replace anyway"
+                      : "Issue anyway"
+                    : replacing
+                      ? "Replace prescription"
+                      : "Issue prescription"}
             </Button>
           </div>
         </form>

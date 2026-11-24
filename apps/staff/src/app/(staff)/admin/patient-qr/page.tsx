@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { StaffSettingsPage } from "@/components/settings-page";
 import { redirect } from "next/navigation";
 import { api } from "@/lib/api/client";
@@ -5,7 +6,7 @@ import { can, getSession } from "@/lib/api/session";
 import type { PatientQrSetting } from "@/lib/api/types";
 import { PatientQrSettingForm } from "./patient-qr-setting-form";
 
-export const metadata = { title: "Patient QR codes" };
+export const metadata: Metadata = { title: "Patient QR codes" };
 
 export default async function PatientQrSettingsPage() {
   const session = await getSession();

@@ -61,7 +61,7 @@ describe("compliance configuration", () => {
     it("lists every area as not reviewed until the organization records who validated it", async () => {
       await api(nurse).get("/compliance/reviews").expect(403);
       const before = (await api(admin).get("/compliance/reviews").expect(200)).body;
-      expect(before.areas).toHaveLength(7);
+      expect(before.areas).toHaveLength(8);
       expect(before.areas.every((a: { latest: unknown }) => a.latest === null)).toBe(true);
 
       const review = {

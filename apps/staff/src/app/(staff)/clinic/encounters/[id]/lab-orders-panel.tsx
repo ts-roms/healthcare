@@ -6,7 +6,7 @@ import { AlertOctagonIcon, FlaskConicalIcon, PlusIcon, XIcon, ZapIcon, PrinterIc
 import { clinicalDateTime, LabFlagBadge } from "@healthcare/ui/healthcare";
 import { Badge, Button, Checkbox, Input, Label, NativeSelect, Textarea, toast } from "@healthcare/ui/primitives";
 import { fileHref } from "@/lib/files";
-import type { LabOrder, LabPanel, LabPriority, LabTest } from "@/lib/api/types";
+import type { LabOrder, LabOrderSet, LabPanel, LabPriority, LabTest } from "@/lib/api/types";
 import { ITEM_STATUS_LABEL, PRIORITY_LABEL, referenceText, resultValue, uiFlag } from "@/lib/lab-mapping";
 import { cancelLabOrder, createLabOrder } from "../../../laboratory/actions";
 
@@ -24,6 +24,8 @@ export function LabOrdersPanel({
   canOrder,
   canCancel,
   defaultIndication,
+  orderSets = [],
+  preset = null,
 }: {
   encounterId: string;
   patientId: string;
@@ -34,11 +36,22 @@ export function LabOrdersPanel({
   canOrder: boolean;
   canCancel: boolean;
   defaultIndication: string;
+  /** The organization's active order sets, to add to the selection. */
+  orderSets?: LabOrderSet[];
+  /** An order set to pre-select (the assistant's link): the form opens with its tests chosen. */
+  preset?: LabOrderSet | null;
 }) {
-  const [ordering, setOrdering] = React.useState(false);
+  const router = useRouter();
+  const [ordering, setOrdering] = React.useState(Boolean(preset && canOrder && tests.length > 0));
+  const section = React.useRef<HTMLElement>(null);
+  const presetId = preset?.id ?? null;
+  React.useEffect(() => {
+    // Opened from an order set's link: bring the filled-in form into view, moving the workspace no more than needed.
+    if (presetId) section.current?.scrollIntoView({ block: "nearest" });
+  }, [presetId]);
   if (orders === null) return null;
   return (
-    <section className="flex flex-col gap-2" aria-labelledby="lab-orders-heading">
+    <section ref={section} id="lab-orders" className="flex scroll-mt-4 flex-col gap-2" aria-labelledby="lab-orders-heading">
       <div className="flex items-center gap-2">
         <h3 id="lab-orders-heading" className="text-meta font-semibold tracking-wide text-muted-foreground uppercase">
           Laboratory
@@ -60,7 +73,13 @@ export function LabOrdersPanel({
           tests={tests}
           panels={panels}
           defaultIndication={defaultIndication}
-          onDone={() => setOrdering(false)}
+          orderSets={orderSets}
+          preset={preset}
+          onDone={() => {
+            setOrdering(false);
+            // A form filled in from a link opens once: the set leaves the address when the form closes, so a reload cannot reopen it.
+            if (presetId) router.replace(`/clinic/encounters/${encounterId}`, { scroll: false });
+          }}
         />
       ) : null}
     </section>
@@ -174,6 +193,8 @@ function OrderForm({
   tests,
   panels,
   defaultIndication,
+  orderSets,
+  preset,
   onDone,
 }: {
   encounterId: string;
@@ -181,13 +202,17 @@ function OrderForm({
   tests: LabTest[];
   panels: LabPanel[];
   defaultIndication: string;
+  orderSets: LabOrderSet[];
+  preset: LabOrderSet | null;
   onDone: () => void;
 }) {
   const router = useRouter();
   const [pending, start] = React.useTransition();
   const [filter, setFilter] = React.useState("");
-  const [testIds, setTestIds] = React.useState<string[]>([]);
-  const [panelIds, setPanelIds] = React.useState<string[]>([]);
+  // An order set chooses its tests and panels that are in the catalogue now; the doctor checks them before sending.
+  const [testIds, setTestIds] = React.useState<string[]>(() => setChoice(preset, tests, panels).testIds);
+  const [panelIds, setPanelIds] = React.useState<string[]>(() => setChoice(preset, tests, panels).panelIds);
+  const [fromSets, setFromSets] = React.useState<string[]>(() => (preset ? [preset.name] : []));
   const [priority, setPriority] = React.useState<LabPriority>("routine");
   const [indication, setIndication] = React.useState(defaultIndication);
   const [notes, setNotes] = React.useState("");
@@ -219,6 +244,33 @@ function OrderForm({
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-2 rounded-md border p-2.5">
+      {fromSets.length ? (
+        <p role="status" className="rounded-md bg-info-subtle px-2 py-1.5 text-table text-info-foreground">
+          Chosen from the order set{fromSets.length > 1 ? "s" : ""} {fromSets.map((n) => `“${n}”`).join(", ")}. Check each test before sending: nothing is
+          ordered until you do.
+        </p>
+      ) : null}
+      {orderSets.length ? (
+        <NativeSelect
+          aria-label="Add an order set"
+          value=""
+          placeholder="Add an order set…"
+          onChange={(e) => {
+            const set = orderSets.find((o) => o.id === e.target.value);
+            if (!set) return;
+            const choice = setChoice(set, tests, panels);
+            setTestIds((ids) => [...new Set([...ids, ...choice.testIds])]);
+            setPanelIds((ids) => [...new Set([...ids, ...choice.panelIds])]);
+            setFromSets((names) => (names.includes(set.name) ? names : [...names, set.name]));
+          }}
+        >
+          {orderSets.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.name}
+            </option>
+          ))}
+        </NativeSelect>
+      ) : null}
       <Input aria-label="Filter tests" placeholder="Filter tests and panels" value={filter} onChange={(e) => setFilter(e.target.value)} />
       <div className="grid max-h-56 gap-x-4 gap-y-1 overflow-auto sm:grid-cols-2">
         {panels
@@ -279,4 +331,15 @@ function OrderForm({
       </div>
     </form>
   );
+}
+
+/** The tests and panels of an order set that the catalogue offers now (inactive ones are left out). */
+function setChoice(set: LabOrderSet | null, tests: LabTest[], panels: LabPanel[]): { testIds: string[]; panelIds: string[] } {
+  if (!set) return { testIds: [], panelIds: [] };
+  const testIds = new Set(tests.map((t) => t.id));
+  const panelIds = new Set(panels.map((p) => p.id));
+  return {
+    testIds: set.items.filter((i) => i.kind === "test" && testIds.has(i.id)).map((i) => i.id),
+    panelIds: set.items.filter((i) => i.kind === "panel" && panelIds.has(i.id)).map((i) => i.id),
+  };
 }

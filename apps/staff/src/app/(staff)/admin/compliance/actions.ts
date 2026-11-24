@@ -9,7 +9,16 @@ import type { ComplianceReview } from "@/lib/api/types";
 // Shapes are checked here only to fail fast; the API validates and authorizes every call.
 
 const reviewSchema = z.object({
-  area: z.enum(["billing_tax", "procurement", "controlled_drugs", "laboratory_licensing", "doh_reporting", "data_privacy", "dental_estimates"]),
+  area: z.enum([
+    "billing_tax",
+    "procurement",
+    "controlled_drugs",
+    "laboratory_licensing",
+    "doh_reporting",
+    "data_privacy",
+    "dental_estimates",
+    "patient_results",
+  ]),
   outcome: z.enum(["validated", "changes_needed"]),
   reviewerName: z.string().trim().min(2, "Name the reviewer.").max(120),
   reviewerRole: z.string().trim().min(2, "Give the reviewer's role.").max(120),

@@ -141,6 +141,15 @@ Migration `0016_telemedicine.sql`. `visit.checked_in_by` is required unless `che
   `LIVEKIT_API_SECRET`). A LiveKit dev server is in `infrastructure/docker/docker-compose.yml`. Replace the adapter to
   change provider.
 
+## Assistant suggestion
+
+The heuristic assistant's `telemedicine.in-person-care` ([assistant.md](assistant.md)), off until an administrator turns it
+on, speaks in an online consultation in progress (the consultation workspace) when the patient ticked red flags in the
+pre-consult questionnaire, said the symptoms have lasted N days or more, has had N online consultations in N days, or has
+not had an in-person consultation for N months: "Consider seeing the patient in person". It reads only the red flags and the
+number of days from the questionnaire (`TelemedicineAssistantQueries.preConsultAnswers`) and the patient's consultations and
+vital signs from the clinic; the doctor decides and escalates. Rule in `libs/telemedicine/src/lib/assistant/in-person.rules.ts`.
+
 ## Screens
 
 Staff: `/telemedicine`, `/telemedicine/[appointmentId]` and the telemedicine panel in the encounter workspace

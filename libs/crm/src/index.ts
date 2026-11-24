@@ -7,3 +7,5 @@ export * from "./lib/crm-campaign-runs";
 export * from "./lib/crm.rules";
 export * from "./lib/crm.schema";
 export * from "./lib/ports";
+export * from "./lib/assistant/outreach.rules";
+export * from "./lib/assistant/crm-assistant.queries";

@@ -1,3 +1,7 @@
+export * from "./lib/assistant/days-of-cover.rules";
+export * from "./lib/assistant/expiry-exposure.rules";
+export * from "./lib/assistant/usage-spike.rules";
+export * from "./lib/assistant/inventory-assistant.queries";
 export * from "./lib/catalog/inventory-catalog.service";
 export * from "./lib/inventory.module";
 export * from "./lib/inventory.rules";

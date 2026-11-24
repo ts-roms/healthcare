@@ -1,5 +1,6 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Type } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
+import { TelemedicineAssistantQueries } from "./assistant/telemedicine-assistant.queries";
 import { TELEMEDICINE_CLINIC, TELEMEDICINE_PAYMENTS, type TelemedicineClinic, type TelemedicinePayments } from "./ports";
 import { TelemedicineController, TelemedicineSettingController } from "./telemedicine.controller";
 import { TelemedicineChatService } from "./telemedicine-chat.service";
@@ -30,11 +31,12 @@ export class TelemedicineModule {
         TelemedicineSettingService,
         TelemedicineChatService,
         TelemedicineReportingQueries,
+        TelemedicineAssistantQueries,
         { provide: TELEMEDICINE_CLINIC, useClass: options.clinic },
         { provide: TELEMEDICINE_PAYMENTS, useClass: options.payments },
         options.video ?? { provide: VIDEO_PROVIDER, useClass: LiveKitVideoProvider },
       ],
-      exports: [TelemedicineService, TelemedicineChatService, TelemedicineReportingQueries],
+      exports: [TelemedicineService, TelemedicineChatService, TelemedicineReportingQueries, TelemedicineAssistantQueries],
     };
   }
 }

@@ -1,3 +1,9 @@
+export * from "./lib/assistant/clinic-assistant.queries";
+export * from "./lib/assistant/code-suggestions.rules";
+export * from "./lib/assistant/encounter-assistant.queries";
+export * from "./lib/assistant/encounter-checklist.rules";
+export * from "./lib/assistant/no-show-risk.rules";
+export * from "./lib/assistant/queue-wait.rules";
 export * from "./lib/appointments/appointment-reminders";
 export * from "./lib/appointments/automatic-no-shows";
 export * from "./lib/appointments/patient-booking.service";
@@ -9,6 +15,7 @@ export * from "./lib/domain/patient-booking";
 export * from "./lib/clinic.module";
 export * from "./lib/clinic.schema";
 export * from "./lib/clinic-queries.service";
+export * from "./lib/dashboard/clinic-dashboard.service";
 export * from "./lib/dashboard/clinic-reporting.queries";
 export * from "./lib/domain/availability";
 export * from "./lib/domain/queue-state";

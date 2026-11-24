@@ -56,7 +56,7 @@ sidebar's edge narrows it to icons; your choice is remembered in this browser.
 - A menu entry for a module that is not built yet would lead to a page that says "This module is part of the platform roadmap and is not built
   yet." No entry in the current menu leads there.
 - **Help** at the bottom of the menu opens this manual. A search box at the top of every Help page finds the sections whose heading or text
-  contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page (on a phone, the lifebuoy button in the top bar) opens a small **Need a hand?**
+  contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page (on a phone, and for everyone who can use the assistant's **Ask**, the lifebuoy button in the top bar) opens a small **Need a hand?**
   window instead: the chapter about the screen you are on comes first (**About this screen**), then every chapter, and **Open the user manual**
   opens the manual's contents page. Press Escape or the × to close it. Hover over the button or move to it with the keyboard to see its name.
 
@@ -88,8 +88,83 @@ From left to right:
 - **Search box** ("Search patients: name, patient no. or mobile…"). Type a patient's name, patient number or mobile number and press Enter. You go to the **Patients**
   search results. Press the `/` key anywhere (outside a text field) to jump to the search box. See [Patients](02-patients.md).
 - **Facility selector** (see above).
+- **Go to** (the ⌘ button, or **Ctrl+K**; **⌘K** on a Mac) — type where you want to go or what you want to do. See below.
 - **Bell** — your in-app notifications. A number on the bell shows how many are unread ("99+" above 99).
 - **Account menu** (your initials) — shows your name, email and organization, and has **My account** (see below), **Company settings** (when you may open them) and **Log out**.
+
+## How to go to a screen or a patient by typing (Ctrl+K)
+
+Press **Ctrl+K** (**⌘K** on a Mac) anywhere, or select the **⌘** button in the top bar, and type what you want, in a few words:
+
+| You type                                 | You are offered                                                                    |
+| ---------------------------------------- | ---------------------------------------------------------------------------------- |
+| `book Reyes tomorrow`                    | **Book an appointment** for each patient named Reyes, with tomorrow already chosen |
+| `Santos billing`, `check in Santos`      | That patient's billing page, or a walk-in check-in for them                        |
+| `appointments friday`, `calendar nov 25` | The day board or the calendar on that day                                          |
+| `lab verify`, `stock expiring`           | The laboratory's Verify worklist, the expiring stock                               |
+| `Reyes` or a patient number              | The patients found, to open their record                                           |
+| `settings assistant`, `audit`            | A Settings page                                                                    |
+
+Use **↑ ↓** to choose and **Enter** to open, or click; **Esc** closes it. Days can be written as _today_, _tomorrow_, _yesterday_
+(also _ngayon_, _bukas_, _kahapon_), a weekday (the next one), _Nov 25_ or _2026-11-25_. Other words it knows include _bill_, _labs_,
+_history_, _vaccines_, _dental_, _360_, _timeline_ and _edit_ for a patient.
+
+It only offers screens and actions you may open, and it changes nothing by itself: every result is a link. It reads your words with fixed word
+lists, not artificial intelligence, so if it does not understand, use **Search patients for …** at the bottom, the menu, or Help. Each search
+for patients is recorded in the audit log, as when you search from the top bar.
+
+## How to see everything the assistant suggests
+
+The assistant's suggestions appear on the screens they are about (stock on **Inventory**, missing charges on **Billing**, and so on). To see them all
+in one place:
+
+1. In the menu, under **Assistant**, choose **Suggestions**. The **Overview** shows, for each area you may open, its most pressing suggestions and
+   how many of its checks are turned on at your facility.
+2. Choose an area's tab (**Stock**, **Billing**, **Clinic today**, **Laboratory**, **Pharmacy**, **Outreach**, **Security and compliance**) to see
+   all its suggestions, each check you may read with **On** or **Off**, and a link to the screen where you act.
+3. Answer a suggestion as you would on its screen: **Why?** shows what it is based on, its link opens the screen, and **Dismiss** or **Not useful**
+   hides it from you for 14 days, here and on that screen.
+
+You see only the areas and checks your role can read; others that are turned on are counted, never named. Checks that read a consultation, a
+patient's dental record or a prescription speak only on that screen: the Overview lists them with their state. The assistant runs fixed rules
+and simple statistics over your organization's own records; it never changes a record, and nothing is sent outside the system. An administrator
+turns checks on under **Settings → Assistant** ([Administration](13-administration.md#how-to-turn-on-the-assistants-suggestions)).
+
+## How to ask the assistant a question
+
+**Ask** answers everyday questions about your clinic's figures — no-shows, patients seen, waiting times, laboratory turnaround, revenue,
+collections, what is owed, stock running low or expiring, what to order, today's appointments, who is waiting, the laboratory's work today — from
+the screens that already show them.
+
+1. In the menu, under **Assistant**, choose **Ask** (`/assistant/ask`).
+2. Type your question in your own words, for example _No-shows last week_, _Revenue this month vs last month_ or _What is running low?_, and select
+   **Ask**. You can name a period (_today_, _yesterday_, _last week_, _this month_, _in October_, _last 30 days_, _from Nov 1 to 15_; also _ngayon_,
+   _kahapon_, _noong Oktubre_) and a comparison (_vs last month_, _compared to last year_). Or select one of the examples above the box (one per
+   question you can ask). The box stays at the bottom of the screen while you read a long answer.
+3. Read the answer. It repeats the question, the dates and the facility it used — check them — then gives one sentence, the figures (with the period
+   compared and how each changed, by an arrow and in words), **How this was calculated**, and a link to the screen with the full figures.
+4. To keep a question, select **Save** beside **Ask**. **Your questions**, on the left, lists your saved questions and the ones you asked lately;
+   select one to ask it again with fresh figures. The star saves or stops saving, × removes one, **Clear recent** forgets the recent ones (saved ones
+   stay) and **New question** clears the answer for the next question.
+
+You can also ask from any screen, like a chat: select the round **Ask** button at the bottom-right corner (on a computer or tablet; it takes the
+place of the help button, which is then in the top bar). Type your question and press Enter, or select one of the examples. Your question appears on
+the right and the answer below it, as on the Ask page; select a link in an answer to open its screen (the chat closes and keeps the conversation
+until you open it again). **New chat** starts over, the arrows make the chat larger (and smaller again), **Open the Ask page** at its foot opens the
+Ask page (for saved questions and **Answer for all facilities I report on**), and × or Escape closes the chat. The conversation is forgotten when you reload the page; questions answered are kept in **Your questions** as
+usual.
+
+Good to know:
+
+- Ask answers only what your role can already open. If a question reads figures you cannot open (for example the management dashboard), the answer
+  says so and shows nothing; the questions offered to you are the ones you may ask.
+- Tick **Answer for all facilities I report on** for dashboard questions about every facility you report on; other questions answer for the
+  facility selected in the top bar.
+- Ask reads your words with fixed word lists, not artificial intelligence. If it does not recognise a question it says so and keeps your words in
+  the box: try the examples' wording. If your words fit two questions, it asks which one you meant.
+- Ask never answers about a patient. To find a patient, use **Patients** or the search box.
+- Your words are not kept, and they never appear in the address bar or the audit log. Only the question found, its dates, comparison and facility
+  are kept in **Your questions** (until you remove them), and each answer is recorded in the audit log without your words.
 
 ## How to change your password or turn on two-step verification
 
@@ -205,7 +280,7 @@ Always sign out of a shared workstation. The staff app does not sign you out aft
   default; your organization's deployment can set this). The next action then takes you to sign-in with the note "Your session ended. Sign in again to
   continue."
 - If the server is busy or down, you may see "The patient record service is busy". Your session is still active and the page retries by itself every 10
-  seconds. You can also select **Retry now**.
+  seconds (the bar under the message fills until the next try). You can also select **Try again now**.
 
 ## Rules the system enforces
 

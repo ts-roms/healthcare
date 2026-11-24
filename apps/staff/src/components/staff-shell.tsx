@@ -26,6 +26,8 @@ import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/nav
 import { TOUR_START_EVENT } from "@/lib/tour";
 import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigation";
 import type { ManualSection } from "@healthcare/ui/primitives";
+import { AskChat } from "./ask-chat";
+import { CommandBar } from "./command-bar";
 import { GuidedTour } from "./guided-tour";
 import { HelpFab, type HelpChapter } from "./help-fab";
 import { NotificationBell } from "./notification-bell";
@@ -39,6 +41,8 @@ const NextLink: LinkComponent = (props) => <Link {...props} />;
 export interface StaffShellProps {
   /** Effective permissions from the API; navigation is built here because nav items carry icon components. */
   permissions: string[];
+  /** Shows the platform console (every tenant) in the navigation; the API decides access. */
+  platformAdmin?: boolean;
   user: { displayName: string; email: string };
   organizationName: string;
   facilities: { id: string; name: string }[];
@@ -62,6 +66,7 @@ const BADGES_REFRESH_MS = 60_000;
 
 export function StaffShell({
   permissions,
+  platformAdmin = false,
   user,
   organizationName,
   facilities,
@@ -105,12 +110,16 @@ export function StaffShell({
   }, [refreshCounts]);
   // A new in-app notice reaches this browser over the realtime socket: update the bell and the counts at once (not the page).
   useLiveUpdates(NOTICE_EVENTS, () => void refreshCounts(), { refreshPage: false });
-  const navigation = React.useMemo(() => withBadgeCounts(navigationForPermissions(permissions), counts), [permissions, counts]);
+  const navigation = React.useMemo(
+    () => withBadgeCounts(navigationForPermissions(permissions, undefined, { platformAdmin }), counts),
+    [permissions, counts, platformAdmin],
+  );
 
   // Settings: every configuration page open to the user, drawn beside a sub-navigation; a module's other pages are its tabs.
   const settingsGroups = React.useMemo(() => settingsForPermissions(permissions), [permissions]);
   const moduleTabs = moduleTabsFor(pathname, permissions, counts);
   const inSettings = isSettingsPath(pathname);
+  const canAsk = permissions.includes("assistant.ask");
   const canOpenCompanySettings = settingsGroups.some((g) => g.pages.some((p) => p.href === "/admin/organization"));
 
   return (
@@ -153,8 +162,10 @@ export function StaffShell({
               ))}
             </NativeSelect>
           ) : null}
-          {/* On phones the help button lives here instead of floating over the page. */}
-          <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" />
+          {/* Ctrl+K: go to a screen or a patient by typing what you want. */}
+          <CommandBar permissions={permissions} platformAdmin={platformAdmin} timeZone={timeZone} manualSections={manualSections} />
+          {/* On phones the help button lives here instead of floating over the page; at every width when Ask takes the corner. */}
+          <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" topbarOnPhonesOnly={!canAsk} />
           <NotificationBell unread={unread} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -208,7 +219,12 @@ export function StaffShell({
       ) : (
         children
       )}
-      <HelpFab chapters={manualChapters} sections={manualSections} />
+      {/* The bottom-right corner: the Ask chat for those who may ask (help is then in the top bar), else the help button. */}
+      {canAsk ? (
+        <AskChat facilityName={facilities.find((f) => f.id === facilityId)?.name ?? null} />
+      ) : (
+        <HelpFab chapters={manualChapters} sections={manualSections} />
+      )}
       {tourEnabled ? <GuidedTour /> : null}
     </StaffLayout>
   );

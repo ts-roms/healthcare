@@ -1,5 +1,6 @@
 import { type DynamicModule, Module, type ModuleMetadata, type Type } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
+import { DentalAssistantQueries } from "./assistant/dental-assistant.queries";
 import { DentalCatalogService } from "./catalog/dental-catalog.service";
 import { DentalChartService } from "./chart/dental-chart.service";
 import { DentalPlanController, DentalRecordController, DentalSettingsController, DentalSuppliesController } from "./dental.controllers";
@@ -52,11 +53,12 @@ export class DentalModule {
         DentalSuppliesService,
         DentalRecordQueries,
         DentalReportingQueries,
+        DentalAssistantQueries,
         { provide: DENTAL_CONTEXT, useClass: options.context },
         { provide: DENTAL_SUPPLIES, useClass: options.supplies },
         { provide: DENTAL_FEES, useClass: options.fees },
       ],
-      exports: [DentalProcedureService, DentalPatientAccess, DentalRecordQueries, DentalReportingQueries],
+      exports: [DentalProcedureService, DentalPatientAccess, DentalRecordQueries, DentalReportingQueries, DentalAssistantQueries],
     };
   }
 }

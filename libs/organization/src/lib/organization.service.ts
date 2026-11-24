@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { AuditService, diffChanges } from "@healthcare/audit";
-import { type Actor, ConflictError, DATABASE, type Database, NotFoundError, VersionConflictError } from "@healthcare/core";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { type Actor, BusinessRuleError, ConflictError, DATABASE, type Database, type DbExecutor, NotFoundError, VersionConflictError } from "@healthcare/core";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { z } from "zod";
 import {
   type createDepartmentSchema,
@@ -11,7 +11,28 @@ import {
   type updateFacilitySchema,
   type updateOrganizationSchema,
 } from "./organization.dto";
-import { department, type DepartmentRecord, facility, type FacilityRecord, organization, type OrganizationRecord } from "./organization.schema";
+import {
+  department,
+  type DepartmentRecord,
+  facility,
+  type FacilityRecord,
+  organization,
+  type OrganizationRecord,
+  type OrganizationStatus,
+  organizationStatusChange,
+  type OrganizationStatusChangeRecord,
+} from "./organization.schema";
+
+/** One organization as the platform console lists it (migration 0151): no patient data. */
+export interface PlatformOrganizationRow {
+  id: string;
+  code: string;
+  name: string;
+  status: OrganizationStatus;
+  createdAt: Date;
+  facilitiesActive: number;
+  facilitiesTotal: number;
+}
 
 const FACILITY_AUDITED_FIELDS = [
   "name",
@@ -36,23 +57,117 @@ export class OrganizationService {
   ) {}
 
   async createOrganization(actor: Actor, input: z.infer<typeof createOrganizationSchema>): Promise<OrganizationRecord> {
-    return this.db.transaction(async (tx) => {
-      const existing = await tx.select({ id: organization.id }).from(organization).where(eq(organization.code, input.code));
-      if (existing.length > 0) throw new ConflictError(`Organization code "${input.code}" is already in use`);
-      const [created] = await tx.insert(organization).values(input).returning();
-      if (!created) throw new Error("Insert returned no row");
-      await this.audit.record(
-        tx,
-        { ...actor, organizationId: created.id },
-        {
-          action: "organization.create",
-          resourceType: "organization",
-          resourceId: created.id,
-          metadata: { code: created.code },
-        },
-      );
-      return created;
+    return this.db.transaction((tx) => this.insertOrganization(tx, actor, input));
+  }
+
+  /** Creates the organization in the caller's transaction, audited in the new organization's own trail. */
+  async insertOrganization(tx: DbExecutor, actor: Actor, input: z.infer<typeof createOrganizationSchema>): Promise<OrganizationRecord> {
+    const existing = await tx.select({ id: organization.id }).from(organization).where(eq(organization.code, input.code));
+    if (existing.length > 0) throw new ConflictError(`Organization code "${input.code}" is already in use`, undefined, "organization_code_taken");
+    const [created] = await tx.insert(organization).values(input).returning();
+    if (!created) throw new Error("Insert returned no row");
+    await this.audit.record(
+      tx,
+      { ...actor, organizationId: created.id },
+      {
+        action: "organization.create",
+        resourceType: "organization",
+        resourceId: created.id,
+        metadata: { code: created.code },
+      },
+    );
+    return created;
+  }
+
+  /** A new organization's first facility, in the caller's transaction (platform console), audited in that organization. */
+  async insertFirstFacility(tx: DbExecutor, actor: Actor, organizationId: string, input: z.infer<typeof createFacilitySchema>): Promise<FacilityRecord> {
+    const [created] = await tx
+      .insert(facility)
+      .values({ ...input, contactNumber: normalizeContactNumber(input.contactNumber), organizationId })
+      .returning();
+    if (!created) throw new Error("Insert returned no row");
+    await this.audit.record(
+      tx,
+      { ...actor, organizationId },
+      { action: "facility.create", resourceType: "facility", resourceId: created.id, metadata: { code: created.code, facilityType: created.facilityType } },
+    );
+    return created;
+  }
+
+  /**
+   * Every organization with its facility counts, for the platform console (the caller crosses organizations on purpose,
+   * under the platform scope). Names and counts only.
+   */
+  async platformOrganizations(): Promise<PlatformOrganizationRow[]> {
+    const rows = await this.db
+      .select({
+        id: organization.id,
+        code: organization.code,
+        name: organization.name,
+        status: organization.status,
+        createdAt: organization.createdAt,
+        facilitiesActive: sql<number>`count(${facility.id}) FILTER (WHERE ${facility.status} = 'active')::int`,
+        facilitiesTotal: sql<number>`count(${facility.id})::int`,
+      })
+      .from(organization)
+      .leftJoin(facility, eq(facility.organizationId, organization.id))
+      .groupBy(organization.id)
+      .orderBy(asc(organization.name));
+    return rows;
+  }
+
+  /** The organization's status changes, newest first (platform console). */
+  statusHistory(organizationId: string): Promise<OrganizationStatusChangeRecord[]> {
+    return this.db
+      .select()
+      .from(organizationStatusChange)
+      .where(eq(organizationStatusChange.organizationId, organizationId))
+      .orderBy(desc(organizationStatusChange.changedAt));
+  }
+
+  /**
+   * Suspends or reactivates an organization (platform administrators), in the caller's transaction so the sessions
+   * ending with a suspension end with it. The change is kept with its reason (migration 0151) and audited in the
+   * organization's own trail. Archiving is not offered.
+   */
+  async changeStatus(
+    tx: DbExecutor,
+    actor: Actor,
+    organizationId: string,
+    input: { status: "active" | "suspended"; reason: string; version: number },
+  ): Promise<OrganizationRecord> {
+    const [before] = await tx.select().from(organization).where(eq(organization.id, organizationId)).for("update");
+    if (!before) throw new NotFoundError("Organization");
+    if (before.version !== input.version) throw new VersionConflictError("Organization", input.version);
+    if (before.status === input.status) {
+      throw new BusinessRuleError(`The organization is already ${input.status}`, "organization_status_unchanged");
+    }
+    if (before.status === "archived") throw new BusinessRuleError("An archived organization cannot be changed here", "organization_archived");
+    const [updated] = await tx
+      .update(organization)
+      .set({ status: input.status, updatedAt: new Date(), version: sql`${organization.version} + 1` })
+      .where(eq(organization.id, organizationId))
+      .returning();
+    if (!updated) throw new NotFoundError("Organization");
+    await tx.insert(organizationStatusChange).values({
+      organizationId,
+      fromStatus: before.status,
+      toStatus: input.status,
+      reason: input.reason,
+      changedBy: actor.userId,
     });
+    await this.audit.record(
+      tx,
+      { ...actor, organizationId },
+      {
+        action: input.status === "suspended" ? "organization.suspend" : "organization.reactivate",
+        resourceType: "organization",
+        resourceId: organizationId,
+        reason: input.reason,
+        changes: { status: { from: before.status, to: input.status } },
+      },
+    );
+    return updated;
   }
 
   async getOrganization(organizationId: string): Promise<OrganizationRecord> {

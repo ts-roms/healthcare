@@ -1,11 +1,13 @@
 import { ModulePage } from "@/components/module-page";
 import { redirect } from "next/navigation";
 import { clinicalTime } from "@healthcare/ui/healthcare";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { getPractitioners, getRouteTemplates, getServicePoints } from "@/lib/api/clinic";
 import { can, getFacilities, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { AppointmentItem, Page, QueueVisit, ServicePointSettings } from "@/lib/api/types";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { todayIn } from "@/lib/clinic-mapping";
 import { usableTemplates } from "@/lib/route-template";
 import type { TodayAppointments } from "./queue-empty";
@@ -40,15 +42,17 @@ export default async function QueuePage({ searchParams }: { searchParams: Promis
   const facilities = await getFacilities();
   // Names for "Assigned" on the ticket, and today's appointments for the empty board; neither is worth failing the queue for.
   const canSeeAppointments = can(session, "appointment.read");
-  const [practitioners, appointments] = await Promise.all([
+  const [practitioners, appointments, suggestions] = await Promise.all([
     canSeeAppointments ? getPractitioners().catch(() => []) : [],
     canSeeAppointments && visits.length === 0
       ? api<Page<AppointmentItem>>("/appointments", { query: { facilityId: facility.id, date: todayIn(facility.timezone), pageSize: 100 } }).catch(() => null)
       : null,
+    visits.length > 0 ? loadSuggestions(session, "queue") : null,
   ]);
   return (
     <QueueWorkspace
       renderedAt={new Date().toISOString()}
+      assistant={hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="queue" suggestions={suggestions} /> : null}
       visits={visits}
       servicePoints={servicePoints}
       templates={templates}

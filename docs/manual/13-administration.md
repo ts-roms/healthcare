@@ -243,6 +243,15 @@ advises.
 | `inventory.read`                     | View stock, lots, movements, low-stock and expiry lists                          | Dental assistant, Inventory officer, Medical technologist, Nurse, Pharmacist |
 | `inventory.valuation.read`           | View stock values and the cost of stock received, used and written off           | Inventory officer                                                            |
 
+### Assistant
+
+| Permission                | What it allows                                                                               | Default roles (besides Organization administrator)                                                                 |
+| ------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `assistant.use`           | See and answer the assistant's suggestions on screens you can already use                    | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Pharmacist, Physician, Receptionist |
+| `assistant.ask`           | Ask the assistant questions about figures your role can already open (**Assistant → Ask**)   | Cashier, Dentist, Inventory officer, Medical technologist, Nurse, Pathologist, Pharmacist, Physician, Receptionist |
+| `assistant.configure`     | Turn suggestion rules on or off for the organization or a facility, and set their thresholds | —                                                                                                                  |
+| `assistant.insights.read` | See how often each rule's suggestions were accepted and dismissed                            | —                                                                                                                  |
+
 ### Records, reporting and integrations
 
 | Permission                    | What it allows                                                                                                      | Default roles (besides Organization administrator) |
@@ -353,6 +362,25 @@ without it, and the exempt accounts. Every change is audited.
 4. **Lost or replaced phone:** a person with recovery codes left signs in with one and turns it on again from **My account**. Otherwise, check who is asking (in person, or by a call you place to a number you already have), open their page under **Staff users**
    and click **Reset two-step verification…** with the reason. Their sessions end at once and they set it up again at their next sign-in. You cannot reset
    your own (use **My account**), and an account that also belongs to another organization can only be reset by a platform administrator.
+
+## The platform console (platform administrators)
+
+Platform administrators look after every organization on the platform. **Platform** at the foot of the menu (only they
+see it, and only with two-step verification on) lists each organization with its status, facilities, active staff,
+patients and MyHealth accounts (counts from 1 to 4 show as **<5**) and the last staff sign-in. It never shows a patient's
+details: to look inside an organization you still sign in to it as one of its members.
+
+- **Open an organization** to see its facilities, its administrators (with their email, so you can reach them) and the
+  history of suspensions. Opening it is recorded in that organization's own audit trail.
+- **New organization:** enter the organization's name and code (permanent; patients type it to sign in to MyHealth), its
+  first facility and its first administrator. If the administrator's email has no account yet, give a temporary
+  password of at least 12 characters and pass it to them yourself; they choose their own at the first sign-in. An
+  existing account keeps its password and is simply made the new organization's administrator. The administrator then
+  sets up everything else (more facilities, staff, roles).
+- **Suspend…** (with a reason of at least 10 characters) ends every staff and MyHealth session of the organization at once
+  and stops anyone of it from signing in; its scheduled outreach waits. Nothing is deleted. Tell the organization
+  yourself — the platform does not. **Reactivate…** lets them sign in again. You cannot suspend the organization you are
+  signed in to; sign in to another one first. Every change and its reason is kept in the status history.
 
 ## How facilities and departments are managed
 
@@ -491,6 +519,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Calendar events (meetings, blocked time, trainings, reminders)                                                                                         | Screen: `/calendar`                                                                               | `calendar.manage`               | [Appointments and queue](03-appointments-and-queue.md#how-to-use-the-calendar)                            |
 | Practitioners (and their link to a staff account), rooms, weekly schedules, closures                                                                   | Screen: `/appointments/schedules`                                                                 | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Diagnosis coding systems                                                                                                                               | Screen: `/clinic/coding-systems` (**Settings → Coding systems**)                                  | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md)                                                       |
+| Prescribing checks: your own classes, maximum daily doses and checks per medicine                                                                      | Screen: `/clinic/prescribing` (**Settings → Prescribing checks**)                                 | `clinic.configure`              | [Consultations](04-consultations-and-care-plans.md#checks-before-issuing-suggestions)                     |
 | Visit types, and which patients may book online or use at a kiosk                                                                                      | Screen: `/appointments/visit-types`                                                               | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Service points of each facility (consultation line, emergency room, X-ray …) where a triaged patient can be sent                                       | Screen: `/admin/service-points` (**Settings → Service points**)                                   | `clinic.configure`              | [Appointments and queue](03-appointments-and-queue.md)                                                    |
 | Vaccine catalogue (names, products, codes, route and site options, doses in series for reference)                                                      | Screen: `/clinic/vaccines` (**Settings → Vaccines**)                                              | `clinic.configure`              | [Patients](02-patients.md)                                                                                |
@@ -502,6 +531,7 @@ Settings are kept with the module they govern. "Screen" means the staff app; "AP
 | Instruments, QC materials, lots and targets                                                                                                            | Screens: `/laboratory/instruments`, `/laboratory/qc`                                              | `lab.qc.manage`                 | [Laboratory quality](07-laboratory-quality.md)                                                            |
 | Reagent tests per unit (how many tests one stock unit of a reagent performs)                                                                           | Screen: `/laboratory/reagents` → **Tests per unit**                                               | `lab.qc.manage`                 | [Laboratory quality](07-laboratory-quality.md)                                                            |
 | Dental procedures, tooth notation, MyHealth dental records and online plan decisions, supply locations                                                 | Screen: `/dental/settings`                                                                        | `dental.settings.manage`        | [Dental](08-dental.md)                                                                                    |
+| Assistant suggestion rules (on or off for the organization or one facility, your own thresholds)                                                       | Screen: `/admin/assistant` (**Settings → Assistant**)                                             | `assistant.configure`           | this chapter                                                                                              |
 | Inventory items, suppliers, storage locations, reorder levels                                                                                          | Screen: `/inventory/catalog`                                                                      | `inventory.catalog.manage`      | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                    |
 | Reportable conditions (DOH), the facility's DOH health facility code, checking earlier diagnoses                                                       | Screen: `/reporting/settings`                                                                     | `doh.settings.manage`           | [Records, reporting and integrations](11-records-reporting-and-integrations.md)                           |
 | Withholding codes and procurement methods                                                                                                              | Screen: `/inventory/compliance`                                                                   | `inventory.procurement.approve` | [Pharmacy and inventory](09-pharmacy-and-inventory.md)                                                    |
@@ -558,6 +588,123 @@ the same code), or a **MyHealth link**: the patient scans the card with their ph
 (their date of birth and email are filled in; they only enter the activation code the clinic gives them and a password). You can also tick **Offer MyHealth access at registration**: the registration form then starts with MyHealth access ticked, records the patient's consent (the registering person confirms they agreed) and shows the activation code once. Changes apply to codes issued from then on. Decide with your Data Protection Officer how cards are handed out and replaced. See
 [Patients](02-patients.md#how-to-use-patient-qr-codes).
 
+## How to turn on the assistant's suggestions
+
+The assistant shows staff short suggestions on the screens they already use, worked out from fixed rules over your own records (no artificial
+intelligence model, and nothing leaves the platform). A suggestion never changes a record: it says why it was shown and links to the screen where
+someone decides. Every rule is off until you turn it on.
+
+1. Choose **Settings → Assistant** (`assistant.configure`).
+2. Under **Settings for**, choose **Whole organization**, or a facility to set it differently there.
+3. On the rule's card, tick **Show these suggestions at …**, check **Your thresholds** and select **Save**.
+
+Staff then see the rule's suggestions on its screen, and all of them in one place under **Assistant → Suggestions** in the menu
+([Getting started](01-getting-started.md#how-to-see-everything-the-assistant-suggests)), with each check they may read shown as on or off. A
+check whose source a person may not read is never named to them, only counted.
+
+The rules, and the screen each speaks on:
+
+| Rule                                                          | Screen                    | Who sees it                                                                          |
+| ------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------ |
+| Stock may run out before a delivery arrives                   | Inventory                 | Inventory officers, nurses, organization administrators                              |
+| An item was issued much more than usual                       | Inventory                 | Inventory officers, nurses, organization administrators                              |
+| Stock may expire before it is used                            | Inventory                 | Inventory officers, nurses, organization administrators                              |
+| Procedures with no charge                                     | Billing                   | Cashiers, receptionists, organization administrators                                 |
+| A patient may not come to their appointment                   | Appointments              | Receptionists, nurses, organization administrators                                   |
+| Patients are waiting longer than usual                        | Queue                     | Receptionists, nurses, organization administrators                                   |
+| Before signing: what the record does not hold yet             | Consultation              | Physicians, dentists, nurses, organization administrators                            |
+| Codes your clinic has used for these words                    | Consultation              | Physicians, dentists, nurses, organization administrators                            |
+| A result differs sharply from the patient's last one          | Laboratory                | Medical technologists, pathologists, nurses, physicians, organization administrators |
+| Unusual access to patient records                             | Audit log                 | Organization administrators                                                          |
+| Compliance areas to review                                    | Settings home             | Organization administrators                                                          |
+| Invoices that may have been issued twice                      | Billing                   | Cashiers, receptionists, organization administrators                                 |
+| An order set for this consultation                            | Consultation              | Physicians, dentists, organization administrators                                    |
+| When patients use MyHealth                                    | Outreach                  | Organization administrators                                                          |
+| Audiences to consider                                         | Outreach                  | Organization administrators                                                          |
+| Patients receiving many campaigns                             | Outreach                  | Organization administrators                                                          |
+| The same medicine or class is already prescribed              | Prescribing               | Physicians, dentists                                                                 |
+| Above your organization's maximum daily dose                  | Prescribing               | Physicians, dentists                                                                 |
+| Checks your organization asks for before prescribing          | Prescribing               | Physicians, dentists                                                                 |
+| Orders past their usual turnaround                            | Laboratory                | Medical technologists, pathologists, organization administrators                     |
+| QC values drifting or shifted                                 | Quality control           | Medical technologists, pathologists, organization administrators                     |
+| Specimen rejections concentrated on a collector or a facility | Quality control           | Pathologists, organization administrators                                            |
+| Monitoring tests not done for a chronic condition             | Consultation              | Physicians, dentists, organization administrators                                    |
+| Planned work the chart says cannot be done                    | Dental record             | Dentists, physicians, nurses, organization administrators                            |
+| Treatment plan items waiting for the patient's decision       | Dental record             | Dentists, physicians, nurses, organization administrators                            |
+| Waiting prescriptions that stock cannot fill                  | Pharmacy                  | Pharmacists, nurses, organization administrators                                     |
+| Stock that expires before the course ends                     | Pharmacy (a prescription) | Pharmacists, nurses, organization administrators                                     |
+| Consider seeing the patient in person                         | Online consultation       | Physicians, dentists, nurses, organization administrators                            |
+
+Each chapter explains its suggestions: [Pharmacy and inventory](09-pharmacy-and-inventory.md#how-to-read-the-stock-suggestions),
+[Billing](10-billing.md), [Appointments and queue](03-appointments-and-queue.md), [Consultations](04-consultations-and-care-plans.md),
+[Laboratory](06-laboratory.md), [Dental](08-dental.md#how-to-read-the-dental-suggestions),
+[Pharmacy](09-pharmacy-and-inventory.md#how-to-read-the-pharmacy-suggestions), [Telemedicine](05-telemedicine.md#how-to-escalate-to-in-person-care),
+[Outreach](11-records-reporting-and-integrations.md#how-to-send-an-outreach-campaign). The starting values are only a starting point: set them from how
+your clinic works.
+
+The consultation, prescribing, laboratory, dental and online-consultation rules, and the pharmacy's expiry check, are clinical decision support:
+before turning one on, have your clinicians or pharmacist check the rule and its thresholds (for example the percentage change that should prompt a
+second look at a result), and record who did in **Settings → Compliance**.
+
+**Prescribing checks** run when a doctor selects **Issue prescription** and read your own medicine settings: open **Settings → Prescribing checks**
+(`clinic.configure`), select **Add a medicine**, and give its generic name and any of a **Class** (two current medicines of one class are shown as a
+possible duplicate), a **Maximum daily dose** with its unit, and the checks to ask for (**Kidney function**, **Whether the patient may be pregnant**),
+with a note shown to the doctor. A setting for "metformin" also covers "Metformin HCl 500 mg". Doses are compared only in the unit you give. No
+dose, class or check is built in: decide them with your physicians or pharmacist. Turning a setting **Inactive** stops it without losing it.
+They never choose a code, change a result or stop anyone signing.
+
+**Unusual access to patient records** (on **Settings → Audit log**) names a staff account whose access in the last hours stands out: many
+more patients than its usual working day, patients opened outside your working hours, or many refused requests. **Open their audit trail**
+shows what it did. It may be a busy day or a shared screen; it may also be someone else using the account. It blocks nothing and tells no one but
+administrators. Before turning it on, decide with your Data Protection Officer how staff are told that access is reviewed.
+
+**Compliance areas to review** (on the **Settings** home) lists areas nobody has recorded validating, whose last review is older than your
+interval, or whose last review found changes needed. Record reviews under **Settings → Compliance**; dismiss areas that do not apply to you.
+
+**An order set for this consultation** offers doctors your own order sets (**Settings → Laboratory → Order sets**) when a consultation's diagnosis or
+visit type matches; set them up first, with your clinicians. **Monitoring tests not done for a chronic condition** reads the same order sets: a set
+with a diagnosis code is also the list of tests to repeat for that diagnosis when doctors mark it **Chronic condition**, and you choose after how many
+months a test counts as not done. **When patients use MyHealth** counts MyHealth use per hour from the audit trail (counts only); before turning it on,
+confirm with your Data Protection Officer that your privacy notice covers using it to time outreach.
+
+**What it reads and when it can be wrong**, on each rule's card, opens what the rule reads, the situations in which it may speak though nothing
+needs doing (its known false positives) and what it does not see, so that the lack of a suggestion is never taken to mean all is well. Read it with the people
+who will see the rule's suggestions before you turn it on.
+
+**Try these values** shows, before you save or turn anything on, how often the rule would have spoken on each of the last 14 days with the
+values in the form: for example "about 2 suggestions a day (at most 4, and nothing on 3 days)". It reads the facility you are setting, or the one
+selected in the top bar when you set the whole organization, and the records as they stood each day. Nothing is saved or shown to anyone. Stock
+rules cannot know what was on order on a past day, so they may show more there than they would have.
+
+A facility without a setting of its own follows the organization's; the card then says "follows the organization's setting". Once you save for a
+facility, it keeps its own setting, and later changes for the whole organization no longer apply there. Each save is kept as a version and
+recorded in the audit log. If someone else saved the same rule meanwhile, you see "Someone else updated this just now" and the screen shows their
+change.
+
+**Insights and reviews** (with `assistant.insights.read`) says how many rules are due for review and how many are mostly dismissed, and opens
+the insights page: see [How to review the assistant's rules](#how-to-review-the-assistants-rules). Each rule's card on this page also shows its
+latest review and the false positives it found.
+
+## How to review the assistant's rules
+
+Review every rule you turned on about every three months, and again when a release says a rule changed: keep it, adjust its thresholds, or retire it.
+The full procedure, and who should take part for each kind of rule, is the runbook `docs/runbooks/assistant-rule-review.md`.
+
+1. Choose **Settings → Assistant → Open insights and reviews** (`/admin/assistant/insights`; `assistant.insights.read`). Choose **Last 30, 90 or
+   365 days**.
+2. The table lists every rule with where it is on, how many times its suggestions were **Shown**, **Followed** (someone opened its link),
+   **Dismissed** and marked **Not useful**. **Review due** marks a rule that is on and was never reviewed, was reviewed over 92 days ago or on an
+   earlier version; **Mostly dismissed**, one with at least 20 answers of which 70% or more were dismissals or "not useful". They are listed first.
+3. Open a rule. **When it can be wrong** shows what the rule reads, its known false positives and what it does not see, written with the rule for
+   every organization; **What staff said** shows the latest reasons people gave when they dismissed it or marked it not useful.
+4. To change its thresholds, use **Change its settings** and **Try these values** first.
+5. Under **Record a review** (`assistant.configure`), choose **Keep it as it is**, **Adjust its thresholds** or **Retire it**, write what was decided
+   and why, the false positives found (a pattern, never a patient's details) and the date, and select **Record review** (or **Retire the rule**).
+   Retiring turns the rule off at once for the whole organization and every facility where it was on; you can turn it on again later.
+6. The reviews are listed under the form, newest first, with who recorded them. They cannot be changed: record a new review to correct one.
+
+For a clinical rule, name the clinician who validated it in the note: the review is your clinical sign-off for that rule.
+
 ## How to keep the breach register (Data privacy)
 
 **Settings → Data privacy** (`/admin/privacy`; `privacy.incident.manage`, organization administrators by default — grant it to your Data
@@ -592,6 +739,12 @@ Compliance** (`/admin/compliance`; `compliance.review.manage`, organization admi
    **Save review**. Reviews cannot be changed; record a new one after the next check.
 
 A recorded review is your organization's evidence, not a certification by the platform.
+
+**Results shown to patients** covers what MyHealth shows of laboratory results: which tests patients see once released (each test's setting in the
+laboratory catalogue) and the fixed sentences that explain a result under **About this result** (where the value sits against the laboratory's usual
+range, what a usual range is, that a critical result went to the care team first, and that the doctor explains what it means). Have your laboratory
+head or a physician read them in MyHealth, then record the review with the wording version (version 1) in **Reviewed against**. Record a new
+review when a release notes a new wording version.
 
 ## The audit trail
 

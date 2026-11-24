@@ -18,6 +18,7 @@ import type {
   Encounter,
   EncounterDetail,
   LabOrder,
+  LabOrderSet,
   LabPanel,
   LabTest,
   MedicalCertificate,
@@ -32,6 +33,8 @@ import type {
 } from "@/lib/api/types";
 import { encounterControls } from "@/lib/encounter-mapping";
 import { toBannerPatient } from "@/lib/patient-mapping";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { EncounterWorkspace } from "./encounter-workspace";
 
 // Never put patient names in the tab title.
@@ -65,8 +68,15 @@ async function openCarePlans(patientId: string): Promise<CarePlanDetail[] | null
   return Promise.all(plans.slice(0, 5).map((p) => api<CarePlanDetail>(`/care-plans/${p.id}`)));
 }
 
-export default async function EncounterPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, session] = await Promise.all([params, getSession()]);
+export default async function EncounterPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  /** `orderSet`: an order set to pre-select in the lab order form (the assistant's link). */
+  searchParams: Promise<{ orderSet?: string }>;
+}) {
+  const [{ id }, session, query] = await Promise.all([params, getSession(), searchParams]);
   if (!can(session, "encounter.read")) redirect("/");
   if (!UUID.test(id)) notFound();
   const encounter = await load<EncounterDetail>(`/encounters/${id}`);
@@ -84,6 +94,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     labOrders,
     labTests,
     labPanels,
+    orderSets,
     labResults,
     consultation,
     certificates,
@@ -94,6 +105,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     procedures,
     procedureDefinitions,
     consentDocuments,
+    suggestions,
   ] = await Promise.all([
     load<PatientDetail>(`/patients/${encounter.patientId}`),
     can(session, "clinical.read") ? optional<PatientSummaryResponse>(`/patients/${encounter.patientId}/summary`) : Promise.resolve(null),
@@ -106,6 +118,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     can(session, "lab.order.read") ? optional<LabOrder[]>("/laboratory/orders", { encounterId: encounter.id }) : Promise.resolve(null),
     canOrderLab ? optional<LabTest[]>("/laboratory/tests") : Promise.resolve(null),
     canOrderLab ? optional<LabPanel[]>("/laboratory/panels") : Promise.resolve(null),
+    canOrderLab ? optional<LabOrderSet[]>("/laboratory/order-sets") : Promise.resolve(null),
     can(session, "lab.result.read") ? optional<PatientLabResult[]>(`/laboratory/patients/${encounter.patientId}/results`) : Promise.resolve(null),
     online ? optional<TelemedicineConsultation>(`/telemedicine/consultations/${encounter.appointmentId}`) : Promise.resolve(null),
     optional<MedicalCertificate[]>(`/encounters/${encounter.id}/certificates`),
@@ -116,6 +129,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
     optional<ClinicProcedure[]>(`/encounters/${encounter.id}/procedures`),
     optional<ProcedureDefinition[]>("/clinic/procedure-definitions"),
     loadConsentFormDocuments(encounter.patientId),
+    // Before signing only: a signed consultation has nothing left to check.
+    encounter.status === "in_progress" ? loadSuggestions(session, "encounter", { encounterId: encounter.id }) : null,
   ]);
   // Supplies used by the procedures (from inventory): only once a procedure is recorded.
   const [supplyUses, supplyOptions] = procedures?.length
@@ -137,6 +152,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
       // A new encounter (history navigation) starts with fresh editor state.
       key={encounter.id}
       encounter={encounter}
+      assistant={hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="encounter" suggestions={suggestions} /> : null}
       banner={toBannerPatient(patient, summary?.allergies)}
       summary={summary}
       practitionerName={names.get(encounter.practitionerId) ?? null}
@@ -145,6 +161,7 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
       controls={controls}
       prescriptions={prescriptions}
       prescriptionPermissions={session.permissions.filter((p) => p.startsWith("prescription."))}
+      prescribingCheck={can(session, "assistant.use")}
       carePlans={carePlans}
       followUp={{
         patientId: encounter.patientId,
@@ -173,6 +190,8 @@ export default async function EncounterPage({ params }: { params: Promise<{ id: 
         results: labResults,
         canOrder: canOrderLab && !!labTests,
         canCancel: can(session, "lab.order.cancel"),
+        orderSets: orderSets ?? [],
+        preset: (orderSets ?? []).find((s) => s.id === query.orderSet) ?? null,
       }}
       certificates={{
         items: certificates,

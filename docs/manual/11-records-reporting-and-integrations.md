@@ -522,6 +522,18 @@ them: a **frequency cap** (for example at most 1 campaign per patient in 14 days
 by other campaigns recently") and **quiet hours** (for example 21:00–08:00, Manila time: text messages and push notices that would go out then are queued
 and sent when the quiet hours end; the result shows how many were held). The cap does not affect reminders about care, appointments or bills.
 
+**Suggestions.** When your organization has turned on the assistant's outreach rules (**Settings → Assistant**), a **Suggestions** box at the top of
+**Outreach** may say:
+
+- **When patients use MyHealth most** (for example "Patients use MyHealth most around 20:00–22:00"), counted from MyHealth sign-ins and use over the
+  last weeks, outside your quiet hours. It is a guide to when people read messages, not a rule, and says nothing about patients without MyHealth.
+  **Plan a campaign** takes you to the campaigns.
+- **Audience ideas**: a segment you do not have yet, with how many patients match today. "Not seen in 5 months" uses how long your own returning
+  patients usually take to come back; "Birthdays in December" appears in the last days of the month. **Create this segment** opens **New segment**
+  filled in; check the name and criteria and save it yourself. Nothing is created or sent by the suggestion.
+- **Patients receiving many campaigns**: how many patients got several campaigns in a short time while no frequency cap stops it. **Review outreach
+  limits** opens the limits.
+
 **Things to know:**
 
 - A message goes out only on a channel the patient has **opted in to for outreach** (MyHealth → Notification settings, or recorded at the

@@ -618,6 +618,8 @@ export class PortalAccountService {
         patientPortalAccount,
         and(eq(patientPortalAccount.organizationId, patientPortalSession.organizationId), eq(patientPortalAccount.id, patientPortalSession.accountId)),
       )
+      // A suspended organization's patients cannot use MyHealth either (platform console, migration 0151).
+      .innerJoin(organization, and(eq(organization.id, patientPortalSession.organizationId), eq(organization.status, "active")))
       .where(
         and(
           eq(patientPortalSession.id, claims.sid),
@@ -811,6 +813,16 @@ export class PortalAccountService {
       refreshToken,
       refreshTokenExpiresAt: expiresAt.toISOString(),
     };
+  }
+
+  /** Ends every MyHealth session in a suspended organization, in the caller's transaction (platform console). */
+  async revokeAllForOrganization(executor: DbExecutor, organizationId: string): Promise<number> {
+    const revoked = await executor
+      .update(patientPortalSession)
+      .set({ revokedAt: new Date(), revokedReason: "organization_suspended" })
+      .where(and(eq(patientPortalSession.organizationId, organizationId), isNull(patientPortalSession.revokedAt)))
+      .returning({ id: patientPortalSession.id });
+    return revoked.length;
   }
 
   /** Ends every session of the account; the browsers it trusted for the second step are forgotten with them. */

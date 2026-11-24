@@ -1,3 +1,5 @@
+export * from "./lib/assistant/in-person.rules";
+export * from "./lib/assistant/telemedicine-assistant.queries";
 export * from "./lib/ports";
 export * from "./lib/questionnaire";
 export * from "./lib/telemedicine.dto";

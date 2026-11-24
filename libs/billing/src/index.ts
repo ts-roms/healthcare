@@ -1,3 +1,6 @@
+export * from "./lib/assistant/billing-assistant.queries";
+export * from "./lib/assistant/duplicate-invoice.rules";
+export * from "./lib/assistant/uncharged-work.rules";
 export * from "./lib/billing.dto";
 export * from "./lib/billing.module";
 export * from "./lib/billing-record.queries";

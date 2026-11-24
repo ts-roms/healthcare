@@ -63,7 +63,8 @@ If the list is empty you see "No dental consultations yet. Start one from the qu
 
 The page `/dental/patients/[id]` shows, from top to bottom: the **Dental chart**, **Treatment plans**, **Procedures**, **Examinations**,
 **Periodontal charts** and **Imaging**. The header has **Notes & prescriptions** (the encounter workspace of the visit in progress) and **Patient
-record**.
+record**. When your organization has turned on the assistant's dental rules, a **Suggestions** box may appear above the chart (see
+[How to read the dental suggestions](#how-to-read-the-dental-suggestions)).
 
 ## How to start a dental visit
 
@@ -160,6 +161,20 @@ statuses: **Proposed**, **Accepted**, **Declined**, **Done**, **Cancelled**.
   decision or discontinue the plan instead.
 - **Discontinue the plan** — on an accepted or in-progress plan, click **Discontinue plan…**, type the reason (at least 5 characters, for example
   "patient transferred to another clinic") and click **Discontinue**. Open items are cancelled; completed items stay. **Keep plan** closes the box.
+
+## How to read the dental suggestions
+
+When your organization has turned on the assistant's dental rules (**Settings → Assistant**), a **Suggestions** box marked **Decision support** at the
+top of the dental record may say:
+
+- **Planned work the chart says cannot be done**, for example "Composite restoration is planned on tooth 16, which the chart shows as missing": a plan
+  item still to do on a tooth the chart shows missing, replaced by a pontic or an implant, impacted or not erupted. Check the tooth. If the chart is
+  wrong, mark the examination entered in error or chart the tooth again; if the plan is, cancel the item or change the plan.
+- **Treatment plan items waiting for the patient's decision**, for example "“Restorative”: 2 items waiting for the patient's decision for 45 days":
+  ask the patient and [record the decision](#how-to-record-the-patients-decision).
+
+**Why?** shows what the suggestion is based on. A suggestion never changes the chart or the plan; **Dismiss** or **Not useful** hides it from you for
+14 days. You see the box with a facility selected, `assistant.use` (dentists have it) and `dental.record.read`.
 
 ## How to record a procedure
 

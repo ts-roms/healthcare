@@ -12,6 +12,8 @@ to the reference laboratory).
 
 Also: files attached to result versions (see [Result attachments](#result-attachments)) and realtime status updates.
 
+Also: the organization's [order sets](#order-sets) — tests and panels ordered together, offered in the consultation.
+
 Quality management — instruments with their maintenance and calibration log, internal QC with Westgard rules, reagent
 lots loaded on instruments, the instrument, QC and reagent-lot links on results, temperature logs, nonconformances with
 CAPA, proficiency testing (EQA) and staff competency — is in [laboratory-quality.md](laboratory-quality.md) (Phase 9).
@@ -211,7 +213,7 @@ Under `/api/v1/laboratory` (OpenAPI tag `laboratory`):
 
 - Catalog: `GET/POST departments`, `PATCH departments/:id`, `GET/POST specimen-types`, `PATCH specimen-types/:id`,
   `GET/POST tests`, `GET/PATCH tests/:id`, `POST tests/:id/reference-ranges`, `GET/POST panels`, `PATCH panels/:id`,
-  `GET/PUT policy` (selected facility).
+  `GET/PUT policy` (selected facility), `GET/POST order-sets`, `GET/PUT order-sets/:id` ([Order sets](#order-sets)).
 - Orders: `POST orders` (Idempotency-Key), `GET orders?patientId=|encounterId=`, `GET orders/:id`,
   `POST orders/:id/cancel`, `POST orders/:id/items/:itemId/cancel`.
 - Specimens: `POST orders/:id/specimens` (collect), `GET specimens/by-accession/:accession`, `GET specimens/:id/events`,
@@ -360,3 +362,32 @@ Receive specimen ─► send-out prepared (referral configuration, or by hand)
 - **Electronic interface**: an integration dependency (no reference laboratory's HL7 v2 / ASTM / vendor specification
   is on record) — see [reference-laboratories.md](../interoperability/reference-laboratories.md). Nothing is sent; the
   manifest travels with the specimens and results are entered from the reference laboratory's report.
+
+## Order sets
+
+Migration `0155_lab_order_sets.sql`. The organization's own sets of tests and panels ordered together, offered to doctors
+in the consultation's lab order form and, through the assistant's `laboratory.order-sets` rule, as a suggestion
+([assistant.md](assistant.md)). The assistant's `laboratory.monitoring-gap` rule also reads them: for a chronic diagnosis on the patient's record for some time, a set's tests with no released result for months. Catalogue master data: a set never
+orders anything; the doctor checks its tests and places an ordinary order.
+
+- `lab_order_set` — code (`^[a-z0-9][a-z0-9-]{1,48}$`, unique in the organization, never changed), name, optional note,
+  status `active | inactive`, optimistic `version`, who created and last changed it.
+- `lab_order_set_item` — its tests and panels in order (positions 1–60; exactly one of test or panel; same-organization
+  foreign keys; each test or panel at most once).
+- `lab_order_set_trigger` — when it is offered: `diagnosis_code` (a code prefix, stored upper case, with an optional
+  coding-system key; null = any system) or `visit_type` (a visit type code, stored lower case). Values, not foreign keys:
+  the laboratory never reads clinic tables; the API composes a consultation's diagnoses and visit type for the rule.
+
+`LabOrderSetService` (`libs/laboratory/src/lib/catalog/lab-order-set.service.ts`): only active tests and panels can be
+chosen (404 otherwise), items are deduplicated, triggers normalized, a code in use answers `409 duplicate_code` and a
+stale version `409`; audited `lab.order-set.create | update`. An inactive set is kept and never offered; an item whose
+test or panel became inactive later is still listed but not pre-selected.
+
+API (`/api/v1/laboratory`): `GET order-sets[?includeInactive=true]`, `GET order-sets/:id` (`lab.order.read`),
+`POST order-sets`, `PUT order-sets/:id` (`lab.catalog.manage`; `PUT` takes the whole set with `status` and `version`).
+Each item carries the tests it orders (a panel's members) so a form can pre-select them. No permission was added.
+
+Staff: **Settings → Laboratory → Order sets** (`/laboratory/order-sets`; wording helpers in
+`apps/staff/src/lib/order-set-form.ts`); the consultation's lab order form has **Add an order set…** and opens with a set
+chosen from `?orderSet=` (the assistant's link; dropped from the address when the form closes). No national order set or
+guideline is shipped: which tests belong together is the organization's clinical decision (compliance register).

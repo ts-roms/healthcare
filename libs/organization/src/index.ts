@@ -2,6 +2,8 @@ export * from "./lib/organization.dto";
 export * from "./lib/organization.module";
 export * from "./lib/organization.schema";
 export * from "./lib/organization.service";
+export * from "./lib/assistant/compliance-gaps.rules";
+export * from "./lib/assistant/organization-assistant.queries";
 export * from "./lib/compliance/compliance.schema";
 export * from "./lib/compliance/compliance-review.service";
 export * from "./lib/privacy/privacy.schema";

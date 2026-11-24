@@ -1,16 +1,22 @@
 import { ModulePage } from "@/components/module-page";
 import { SettingsStack } from "@/components/settings-page";
 import { redirect } from "next/navigation";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { LabInstrument, LabQcBoard, LabQcMaterial, LabTest } from "@/lib/api/types";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { QcWorkspace } from "./qc-workspace";
 
 export const metadata = { title: "Quality control" };
 
-export default async function QualityControlPage() {
-  const [session, facility] = await Promise.all([getSession(), getSelectedFacility()]);
+export default async function QualityControlPage({ searchParams }: { searchParams: Promise<{ instrument?: string; test?: string }> }) {
+  const [session, facility, query] = await Promise.all([getSession(), getSelectedFacility(), searchParams]);
+  // A series to open first, from a link (the assistant's QC suggestion): only ids, checked against the board.
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const chart =
+    query.instrument && query.test && uuid.test(query.instrument) && uuid.test(query.test) ? { instrumentId: query.instrument, testId: query.test } : null;
   if (!can(session, "lab.qc.read")) redirect("/");
   if (!facility) {
     return (
@@ -19,11 +25,13 @@ export default async function QualityControlPage() {
       </ModulePage>
     );
   }
-  const [board, materials, instruments, tests] = await Promise.all([
+  const [board, materials, instruments, tests, suggestions] = await Promise.all([
     api<LabQcBoard>("/laboratory/qc/status"),
     api<LabQcMaterial[]>("/laboratory/qc/materials"),
     api<LabInstrument[]>("/laboratory/instruments"),
     api<LabTest[]>("/laboratory/tests"),
+    // QC drift and shift, and rejection rates for quality managers (docs/domains/assistant.md).
+    loadSuggestions(session, "laboratory-quality"),
   ]);
   return (
     <ModulePage
@@ -32,7 +40,10 @@ export default async function QualityControlPage() {
       details={["Decision support for the laboratory's review."]}
     >
       <SettingsStack>
+        {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="laboratory-quality" suggestions={suggestions} /> : null}
         <QcWorkspace
+          key={chart ? `${chart.instrumentId}:${chart.testId}` : "board"}
+          chart={chart}
           board={board}
           materials={materials}
           instruments={instruments}

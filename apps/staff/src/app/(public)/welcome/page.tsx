@@ -3,15 +3,20 @@ import {
   ArrowRightIcon,
   CheckCircle2Icon,
   CircleDashedIcon,
+  ClipboardCheckIcon,
   ClockIcon,
   FileLockIcon,
   FingerprintIcon,
   GlobeIcon,
   HandshakeIcon,
   KeyRoundIcon,
+  LightbulbIcon,
+  ListChecksIcon,
   ListOrderedIcon,
+  MessageSquareTextIcon,
   MonitorSmartphoneIcon,
   ScanFaceIcon,
+  SlidersHorizontalIcon,
   TicketIcon,
   Volume2Icon,
   LandmarkIcon,
@@ -22,13 +27,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@healthcare/ui/primitives";
+import { cn } from "@healthcare/ui/lib/utils";
+import { AskAnswerCard, AssistantPanel, type AskAnswerView, type AssistantSuggestionView } from "@healthcare/ui/healthcare";
 import { MyHealthDownload } from "@/components/myhealth-download";
 import { BrandMark, PLATFORM_MODULES } from "@/components/platform-highlights";
 
 export const metadata = {
   title: "Welcome",
   description:
-    "An integrated healthcare platform for Philippine clinics: clinic, laboratory, dental, telemedicine, billing and a patient portal on one record.",
+    "An integrated healthcare platform for Philippine clinics: clinic, laboratory, dental, telemedicine, billing and a patient portal on one record, with a built-in assistant.",
 };
 
 /** Public page (see PUBLIC_PATHS in proxy.ts): static content only, never calls the API. */
@@ -36,6 +43,7 @@ export const metadata = {
 const NAV = [
   { href: "#modules", label: "Modules" },
   { href: "#journey", label: "Care journey" },
+  { href: "#assistant", label: "Assistant" },
   { href: "#kiosk", label: "Kiosk" },
   { href: "#philippines", label: "Philippines" },
   { href: "#security", label: "Security" },
@@ -100,6 +108,96 @@ const KIOSK: ReadonlyArray<{ icon: LucideIcon; title: string; description: strin
   },
 ];
 
+/**
+ * The heuristic assistant (docs/domains/assistant.md): named rules and simple statistics over the organization's own records, no language model — so it
+ * is called the assistant here, never "AI".
+ */
+const ASSISTANT: ReadonlyArray<{ icon: LucideIcon; title: string; description: string }> = [
+  {
+    icon: LightbulbIcon,
+    title: "Suggestions where the work happens",
+    description:
+      "Stock that will run short, procedures with no charge, results past their usual turnaround: on the screen that can act on them, and all together under Assistant.",
+  },
+  {
+    icon: StethoscopeIcon,
+    title: "A second look before you issue",
+    description:
+      "In the consultation and the prescribing dialog: what the note does not hold yet, the same medicine prescribed twice, a dose above your own maximum. It never blocks.",
+  },
+  {
+    icon: MessageSquareTextIcon,
+    title: "Ask about the clinic's day",
+    description: "Type “No-shows this month vs last month” or “What is running low?” and get the figures you may already open, with how they were worked out.",
+  },
+  {
+    icon: ListChecksIcon,
+    title: "Every suggestion shows its reasons",
+    description:
+      "The rule behind it and the figures it used, read only from what the person may already see. No language model: nothing is guessed and nothing leaves the platform.",
+  },
+  {
+    icon: SlidersHorizontalIcon,
+    title: "Off until you turn it on",
+    description: "Administrators choose each check per organization or facility, set its thresholds and try them on past days before switching it on.",
+  },
+  {
+    icon: ClipboardCheckIcon,
+    title: "Reviewed, kept or retired",
+    description: "Staff dismiss a suggestion or say why it was not useful; administrators see how often each check helped and review it every quarter.",
+  },
+];
+
+/** Illustrative only — example suggestions in the words the real rules use; no patient, no real stock or invoice. */
+const EXAMPLE_SUGGESTIONS: AssistantSuggestionView[] = [
+  {
+    id: "example-stock",
+    ruleId: "inventory.days-of-cover",
+    ruleVersion: 1,
+    severity: "warning",
+    title: "Paracetamol 500 mg: about 9 days of stock left",
+    rationale: "At the pace of the last 30 days (about 3.3 tablet a day), what is usable lasts less than your 14-day delivery time.",
+    evidence: [
+      { label: "Usable stock", value: "30 tablet" },
+      { label: "Issued in 30 days", value: "100 tablet in 5 issues" },
+    ],
+    basis: "statistic",
+    strength: "matched",
+  },
+  {
+    id: "example-charge",
+    ruleId: "billing.uncharged-work",
+    ruleVersion: 1,
+    severity: "advice",
+    title: "2 × Wound dressing (PROC-012) not charged",
+    rationale: "No billing service is mapped to this code, so nothing was charged. If the procedure is free on purpose, dismiss this.",
+    evidence: [
+      { label: "Procedure code", value: "PROC-012" },
+      { label: "Done in the last 7 days with no charge", value: "2" },
+    ],
+    basis: "rule",
+    strength: "matched",
+  },
+];
+
+/** Illustrative only — an Ask answer as the card shows it. */
+const EXAMPLE_ANSWER: AskAnswerView = {
+  title: "No-shows",
+  status: "answered",
+  sentence: "6.1% of appointments were no-shows at Main Clinic this month: 29 of 476.",
+  periodText: "This month",
+  comparisonText: "the same days last month",
+  scopeName: "Main Clinic",
+  rows: [
+    { label: "No-show rate", value: "6.1%", previous: "7.9%", change: { text: "down 1.8 points", direction: "down", assessment: "better" } },
+    { label: "No-shows", value: "29" },
+    { label: "Appointments booked", value: "476" },
+  ],
+  notes: [],
+  definition: "No-shows ÷ appointments booked (appointments starting in the period, cancelled ones excluded from both).",
+  link: null,
+};
+
 const PHILIPPINES: ReadonlyArray<{ icon: LucideIcon; title: string; description: string }> = [
   {
     icon: LandmarkIcon,
@@ -128,9 +226,9 @@ export default function WelcomePage() {
           <Link href="/welcome" aria-label="Healthcare Platform home">
             <BrandMark />
           </Link>
-          <nav aria-label="Sections" className="hidden items-center gap-6 md:flex">
+          <nav aria-label="Sections" className="hidden items-center gap-4 lg:flex xl:gap-6">
             {NAV.map((item) => (
-              <a key={item.href} href={item.href} className="text-body text-muted-foreground transition-colors hover:text-foreground">
+              <a key={item.href} href={item.href} className="text-body whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground">
                 {item.label}
               </a>
             ))}
@@ -200,6 +298,12 @@ export default function WelcomePage() {
                   );
                 })}
               </ol>
+              <p className="mt-3 flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/15 px-3 py-2.5 text-table text-sidebar-accent-foreground">
+                <LightbulbIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>
+                  <span className="font-semibold">Assistant:</span> these results are past their usual turnaround time at your laboratory.
+                </span>
+              </p>
               <div className="mt-4 grid grid-cols-3 gap-3 border-t border-sidebar-border pt-4">
                 {["Clinic", "Laboratory", "Portal"].map((label) => (
                   <div key={label} className="rounded-md bg-sidebar/60 px-2 py-2 text-center text-meta text-sidebar-muted">
@@ -254,6 +358,38 @@ export default function WelcomePage() {
           </div>
         </section>
 
+        {/* Assistant */}
+        <section id="assistant" className="scroll-mt-16 border-b">
+          <div className="mx-auto grid max-w-6xl items-start gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.2fr_1fr] lg:py-20">
+            <div>
+              <SectionHeading eyebrow="Built-in assistant" title="A second pair of eyes on every workspace">
+                The assistant reads what your team already records and points out what needs attention, on the screen where it can be acted on. Every suggestion
+                says why; your staff decide what to do.
+              </SectionHeading>
+              <FeatureGrid items={ASSISTANT} className="lg:grid-cols-1" />
+              <p className="mt-6 text-meta text-muted-foreground">
+                Decision support only: the assistant suggests and links, never changes a record or makes a clinical decision. Your clinicians validate each
+                clinical check before it is turned on.
+              </p>
+            </div>
+
+            <figure aria-labelledby="assistant-illustration" className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-24 lg:order-first">
+              <figcaption id="assistant-illustration" className="flex items-center justify-between gap-3 text-meta text-muted-foreground">
+                <span>What staff see: suggestions on a screen, and an answer in Ask</span>
+                <span className="shrink-0 rounded-full bg-muted px-2 py-0.5">Illustration</span>
+              </figcaption>
+              <AssistantPanel title="Suggestions" description="Main Clinic · stock and billing" suggestions={EXAMPLE_SUGGESTIONS} />
+              <div className="flex flex-col gap-2">
+                <p className="ml-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-body text-primary-foreground">
+                  <MessageSquareTextIcon className="size-4 shrink-0" aria-hidden />
+                  No-shows this month vs last month
+                </p>
+                <AskAnswerCard answer={EXAMPLE_ANSWER} id="welcome-ask-example" />
+              </div>
+            </figure>
+          </div>
+        </section>
+
         {/* Kiosk */}
         <section id="kiosk" className="scroll-mt-16 border-b">
           <div className="mx-auto grid max-w-6xl items-start gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:py-20">
@@ -262,7 +398,7 @@ export default function WelcomePage() {
                 Patients arriving for a booked visit or a walk-in check themselves in at a kiosk in the waiting area. Reception keeps the desk for the people
                 who need one, and the queue stays in one place.
               </SectionHeading>
-              <FeatureGrid items={KIOSK} className="sm:grid-cols-1" />
+              <FeatureGrid items={KIOSK} />
               <p className="mt-6 text-meta text-muted-foreground">
                 Kiosk, printer and screen hardware is chosen and set up by each clinic; services offered at the kiosk are the clinic&apos;s own choice.
               </p>
@@ -377,7 +513,7 @@ function SectionHeading({ eyebrow, title, children }: { eyebrow: string; title: 
 
 function FeatureGrid({ items, className }: { items: ReadonlyArray<{ icon: LucideIcon; title: string; description: string }>; className?: string }) {
   return (
-    <ul className={`mt-10 grid gap-x-8 gap-y-6 sm:grid-cols-2 ${className ?? ""}`}>
+    <ul className={cn("mt-10 grid gap-x-8 gap-y-6 sm:grid-cols-2", className)}>
       {items.map(({ icon: Icon, title, description }) => (
         <li key={title} className="flex gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-card text-primary">

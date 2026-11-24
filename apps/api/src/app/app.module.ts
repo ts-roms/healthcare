@@ -37,6 +37,13 @@ import { AppImmunizationContext, AppProcedureSupplies } from "./adapters/immuniz
 import { RedisThrottlerStorage } from "./redis-throttler-storage";
 import { RateLimitGuard } from "./rate-limit.guard";
 import { RateLimitsController } from "./rate-limits.controller";
+import { AskController } from "./assistant/ask/ask.controller";
+import { AskService } from "./assistant/ask/ask.service";
+import { AssistantController } from "./assistant/assistant.controller";
+import { AssistantRules } from "./assistant/assistant-rules";
+import { AssistantService } from "./assistant/assistant.service";
+import { PlatformTenantsController } from "./platform/platform-tenants.controller";
+import { PlatformTenantsService } from "./platform/platform-tenants.service";
 import { AppBillingSources } from "./adapters/billing-adapters";
 import { AppDentalContext, AppDentalFees, AppDentalSupplies } from "./adapters/dental-adapters";
 import { AppDohCaseSources } from "./adapters/doh-adapters";
@@ -265,6 +272,9 @@ export class AppModule implements NestModule {
       ],
       controllers: [
         RateLimitsController,
+        PlatformTenantsController,
+        AssistantController,
+        AskController,
         AuditRetentionController,
         FhirController,
         FhirImportReceiveController,
@@ -307,6 +317,10 @@ export class AppModule implements NestModule {
         ManagementReportService,
         ManagementReportRuns,
         AuditRetentionService,
+        PlatformTenantsService,
+        AssistantRules,
+        AssistantService,
+        AskService,
         RecordCopyService,
         RealtimeGateway,
         LaboratoryNotifications,

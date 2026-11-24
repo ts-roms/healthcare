@@ -47,6 +47,20 @@ export const department = pgTable("department", {
   version: integer("version").notNull().default(1),
 });
 
+export type OrganizationStatus = "active" | "suspended" | "archived";
+
+/** Each change of an organization's status by a platform administrator, with the reason (migration 0151; append-only). */
+export const organizationStatusChange = pgTable("organization_status_change", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  organizationId: uuid("organization_id").notNull(),
+  fromStatus: text("from_status").$type<OrganizationStatus>().notNull(),
+  toStatus: text("to_status").$type<OrganizationStatus>().notNull(),
+  reason: text("reason").notNull(),
+  changedBy: uuid("changed_by").notNull(),
+  changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export type OrganizationRecord = typeof organization.$inferSelect;
+export type OrganizationStatusChangeRecord = typeof organizationStatusChange.$inferSelect;
 export type FacilityRecord = typeof facility.$inferSelect;
 export type DepartmentRecord = typeof department.$inferSelect;

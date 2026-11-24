@@ -278,8 +278,9 @@ If the visit was cancelled, missed or has passed, you see "This consultation is 
    - **No usual range to compare with**
 3. Under each result you may see **Usual range: …**, how many results you have over time, "updated by the laboratory" (the laboratory corrected it) and
    "tested at …" (another laboratory performed the test).
-4. Choose a test to open it. You see the latest value, a chart **Over time** (the shaded band is the usual range), and the **History** with each
-   value's usual range at the time.
+4. Choose a test to open it. You see the latest value, **About this result** (a few sentences saying where your value sits against the usual range
+   of the laboratory that did the test, and what a usual range is), a chart **Over time** (the shaded band is the usual range), and the **History**
+   with each value's usual range at the time.
 5. Under **Printable reports**, choose **Report …** to open the laboratory report as a PDF.
 
 MyHealth explains where a value sits; it does not tell you what the result means for your health. **Talk to your doctor** about your results.

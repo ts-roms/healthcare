@@ -93,6 +93,16 @@ deleted; entered-in-error ones stay visible, struck through.
 
 After signing, adding or correcting a diagnosis is an amendment: you need `encounter.amend` and must enter an **Amendment reason \***.
 
+### Codes your clinic has used (suggestions)
+
+When your organization has turned on the assistant's rule **Codes your clinic has used for these words** (**Settings → Assistant**), a
+**Suggestions** box (marked **Decision support**) at the top of the consultation shows, for a diagnosis written without a code (or for the
+assessment, before any diagnosis is added), up to three codes **your organization has itself used** whose descriptions share most of their
+words with what you wrote. **Why?** shows each code, how many times it was used and the matching words.
+
+It is word matching, not a diagnosis: no code list is built in, it never chooses or saves a code, and a code used only once is never offered. If a
+code is right, enter it yourself in **Diagnoses**.
+
 ## How to prescribe
 
 Prescriptions are issued inside an open (in-progress) encounter and need `prescription.issue`.
@@ -106,6 +116,25 @@ Prescriptions are issued inside an open (in-progress) encounter and need `prescr
 4. Select **Add medicine** for more lines (up to 20).
 5. Optionally add **Notes (for the pharmacist)**.
 6. Select **Issue prescription**. A prescription number is assigned.
+
+### Checks before issuing (suggestions)
+
+When your organization has turned on the assistant's prescribing checks (**Settings → Assistant**), selecting **Issue prescription** (or
+**Replace prescription**) first checks what you wrote:
+
+- **The same medicine or class is already prescribed**: a medicine already in a current prescription of the patient, of the same class as one
+  (classes are your organization's own), written twice, or prescribed again within the last days although that course ended.
+- **Above your organization's maximum daily dose**: the dose and frequency give more per day than the maximum your organization set for that
+  medicine, for example "Paracetamol: 6,000 mg a day, above your organization's maximum of 4,000 mg".
+- **Checks your organization asks for**: a reminder to check kidney function, or whether the patient may be pregnant, for the medicines your
+  organization marked, with its note.
+
+If there is something to check, the prescription is not issued yet: the suggestions appear under **Before you issue** and the button becomes
+**Issue anyway**. Change the prescription (it is checked again), or select **Issue anyway** to issue it as written. **Dismiss** hides a suggestion
+for you in this consultation for 14 days. If there is nothing to say, the prescription is issued at once, as before.
+
+Medicines are compared by the words of their names: a different salt, spelling or a brand name alone may not match, so **no suggestion does not
+mean there is no duplicate or that a dose is safe**. The drug–allergy check below still runs.
 
 ### Drug–allergy decision support
 
@@ -164,6 +193,23 @@ note when a result was corrected. Select **Report** to open the printable report
 To cancel, select **Cancel order…**, enter a reason and select **Cancel order** (needs `lab.order.cancel`; only while no test has a result). See
 [Laboratory](06-laboratory.md) for what happens in the laboratory.
 
+**Order sets.** If your organization keeps order sets (tests and panels it orders together, kept under **Settings → Laboratory → Order sets**), choose
+one in **Add an order set…** to tick its tests and panels in one go. The form says which set they came from; untick what this patient does not need
+before you select **Order N tests**.
+
+When your organization has turned on the assistant's rule **An order set for this consultation**, the **Suggestions** box offers a set made for the
+consultation's diagnosis or visit type, for example "Order set for the diagnosis E11.9: Diabetes follow-up", with each of its tests marked "to order"
+or "already ordered in this consultation". **Open in the lab order form** opens the form with the set's tests chosen. Nothing is ordered until you
+select **Order N tests**; once all its tests are ordered, the suggestion goes. The sets are your organization's own: no guideline is built in.
+
+When your organization has turned on the assistant's rule **Monitoring tests not done for a chronic condition**, the **Suggestions** box also points
+out, in any consultation, a diagnosis marked **Chronic condition** on the patient's record for some time whose tests in one of your order sets have no
+released result in the months your organization chose, for example "Diabetes monitoring: HbA1c not released in 12 months (E11.9)", each test with
+the day it was last released or "no released result here". It counts only results released by your laboratory, not outside results filed on the
+record. **Open in the lab order form** opens the form with the set chosen: untick what the patient does not need or had done elsewhere. Once the
+tests are ordered in this consultation, the suggestion goes. A diagnosis recorded without **Chronic condition** ticked is not checked (and it leaves
+the patient's problem list after 90 days).
+
 ## How to book a follow-up
 
 You need `appointment.manage`.
@@ -174,6 +220,11 @@ You need `appointment.manage`.
 3. You return to the encounter.
 
 ## How to sign the encounter
+
+When your organization has turned on the assistant's rule **Before signing: what the record does not hold yet**, a **Suggestions** box at the top
+of a consultation in progress lists what is not recorded yet: chief complaint, vital signs (in person, within the hours your organization chose),
+allergy review, assessment, plan, a diagnosis, its code and a primary one. Add what applies. It blocks nothing: you can sign without them, and
+**Dismiss** hides it for you on this consultation.
 
 1. Make sure the **Assessment** or the **Plan** is filled in. The platform will not sign a note with neither.
 2. Select **Sign encounter**. Unsaved changes are saved first, so what you sign is what you see.

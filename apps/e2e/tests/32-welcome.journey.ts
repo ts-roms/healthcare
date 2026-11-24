@@ -3,11 +3,11 @@ import { API_URL, STAFF_URL } from "../support/env";
 import { watchErrors } from "../support/pages";
 
 /**
- * The public landing page (`/welcome`): signed out, static, and it tells visitors about the patient self-service kiosk.
+ * The public landing page (`/welcome`): signed out, static, and it tells visitors about the assistant and the patient self-service kiosk.
  */
 const shots = process.env.E2E_KIOSK_SHOTS;
 
-test("the public welcome page presents the kiosk, reachable from the menu, without calling the API", async ({ browser }) => {
+test("the public welcome page presents the assistant and the kiosk, reachable from the menu, without calling the API", async ({ browser }) => {
   const errors: string[] = [];
   const context = await browser.newContext({ baseURL: STAFF_URL, viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
@@ -19,6 +19,27 @@ test("the public welcome page presents the kiosk, reachable from the menu, witho
   try {
     await page.goto("/welcome");
     await expect(page.getByRole("heading", { level: 1 })).toContainText("One patient");
+
+    // The assistant: from the menu to its section, described as decision support from rules, never as a language model.
+    await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Assistant" }).click();
+    await expect(page).toHaveURL(/#assistant$/);
+    const assistant = page.locator("#assistant");
+    await expect(assistant.getByRole("heading", { name: "A second pair of eyes on every workspace" })).toBeVisible();
+    for (const title of [
+      "Suggestions where the work happens",
+      "A second look before you issue",
+      "Ask about the clinic's day",
+      "Every suggestion shows its reasons",
+      "Off until you turn it on",
+      "Reviewed, kept or retired",
+    ]) {
+      await expect(assistant.getByRole("heading", { name: title })).toBeVisible();
+    }
+    await expect(assistant.getByText(/No language model/)).toBeVisible();
+    // The illustration is labelled as one and uses the product's own cards: "Why?" shows the rule behind an example suggestion.
+    await expect(assistant.getByRole("figure", { name: /What staff see/ })).toBeVisible();
+    await assistant.getByRole("button", { name: "Why?" }).first().click();
+    await expect(assistant.getByText("Rule inventory.days-of-cover, version 1.")).toBeVisible();
 
     // From the menu to the section.
     await page.getByRole("navigation", { name: "Sections" }).getByRole("link", { name: "Kiosk" }).click();

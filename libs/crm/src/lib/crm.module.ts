@@ -3,6 +3,7 @@ import { AuditService } from "@healthcare/audit";
 import { APP_CONFIG, type AppConfig, DATABASE, type Database, DomainEventPublisher } from "@healthcare/core";
 import { NotificationService } from "@healthcare/notification";
 import { OrganizationModule, OrganizationService } from "@healthcare/organization";
+import { CrmAssistantQueries } from "./assistant/crm-assistant.queries";
 import { CrmCampaignRuns } from "./crm-campaign-runs";
 import { CrmController } from "./crm.controller";
 import { CrmSeriesController } from "./crm-series.controller";
@@ -64,8 +65,9 @@ export class CrmModule {
             new CrmSeriesService(db, organizations, audit, events, config.PORTAL_BASE_URL),
         },
         CrmCampaignRuns,
+        CrmAssistantQueries,
       ],
-      exports: [CrmService, CrmSeriesService, CrmCampaignRuns],
+      exports: [CrmService, CrmSeriesService, CrmCampaignRuns, CrmAssistantQueries],
     };
   }
 }

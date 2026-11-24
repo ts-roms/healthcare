@@ -64,6 +64,7 @@ export default async function StaffGroupLayout({ children }: { children: React.R
   return (
     <StaffShell
       permissions={session.permissions}
+      platformAdmin={session.user.isPlatformAdmin}
       user={{ displayName: session.user.displayName, email: session.user.email }}
       organizationName={session.organization.name}
       facilities={facilities.map((f) => ({ id: f.id, name: f.name }))}

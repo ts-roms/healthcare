@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { PageHeader } from "@/components/page-header";
 import { getSession } from "@/lib/api/session";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { settingsForPermissions } from "@/lib/settings-navigation";
 
 export const metadata = { title: "Settings" };
@@ -12,10 +14,12 @@ export default async function SettingsPage() {
   const session = await getSession();
   const groups = settingsForPermissions(session.permissions);
   if (groups.length === 0) redirect("/");
+  const suggestions = await loadSuggestions(session, "settings");
   return (
     <>
       <PageHeader title="Settings" description="Set up your organization, its facilities and each module." />
       <div className="flex flex-col gap-6 p-4">
+        {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="settings" suggestions={suggestions} /> : null}
         {groups.map((group) => (
           <section key={group.label} aria-labelledby={`settings-${group.label}`} className="flex flex-col gap-3">
             <h2 id={`settings-${group.label}`} className="text-section font-semibold">

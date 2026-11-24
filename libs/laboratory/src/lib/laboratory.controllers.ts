@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Param, ParseUUIDPipe, Patch, Post, Put
 import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from "@nestjs/swagger";
 import { type Actor, CurrentActor, pdfFile, RequireFacility, requireFacilityId, RequirePermissions } from "@healthcare/core";
 import { LabCatalogService } from "./catalog/lab-catalog.service";
+import { LabOrderSetService } from "./catalog/lab-order-set.service";
 import {
   AddReferenceRangeDto,
   CancelDto,
@@ -19,9 +20,11 @@ import {
   FacilityPolicyDto,
   LabelQueryDto,
   ListOrdersDto,
+  OrderSetDto,
   RejectSpecimenDto,
   TrendQueryDto,
   UpdateCatalogEntryDto,
+  UpdateOrderSetDto,
   UpdateTestDto,
   WorklistDto,
   RemoveAttachmentDto,
@@ -41,7 +44,37 @@ const uuid = new ParseUUIDPipe();
 @ApiBearerAuth()
 @Controller({ path: "laboratory", version: "1" })
 export class LabCatalogController {
-  constructor(private readonly catalog: LabCatalogService) {}
+  constructor(
+    private readonly catalog: LabCatalogService,
+    private readonly orderSets: LabOrderSetService,
+  ) {}
+
+  @Get("order-sets")
+  @RequirePermissions("lab.order.read")
+  @ApiOperation({ summary: "Order sets: tests and panels the organization orders together, with when each is offered" })
+  listOrderSets(@CurrentActor() actor: Actor, @Query() query: CatalogQueryDto) {
+    return this.orderSets.list(actor.organizationId, query.includeInactive === "true");
+  }
+
+  @Get("order-sets/:id")
+  @RequirePermissions("lab.order.read")
+  getOrderSet(@CurrentActor() actor: Actor, @Param("id", uuid) id: string) {
+    return this.orderSets.get(actor.organizationId, id);
+  }
+
+  @Post("order-sets")
+  @RequirePermissions("lab.catalog.manage")
+  @ApiOperation({ summary: "Create an order set (audited)" })
+  createOrderSet(@CurrentActor() actor: Actor, @Body() body: OrderSetDto) {
+    return this.orderSets.create(actor, body);
+  }
+
+  @Put("order-sets/:id")
+  @RequirePermissions("lab.catalog.manage")
+  @ApiOperation({ summary: "Change an order set's name, note, items, triggers or status (version-checked; audited)" })
+  updateOrderSet(@CurrentActor() actor: Actor, @Param("id", uuid) id: string, @Body() body: UpdateOrderSetDto) {
+    return this.orderSets.update(actor, id, body);
+  }
 
   @Get("departments")
   @RequirePermissions("lab.order.read")

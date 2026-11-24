@@ -12,6 +12,13 @@ pnpm db:seed:demo                 # demo clinic through the running API: staff p
 pnpm dev                          # everything below, in parallel (one terminal)
 ```
 
+**Port 5432 already taken** (another project's PostgreSQL): `pnpm dev:deps` then starts this one without a host port and
+`pnpm db:migrate` reaches the other server (`28P01: password authentication failed for user "healthcare"`). Put
+`POSTGRES_PORT=5433` in `infrastructure/docker/.env` (gitignored; Docker Compose reads it, not the root `.env`), use the
+same port in the root `.env` for `DATABASE_URL`, `TEST_DATABASE_URL` and `E2E_DATABASE_URL`
+(`postgres://healthcare:healthcare@localhost:5433/healthcare_e2e`), and recreate the container with
+`docker compose -f infrastructure/docker/docker-compose.yml up -d postgres` (the data volume is kept).
+
 `pnpm dev` starts the API, the notification and integration workers, the staff app and the portal together with prefixed, interleaved logs (`nx run-many -t serve dev`); stop them all with Ctrl+C. The Next.js `dev` targets are marked `continuous` in each app's `package.json` so Nx runs them alongside the API. To run one app on its own (sign in to the staff app with `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`):
 
 ```bash
@@ -65,6 +72,14 @@ journeys with Playwright against the built applications, each person in their ow
    online bookings need notice, so the test moves the booked appointment to a few minutes from now in the database
    (the only step that does not go through the applications). No video server runs, so the consultation uses the
    callback-number fallback.
+
+Further journeys in `tests/` follow single modules and screens, numbered in the order they were added; among them the
+heuristic assistant's (`tests/34-assistant.journey.ts`): the stock rule turned on under **Settings → Assistant**, its
+suggestion on the inventory screen with **Why?**, its link followed and the suggestion marked not useful, then the rule's
+insights read and a review that retires it; the Assistant section's Suggestions pages (`tests/35-assistant-suggestions.journey.ts`);
+and Ask (`tests/36-assistant-ask.journey.ts`): a question typed in one's own words answered with its dates and comparison,
+the address and the audit trail holding the question and never the words, the question saved, a question about a patient not
+recognised, and a receptionist told plainly that a dashboard question reads figures their role cannot open.
 
 It needs PostgreSQL and Redis (`pnpm dev:deps`) and Chromium (`pnpm --filter e2e exec playwright install chromium`;
 already present in Claude Code cloud sessions). It uses its own database (`E2E_DATABASE_URL`, default

@@ -7,7 +7,16 @@ import type { PortalAppointment, PortalPrescription } from "./api/types";
  *
  * The result wording lives in `@healthcare/domain/portal-results`, shared with the mobile app.
  */
-export { latestPerTest, resultDate, resultMeaning, resultValue, usualRange, type ResultTone } from "@healthcare/domain/portal-results";
+export {
+  latestPerTest,
+  RESULT_WORDING_VERSION,
+  resultDate,
+  resultExplanation,
+  resultMeaning,
+  resultValue,
+  usualRange,
+  type ResultTone,
+} from "@healthcare/domain/portal-results";
 
 const FREQUENCY: Record<string, string> = {
   once: "once",

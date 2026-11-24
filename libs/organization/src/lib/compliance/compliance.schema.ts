@@ -11,6 +11,8 @@ export const COMPLIANCE_AREAS = [
   "doh_reporting",
   "data_privacy",
   "dental_estimates",
+  // 0158: what MyHealth shows of laboratory results (tests released to patients, the fixed result wording).
+  "patient_results",
 ] as const;
 export type ComplianceArea = (typeof COMPLIANCE_AREAS)[number];
 export const COMPLIANCE_OUTCOMES = ["validated", "changes_needed"] as const;

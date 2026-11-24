@@ -4,10 +4,12 @@ import { TriangleAlertIcon } from "lucide-react";
 import { ApiError } from "@healthcare/web-session";
 import { clinicalDateTime } from "@healthcare/ui/healthcare";
 import { Badge, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { FacilityRequired } from "@/components/facility-required";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { DispensableStock, DispensingView } from "@/lib/api/types";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { quantityWithUnit } from "@/lib/inventory-mapping";
 import { lineSummary } from "@/lib/prescription-form";
 import { DispenseForm, ReverseDispense } from "./dispense-form";
@@ -35,9 +37,13 @@ export default async function DispensePage({ params }: { params: Promise<{ presc
     throw error;
   }
   const canMove = can(session, "inventory.move") && can(session, "inventory.read");
-  const stock = canMove ? await api<DispensableStock[]>("/dispensing/stock") : [];
   const rx = view.prescription;
   const active = rx.status === "active";
+  const [stock, suggestions] = await Promise.all([
+    canMove ? api<DispensableStock[]>("/dispensing/stock") : Promise.resolve([]),
+    // The assistant's notes on the stock this prescription would be dispensed from; the page renders without them.
+    active ? loadSuggestions(session, "pharmacy", { prescriptionId: rx.id }) : Promise.resolve(null),
+  ]);
   return (
     <ModulePage
       title={`Prescription ${rx.prescriptionNumber}`}
@@ -45,6 +51,7 @@ export default async function DispensePage({ params }: { params: Promise<{ presc
     >
       <div className="grid gap-4 xl:grid-cols-[3fr_2fr]">
         <div className="flex flex-col gap-3">
+          {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="pharmacy" suggestions={suggestions} /> : null}
           {!active ? (
             <p role="alert" className="rounded-md border border-danger/25 bg-danger-subtle p-3 text-body text-danger-foreground">
               This prescription is {rx.status}

@@ -1,9 +1,12 @@
 import { ModulePage } from "@/components/module-page";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { api } from "@/lib/api/client";
 import { can, getFacilities, getSession } from "@/lib/api/session";
 import type { OutreachCampaign, OutreachSegment, OutreachSeries, OutreachSettings } from "@/lib/api/types";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
+import { segmentDraftFrom } from "@/lib/outreach-draft";
 import { CampaignList } from "./campaign-list";
 import { SegmentList } from "./segment-list";
 import { SeriesList } from "./series-list";
@@ -11,15 +14,17 @@ import { SeriesList } from "./series-list";
 export const metadata = { title: "Outreach" };
 
 /** Outreach the organization plans: segments (who), campaigns (what, approved by a second person) and their results. */
-export default async function OutreachPage() {
+export default async function OutreachPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await getSession();
   if (!can(session, "crm.read")) redirect("/");
-  const [segments, campaigns, settings, facilities, series] = await Promise.all([
+  const [segments, campaigns, settings, facilities, series, suggestions, query] = await Promise.all([
     api<OutreachSegment[]>("/outreach/segments"),
     api<OutreachCampaign[]>("/outreach/campaigns"),
     api<OutreachSettings>("/outreach/settings"),
     getFacilities(),
     api<OutreachSeries[]>("/outreach/series"),
+    loadSuggestions(session, "outreach"),
+    searchParams,
   ]);
   const limits = [
     settings.frequencyCap
@@ -38,7 +43,13 @@ export default async function OutreachPage() {
           {can(session, "crm.campaign.approve") ? "Change limits" : "See limits"}
         </Link>
       </p>
-      <SegmentList segments={segments} canManage={can(session, "crm.segment.manage")} facilities={facilities.map((f) => ({ id: f.id, name: f.name }))} />
+      {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="outreach" suggestions={suggestions} /> : null}
+      <SegmentList
+        segments={segments}
+        canManage={can(session, "crm.segment.manage")}
+        facilities={facilities.map((f) => ({ id: f.id, name: f.name }))}
+        draft={segmentDraftFrom(query)}
+      />
       <SeriesList series={series} canApprove={can(session, "crm.campaign.approve")} currentUserId={session.user.id} />
       <CampaignList
         campaigns={campaigns.filter((c) => !c.seriesId)}

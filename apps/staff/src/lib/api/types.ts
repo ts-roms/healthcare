@@ -1001,6 +1001,19 @@ export interface LabPanel extends LabCatalogEntry {
   testIds: string[];
 }
 
+/** GET /laboratory/order-sets: tests and panels the organization orders together, and when each is offered (migration 0155). */
+export interface LabOrderSet {
+  id: string;
+  code: string;
+  name: string;
+  note: string | null;
+  status: "active" | "inactive";
+  version: number;
+  updatedAt: string;
+  items: Array<{ kind: "test" | "panel"; id: string; code: string; name: string; status: "active" | "inactive"; testIds: string[] }>;
+  triggers: Array<{ kind: "diagnosis_code" | "visit_type"; value: string; codeSystemKey: string | null }>;
+}
+
 export interface LabPolicy {
   facilityId: string;
   allowSelfVerification: boolean;
@@ -4426,7 +4439,7 @@ export interface FacilityBookingRules {
 // ---- Compliance configuration (migration 0074; docs/architecture/compliance-configuration.md) ----
 
 export type ComplianceArea =
-  "billing_tax" | "procurement" | "controlled_drugs" | "laboratory_licensing" | "doh_reporting" | "data_privacy" | "dental_estimates";
+  "billing_tax" | "procurement" | "controlled_drugs" | "laboratory_licensing" | "doh_reporting" | "data_privacy" | "dental_estimates" | "patient_results";
 
 export interface ComplianceReview {
   id: string;
@@ -5760,4 +5773,293 @@ export interface QueueDisplaySettings {
   accentColor: string | null;
   groupByServicePoint: boolean;
   version: number | null;
+}
+
+/** Platform console (migration 0151): a patient count from 1 to 4 is "<5". */
+export type PlatformPatientCount = number | "<5";
+
+/** `GET /platform/tenants` row: one organization's status and operational figures, never a patient's data. */
+export interface TenantSummary {
+  id: string;
+  code: string;
+  name: string;
+  status: "active" | "suspended" | "archived";
+  createdAt: string;
+  facilities: { active: number; total: number };
+  activeStaff: number;
+  patients: PlatformPatientCount;
+  myHealthAccounts: PlatformPatientCount;
+  lastStaffSignInAt: string | null;
+}
+
+export interface TenantList {
+  items: TenantSummary[];
+  totals: { organizations: number; active: number; suspended: number };
+}
+
+/** `GET /platform/tenants/:id`. */
+export interface TenantDetail extends TenantSummary {
+  version: number;
+  isCurrentOrganization: boolean;
+  facilityList: Array<{
+    id: string;
+    code: string;
+    name: string;
+    facilityType: string;
+    cityMunicipality: string | null;
+    province: string | null;
+    status: string;
+  }>;
+  administrators: Array<{
+    id: string;
+    email: string;
+    displayName: string;
+    membershipStatus: string;
+    accountStatus: string;
+    mfaEnabled: boolean;
+    passwordChangeRequired: boolean;
+    lastLoginAt: string | null;
+  }>;
+  statusHistory: Array<{ id: string; fromStatus: string; toStatus: string; reason: string; changedAt: string; changedBy: string }>;
+}
+
+// ---- Heuristic assistant (GET /assistant/suggestions; docs/domains/assistant.md) ----------------------------------------
+
+export type AssistantSurface =
+  | "inventory"
+  | "billing"
+  | "appointments"
+  | "queue"
+  | "encounter"
+  | "laboratory"
+  | "laboratory-quality"
+  | "security"
+  | "settings"
+  | "outreach"
+  | "prescribing"
+  | "dental"
+  | "pharmacy";
+
+/** The organization's own setting for one medicine, read by the assistant's prescribing rules (migration 0156). */
+export interface MedicineSetting {
+  id: string;
+  name: string;
+  className: string | null;
+  maxDailyDose: number | null;
+  doseUnit: string | null;
+  checkRenal: boolean;
+  checkPregnancy: boolean;
+  note: string | null;
+  status: "active" | "inactive";
+  version: number;
+  updatedAt: string;
+}
+
+export interface AssistantSuggestion {
+  id: string;
+  ruleId: string;
+  ruleVersion: number;
+  surface: AssistantSurface;
+  severity: "info" | "advice" | "warning";
+  title: string;
+  rationale: string;
+  evidence: Array<{ label: string; resourceType: string; resourceId: string; value?: string }>;
+  basis: "rule" | "statistic" | "text-match";
+  strength: "matched" | "weak";
+  requires: string[];
+  action?: { label: string; href: string };
+  expiresAt?: string;
+}
+
+export interface AssistantSuggestions {
+  items: AssistantSuggestion[];
+  /** Hidden because this person dismissed them recently. */
+  dismissed: number;
+  /** How many rules on here need a permission this person lacks (never which). */
+  withheld: number;
+}
+
+/** What a rule must be shown to speak: nothing, or the record a screen shows. */
+export type AssistantRuleNeed = "nothing" | "encounter" | "patient" | "prescription" | "draft";
+
+/** One screen's part of `GET /assistant/overview`. */
+export interface AssistantOverviewSurface {
+  surface: AssistantSurface;
+  /** The surface's rules this person may read, with whether each is on at the selected facility. */
+  rules: Array<{ ruleId: string; ruleVersion: number; title: string; description: string; on: boolean; needs: AssistantRuleNeed }>;
+  /** Suggestions of the rules that need nothing on screen, warnings first. */
+  items: AssistantSuggestion[];
+  /** Suggestions beyond the request's limit. */
+  more: number;
+  dismissed: number;
+  withheld: number;
+  /** A rule could not be read; the others are still answered. */
+  failed: boolean;
+}
+
+export interface AssistantOverview {
+  surfaces: AssistantOverviewSurface[];
+}
+
+/** A question of the assistant's Ask (`GET /assistant/ask/questions`). */
+export interface AskQuestion {
+  id: string;
+  title: string;
+  /** Examples as they read: a chip opens its answer from these, never sending the words. */
+  examples: Array<{ text: string; period?: string; compare?: AskCompare }>;
+  period: "none" | "now" | "day" | "range";
+  comparable: boolean;
+  organization: boolean;
+  /** The caller may see its figures. */
+  allowed: boolean;
+  link: { label: string; href: string };
+}
+
+export type AskCompare = "previous" | "last-year";
+export type AskScope = "facility" | "organization";
+export type AskNoteCode = "period-not-applicable" | "day-only" | "not-comparable";
+
+/** `POST /assistant/ask/interpret`: which question a typed text asks (the text itself is never returned or kept). */
+export type AskInterpretation =
+  | { kind: "question"; questionId: string; title: string; period?: string; compare?: AskCompare; scope: AskScope; notes: AskNoteCode[] }
+  /** The period, comparison and scope read go with whichever question the person chooses. */
+  | { kind: "ambiguous"; candidates: Array<{ id: string; title: string }>; period?: string; compare?: AskCompare; scope: AskScope }
+  | { kind: "unrecognised" };
+
+export interface AskAnswerRow {
+  label: string;
+  value: string;
+  previous?: string;
+  change?: { text: string; direction: "up" | "down" | "flat"; assessment: "better" | "worse" | "unchanged" | "neutral" };
+}
+
+/** `POST /assistant/ask/answer`. */
+export interface AskAnswer {
+  question: { id: string; version: number; title: string };
+  status: "answered" | "withheld" | "unavailable";
+  sentence: string;
+  period: { key: string; label: string; from: string; to: string; text: string } | null;
+  comparison: { mode: AskCompare; label: string; from: string; to: string; text: string } | null;
+  scope: { kind: AskScope; name: string };
+  rows: AskAnswerRow[];
+  notes: string[];
+  definition: string | null;
+  link: { label: string; href: string } | null;
+  /** The person's own entry among their questions (to save it); null when the answer was not kept. */
+  entry: { id: string } | null;
+}
+
+export interface AskHistoryItem {
+  id: string;
+  questionId: string;
+  label: string;
+  period: string | null;
+  compare: AskCompare | null;
+  scope: AskScope;
+  timesAsked: number;
+  lastAskedAt: string;
+  savedAt: string | null;
+}
+
+/** `GET /assistant/ask/history`: saved and recent questions (never the words typed). */
+export interface AskHistory {
+  saved: AskHistoryItem[];
+  recent: AskHistoryItem[];
+}
+
+export interface AssistantRuleSettingValue {
+  version: number;
+  enabled: boolean;
+  parameters: Record<string, unknown>;
+  updatedAt: string;
+}
+
+/** GET /assistant/rules: one rule with its setting for the scope asked for (the organization, or one facility). */
+/** What a rule's definition documents about it (phase 4): what it reads and when it can be wrong. */
+export interface AssistantRuleLimits {
+  /** What the rule reads, in plain words. */
+  reads: string;
+  /** Situations, documented by the platform team, in which it may speak though nothing needs doing. */
+  knownFalsePositives: string[];
+  /** What it cannot see: its silence is never evidence that all is well. */
+  blindSpots: string[];
+}
+
+export interface AssistantRule extends AssistantRuleLimits {
+  ruleId: string;
+  ruleVersion: number;
+  domain: string;
+  title: string;
+  description: string;
+  surfaces: AssistantSurface[];
+  requires: string[];
+  defaultParameters: Record<string, number>;
+  parameterLabels: Record<string, { label: string; unit?: string; hint?: string; min?: number; max?: number }>;
+  scope: { facilityId: string | null };
+  /** This scope's own setting; null when it has none (a facility then follows the organization's). */
+  setting: AssistantRuleSettingValue | null;
+  organizationSetting: AssistantRuleSettingValue | null;
+  /** The organization's latest review of the rule (migration 0159), if any. */
+  lastReview: AssistantRuleReviewSummary | null;
+}
+
+export type AssistantReviewOutcome = "keep" | "adjust" | "retire";
+
+/** A review of a rule as the settings and insights screens show it. */
+export interface AssistantRuleReviewSummary {
+  id: string;
+  ruleVersion: number;
+  outcome: AssistantReviewOutcome;
+  note: string;
+  falsePositives: string | null;
+  /** YYYY-MM-DD */
+  reviewedOn: string;
+}
+
+/** GET /assistant/rules/:ruleId/reviews: a rule's reviews, newest first. */
+export interface AssistantRuleReview extends AssistantRuleReviewSummary {
+  /** Who recorded it (display name). */
+  recordedBy: string;
+  recordedAt: string;
+}
+
+/** POST /assistant/rules/:ruleId/replay: how often the rule would have spoken on each past day. */
+export interface AssistantReplay {
+  ruleId: string;
+  facilityId: string;
+  readAt: string;
+  days: Array<{ date: string; suggestions: number; weak: number }>;
+  averagePerDay: number;
+  maxPerDay: number;
+  notes: string[];
+}
+
+export interface AssistantInsights {
+  days: number;
+  rules: AssistantRuleInsight[];
+}
+
+/** GET /assistant/insights: how one rule did over the period, for its periodic review. */
+export interface AssistantRuleInsight extends AssistantRuleLimits {
+  ruleId: string;
+  ruleVersion: number;
+  title: string;
+  description: string;
+  domain: string;
+  /** Where it is on now: the organization's own setting, and how many facilities' own settings. */
+  enabled: { organization: boolean; facilities: number };
+  /** Times its suggestions were shown. */
+  shown: number;
+  /** Followed (the suggestion's link opened). */
+  accepted: number;
+  dismissed: number;
+  notUseful: number;
+  answered: number;
+  /** At least 20 answers, 70% or more dismissed or not useful. */
+  reviewSuggested: boolean;
+  /** On somewhere, and never reviewed, reviewed over 92 days ago, or reviewed on an earlier version. */
+  reviewDue: boolean;
+  /** The latest reasons staff gave when dismissing or marking it not useful, newest first. */
+  reasons: Array<{ outcome: "dismissed" | "not_useful"; reason: string; at: string }>;
+  lastReview: AssistantRuleReviewSummary | null;
 }

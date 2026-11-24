@@ -212,6 +212,17 @@ The **QC status** card lists each test with a target on each instrument:
 Click **Chart** on a row to see the **Levey-Jennings** chart and the run history for the last 31 days. Each run shows the value, SD from the
 target, evaluation, comment, reagent lots and corrective actions.
 
+**Suggestions on the QC page.** When your organization has turned them on (**Settings → Assistant**), a **Suggestions** box above the board
+shows:
+
+- **QC values drifting or shifted** — for an instrument, test and control lot, the last runs each higher (or each lower) than the one before,
+  or the average of the last runs well away from the target mean, for example "Glucose on Chemistry analyzer 1, Chemistry control (Level 1)
+  lot A100: drifting up over the last 6 runs". The Westgard rules judge each run; this points at a steady change before a run is rejected.
+  **Open its Levey-Jennings chart** shows the series. Look at maintenance, calibration and the reagent and control lots. It rejects no run.
+- **Specimen rejections concentrated on a collector or a facility** (quality managers only) — a staff member whose share of rejected
+  specimens over the last days is several times the others', or this facility against your other facilities, by count only. It may be the
+  patients, the tests or the tubes: look at the reasons and the collection steps together, and raise a nonconformance if a cause is found.
+
 ### Record a corrective action
 
 For a run with a warning or rejection, click **Corrective action**, describe the cause found and what was done, and click **Save**. You need

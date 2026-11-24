@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { forwardedHeaders } from "@healthcare/web-session";
+import { busyPage, forwardedHeaders } from "@healthcare/web-session";
 import { COOKIES } from "@/lib/config";
 import { buildCsp, newNonce } from "@/lib/csp";
 import { clearSessionCookies, refreshTokens, writeTokenCookies } from "@/lib/tokens";
@@ -65,11 +65,14 @@ export async function proxy(request: NextRequest) {
 
 /** The API is busy or down: keep the device signed in and retry shortly, rather than asking for set-up again. */
 function unavailable() {
-  return new NextResponse(
-    `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="10"><title>Please wait</title>
-<body style="font:24px system-ui;margin:4rem;max-width:40rem"><h1>This kiosk is reconnecting</h1><p>Please wait a moment, or see the front desk.</p></body>`,
-    { status: 503, headers: { "content-type": "text/html; charset=utf-8", "retry-after": "10", "cache-control": "no-store" } },
-  );
+  const page = busyPage({
+    title: "Please wait",
+    heading: "This kiosk is reconnecting",
+    message: "Please wait a moment, or see the front desk.",
+    retryLabel: "Try again",
+    size: "large",
+  });
+  return new NextResponse(page.body, page.init);
 }
 
 export const config = {

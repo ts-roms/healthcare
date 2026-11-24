@@ -38,6 +38,7 @@ export function LabWorkbench({
   instruments,
   referenceLabs,
   permissions,
+  assistant = null,
 }: {
   facilityName: string;
   stage: LabWorklistStage;
@@ -50,6 +51,8 @@ export function LabWorkbench({
   instruments: LabInstrument[];
   referenceLabs: ReferenceLaboratory[];
   permissions: LabPermissions;
+  /** The assistant's suggestions for the workbench (decision support), above the worklist. */
+  assistant?: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -131,21 +134,24 @@ export function LabWorkbench({
         </>
       }
       notice={
-        dashboard && dashboard.statPendingCollection > 0 ? (
-          <Callout
-            tone="danger"
-            title={`${dashboard.statPendingCollection} STAT ${dashboard.statPendingCollection === 1 ? "sample is" : "samples are"} not yet collected`}
-            actions={
-              stage !== "collect" ? (
-                <Button asChild variant="destructive" size="sm">
-                  <Link href={href({ stage: "collect" })}>Open collection</Link>
-                </Button>
-              ) : undefined
-            }
-          >
-            STAT orders come first.
-          </Callout>
-        ) : null
+        <>
+          {assistant}
+          {dashboard && dashboard.statPendingCollection > 0 ? (
+            <Callout
+              tone="danger"
+              title={`${dashboard.statPendingCollection} STAT ${dashboard.statPendingCollection === 1 ? "sample is" : "samples are"} not yet collected`}
+              actions={
+                stage !== "collect" ? (
+                  <Button asChild variant="destructive" size="sm">
+                    <Link href={href({ stage: "collect" })}>Open collection</Link>
+                  </Button>
+                ) : undefined
+              }
+            >
+              STAT orders come first.
+            </Callout>
+          ) : null}
+        </>
       }
       toolbar={
         <>

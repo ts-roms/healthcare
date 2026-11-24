@@ -5,6 +5,7 @@ import { ClipboardListIcon, UserIcon } from "lucide-react";
 import { clinicalTime, sexLabel } from "@healthcare/ui/healthcare";
 import { Badge, Button } from "@healthcare/ui/primitives";
 import { ApiError } from "@healthcare/web-session";
+import { AssistantSuggestions } from "@/components/assistant-suggestions";
 import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type {
@@ -16,6 +17,7 @@ import type {
   DentalSupplyOptions,
   DentalVisits,
 } from "@/lib/api/types";
+import { hasSomethingToShow, loadSuggestions } from "@/lib/assistant-suggestions";
 import { todayIn } from "@/lib/clinic-mapping";
 import { openVisit, plansWithEstimate } from "@/lib/dental-mapping";
 import { DentalChartPanel } from "./dental-chart-panel";
@@ -47,13 +49,15 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
     throw e;
   }
   const canRecordProcedure = can(session, "dental.procedure.record");
-  const [settings, portal, visits, supplyOptions, estimates] = await Promise.all([
+  const [settings, portal, visits, supplyOptions, estimates, suggestions] = await Promise.all([
     api<DentalSettings>("/dental/settings"),
     api<DentalPortalSetting>("/dental/settings/portal"),
     facility ? api<DentalVisits>("/dental/visits").then((v) => v.visits) : Promise.resolve([]),
     facility && canRecordProcedure ? api<DentalSupplyOptions>("/dental/supplies/options") : Promise.resolve(null),
     // Fee estimates (billing's listed prices today) for plans with work still ahead.
     Promise.all(plansWithEstimate(record.plans).map((planId) => api<DentalPlanEstimate>(`/dental/treatment-plans/${planId}/estimate`))),
+    // The assistant's notes on the plans and the chart (rules the organization turned on); the page renders without them.
+    facility ? loadSuggestions(session, "dental", { patientId: id }) : Promise.resolve(null),
   ]);
   const visit = openVisit(visits, id);
   const encounterId = visit?.encounterId ?? null;
@@ -90,6 +94,7 @@ export default async function DentalRecordPage({ params }: { params: Promise<{ i
       }
     >
       {!facility ? <p className="text-meta text-muted-foreground">Select your facility to record examinations and procedures.</p> : null}
+      {hasSomethingToShow(suggestions) ? <AssistantSuggestions surface="dental" suggestions={suggestions} /> : null}
       <DentalChartPanel
         patientId={id}
         patientAge={p.age}

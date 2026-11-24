@@ -391,9 +391,8 @@ export class CrmService {
     });
   }
 
-  private async loadLimits(
-    organizationId: string,
-  ): Promise<{ cap: FrequencyCap | null; quiet: (QuietHours & { channels: Array<"sms" | "email" | "push"> }) | null }> {
+  /** The organization's frequency cap and quiet hours as set now (null when off); also read by the outreach assistant. */
+  async loadLimits(organizationId: string): Promise<{ cap: FrequencyCap | null; quiet: (QuietHours & { channels: Array<"sms" | "email" | "push"> }) | null }> {
     const [row] = await this.db.select().from(crmSetting).where(eq(crmSetting.organizationId, organizationId));
     const view = settingsView(row);
     return {
@@ -680,6 +679,8 @@ export class CrmService {
     let campaigns = 0;
     for (const campaign of due) {
       if (campaign.status === "approved" && !isDueToSend(campaign, now)) continue;
+      // A suspended organization sends nothing; its campaigns wait for a reactivation (platform console, migration 0151).
+      if ((await this.organizations.getOrganization(campaign.organizationId)).status !== "active") continue;
       deliveries += await this.sendCampaign(campaign, now);
       campaigns += 1;
     }

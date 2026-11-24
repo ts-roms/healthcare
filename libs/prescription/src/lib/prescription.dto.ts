@@ -71,3 +71,35 @@ export const issuedPrescriptionsSchema = z.object({
 export class IssuedPrescriptionsDto extends createZodDto(issuedPrescriptionsSchema) {}
 
 export type PrescriptionItemInput = z.infer<typeof prescriptionItemSchema>;
+
+// ---- the organization's medicine settings (migration 0156) ----------------------------------------------------------
+
+/** One medicine's settings, read by the assistant's prescribing rules: a class, a maximum daily dose, checks to prompt. */
+export const medicineSettingSchema = z
+  .object({
+    /** The medicine as prescribers write its generic name ("metformin"); matched by its words. */
+    name: z.string().trim().min(2).max(120),
+    /** A class of the organization's own ("NSAID"): two medicines of one class are a duplicate therapy. */
+    className: z.string().trim().min(2).max(80).nullish(),
+    maxDailyDose: z.number().positive().max(1_000_000).nullish(),
+    /** The unit the maximum is in ("mg"); a dose in another unit is not checked against it. */
+    doseUnit: z.string().trim().min(1).max(20).nullish(),
+    checkRenal: z.boolean().default(false),
+    checkPregnancy: z.boolean().default(false),
+    /** The organization's own wording shown with the suggestions. */
+    note: z.string().trim().min(1).max(300).nullish(),
+  })
+  .refine((v) => !v.maxDailyDose === !v.doseUnit, { message: "Give the maximum daily dose and its unit together", path: ["doseUnit"] })
+  .refine((v) => Boolean(v.className || v.maxDailyDose || v.checkRenal || v.checkPregnancy), {
+    message: "Give a class, a maximum daily dose or a check",
+    path: ["className"],
+  });
+export class MedicineSettingDto extends createZodDto(medicineSettingSchema) {}
+
+export const updateMedicineSettingSchema = medicineSettingSchema.and(
+  z.object({ status: z.enum(["active", "inactive"]), version: z.number().int().positive() }),
+);
+export class UpdateMedicineSettingDto extends createZodDto(updateMedicineSettingSchema) {}
+
+export const medicineSettingsQuerySchema = z.object({ includeInactive: z.enum(["true", "false"]).optional() });
+export class MedicineSettingsQueryDto extends createZodDto(medicineSettingsQuerySchema) {}

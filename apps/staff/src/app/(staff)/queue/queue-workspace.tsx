@@ -69,6 +69,7 @@ export function QueueWorkspace({
   canOpenEncounter,
   canRecordProcedure = false,
   renderedAt,
+  assistant = null,
 }: {
   /**
    * The server's clock when the page was rendered. The first render on the client uses the same instant, so the text it
@@ -100,6 +101,8 @@ export function QueueWorkspace({
   canOpenEncounter: boolean;
   /** procedure.record: may record a procedure under the visit without a consultation. */
   canRecordProcedure?: boolean;
+  /** The assistant's suggestions for the queue (decision support), shown under the figures when there is something to say. */
+  assistant?: React.ReactNode;
 }) {
   const router = useRouter();
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
@@ -148,6 +151,7 @@ export function QueueWorkspace({
         ) : (
           <>
             <QueueStats figures={figures} />
+            {assistant}
             <NowServing visits={calling} selectedId={selectedId} onSelect={setSelectedId} />
             <QueueTools query={query} view={view} shown={shownVisits.length} total={visits.length} onQuery={setQuery} onView={setView} />
             <div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row">

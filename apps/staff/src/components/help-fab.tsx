@@ -29,17 +29,20 @@ export type HelpChapter = Pick<ManualChapter, "slug" | "title">;
  * `floating` (from `md` up): round, fixed at the bottom-right with a 16px gutter, below dialogs, sheets and toasts
  * (`z-30`); the content area keeps enough bottom padding that it never covers a form's last buttons.
  * `topbar` (below `md`): an icon button in the top bar, because on a phone a floating button sits on the right-hand
- * column of tables and on row actions while the page scrolls under it.
+ * column of tables and on row actions while the page scrolls under it. With `topbarOnPhonesOnly={false}` it stays in
+ * the top bar at every width: for people who may use Ask, whose chat button takes the bottom-right corner.
  * Rendered by `StaffShell`, so the waiting-room display and the signed-out pages never show it.
  */
 export function HelpFab({
   chapters,
   sections = [],
   placement = "floating",
+  topbarOnPhonesOnly = true,
 }: {
   chapters: HelpChapter[];
   sections?: ManualSection[];
   placement?: "floating" | "topbar";
+  topbarOnPhonesOnly?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
@@ -54,7 +57,7 @@ export function HelpFab({
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
             {placement === "topbar" ? (
-              <Button variant="ghost" size="icon" aria-label="Open the user manual" className="md:hidden">
+              <Button variant="ghost" size="icon" aria-label="Open the user manual" className={topbarOnPhonesOnly ? "md:hidden" : undefined}>
                 <LifeBuoyIcon aria-hidden />
               </Button>
             ) : (

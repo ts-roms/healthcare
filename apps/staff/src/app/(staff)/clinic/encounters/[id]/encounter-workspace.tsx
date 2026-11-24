@@ -29,17 +29,18 @@ import type {
   Encounter,
   EncounterDetail,
   LabOrder,
+  LabOrderSet,
   LabPanel,
   LabTest,
   MedicalCertificate,
-  Practitioner,
-  Referral,
   NoteRevision,
+  PatientHistory,
   PatientLabResult,
   PatientSummaryResponse,
+  Practitioner,
   Prescription,
+  Referral,
   TelemedicineConsultation,
-  PatientHistory,
 } from "@/lib/api/types";
 import { addDays, FOLLOW_UP_PRESETS } from "@/lib/care-plan-form";
 import {
@@ -79,6 +80,7 @@ export function EncounterWorkspace({
   controls,
   prescriptions,
   prescriptionPermissions,
+  prescribingCheck,
   carePlans,
   followUp,
   canManageCarePlans,
@@ -91,6 +93,7 @@ export function EncounterWorkspace({
   procedures = null,
   medicalHistory = null,
   referrals,
+  assistant = null,
 }: {
   encounter: EncounterDetail;
   banner: Patient;
@@ -102,6 +105,8 @@ export function EncounterWorkspace({
   /** null: the user may not read prescriptions. */
   prescriptions: Prescription[] | null;
   prescriptionPermissions: string[];
+  /** The person may see the assistant's suggestions: prescriptions are checked with the prescribing rules before issuing. */
+  prescribingCheck: boolean;
   /** Open care plans with details; null: the user may not read care plans. */
   carePlans: CarePlanDetail[] | null;
   followUp: FollowUpContext;
@@ -120,6 +125,10 @@ export function EncounterWorkspace({
     results: PatientLabResult[] | null;
     canOrder: boolean;
     canCancel: boolean;
+    /** The organization's active order sets, to choose from in the order form. */
+    orderSets: LabOrderSet[];
+    /** An order set to pre-select (`?orderSet=`, the assistant's link); null: none. */
+    preset: LabOrderSet | null;
   };
   /** Medical certificates of this consultation (items null: no access). */
   certificates: { items: MedicalCertificate[] | null; canIssue: boolean; canVoid: boolean };
@@ -131,6 +140,8 @@ export function EncounterWorkspace({
   medicalHistory?: { history: PatientHistory | null; canRecord: boolean } | null;
   /** Referrals from this consultation (items null: no access). */
   referrals: { items: Referral[] | null; canRefer: boolean; practitioners: Practitioner[]; currentPractitionerId: string | null };
+  /** The assistant's suggestions for this consultation (decision support), at the top of the centre column. */
+  assistant?: React.ReactNode;
 }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -355,6 +366,7 @@ export function EncounterWorkspace({
           ) : null,
           content: (
             <div className="flex flex-col gap-5">
+              {assistant}
               {telemedicine ? (
                 <TelemedicinePanel
                   consultation={telemedicine.consultation}
@@ -423,8 +435,11 @@ export function EncounterWorkspace({
                 controls={prescriptionControls(encounter.status, prescriptionPermissions)}
                 allergies={banner.allergies}
                 allergyStatus={summary ? summary.allergies.status : "unknown"}
+                canCheck={prescribingCheck}
               />
               <LabOrdersPanel
+                // A new pre-selection (another link) starts the form again.
+                key={lab.preset?.id ?? "none"}
                 encounterId={encounter.id}
                 patientId={encounter.patientId}
                 orders={lab.orders}
@@ -432,6 +447,8 @@ export function EncounterWorkspace({
                 panels={lab.panels}
                 canOrder={lab.canOrder}
                 canCancel={lab.canCancel}
+                orderSets={lab.orderSets}
+                preset={lab.preset}
                 defaultIndication={encounter.diagnoses
                   .filter((d) => d.status === "active")
                   .map((d) => diagnosisLabel(d))

@@ -86,8 +86,9 @@ None yet (the campaign run audits itself; notifications carry their own lifecycl
 
 ## Integration points
 
-- Ports: `CrmSegmentSource` (who matches; the API reads patient, encounter and care-plan tables — only active
-  records) and `CrmPreferenceWriter` (opt-out → `PatientRecordService.setCommunicationPreferences`).
+- Ports: `CrmSegmentSource` (who matches, and `count` for how many without loading them; the API reads patient,
+  encounter and care-plan tables — only active records, the same conditions for both) and `CrmPreferenceWriter`
+  (opt-out → `PatientRecordService.setCommunicationPreferences`).
 - `NotificationService` with the internal template `outreach.campaign`; the communication policy in `libs/patient`
   (`resolvePatientContact`) is what makes the opt-in rule hold.
 - Staff `/outreach` (segments with preview, campaigns with the approval step, `/outreach/campaigns/[id]` with the
@@ -178,6 +179,25 @@ optional last day.
 - A segment cannot be archived while a series that has not ended or been cancelled uses it.
 - Not built: several send times a day, "every N weeks", an end after N occurrences, reminders for a series waiting for approval, a calendar
   of upcoming occurrences, and a preview of who would receive the next occurrence (use **Check reach** on an occurrence once created).
+
+## Assistant suggestions
+
+The heuristic assistant's outreach rules ([assistant.md](assistant.md)) speak on `/outreach` to the people who plan
+campaigns, each off until an administrator turns it on, and change nothing:
+
+- `crm.send-hour` (`crm.campaign.manage`): the hours patients use MyHealth most, from the audit trail's MyHealth activity
+  per hour (`AuditAssistantQueries.portalVisitsByHour`, Asia/Manila, counts only), outside the quiet hours, compared with
+  when recent campaigns started. Links to the campaigns.
+- `crm.audience-ideas` (`crm.segment.manage`): a segment the organization does not have yet — patients not seen for
+  longer than its own patients' usual return time (`ClinicAssistantQueries.returnFigures`) and next month's birthdays —
+  counted through `CrmSegmentSource.count`. **Create this segment** opens the new segment form filled in
+  (`/outreach?segment=new&name=…&noVisitForMonths=…`); nothing is saved until a person saves it.
+- `crm.frequency-load` (`crm.campaign.approve`): patients who received many campaigns in a short time while the
+  frequency cap allows it. Links to the limits.
+
+The library's reads are `CrmAssistantQueries` (`libs/crm/src/lib/assistant/crm-assistant.queries.ts`: segments active at
+a moment, campaign start hours, campaigns per patient, the limits through `CrmService.loadLimits`) and its rules
+`outreach.rules.ts`; the API binds them with the audit and clinic queries.
 
 ## Open questions / assumptions
 

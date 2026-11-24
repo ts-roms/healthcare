@@ -31,6 +31,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
       { label: "Vaccines", href: "/clinic/vaccines", permissions: ["immunization.read"], description: "The vaccines this clinic gives." },
       { label: "Coding systems", href: "/clinic/coding-systems", permissions: ["encounter.read"], description: "The diagnosis coding systems in use." },
       {
+        label: "Prescribing checks",
+        href: "/clinic/prescribing",
+        permissions: ["clinic.configure"],
+        description: "Your own classes, maximum daily doses and checks per medicine, for checking prescriptions before they are issued.",
+      },
+      {
         label: "Referral follow-up",
         href: "/clinic/referrals/settings",
         permissions: ["clinic.configure"],
@@ -81,6 +87,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         href: "/laboratory/catalog",
         permissions: ["lab.order.read"],
         description: "Tests, reference ranges, panels and facility policy.",
+      },
+      {
+        label: "Order sets",
+        href: "/laboratory/order-sets",
+        permissions: ["lab.catalog.manage"],
+        description: "Tests and panels your organization orders together, and when to offer them in a consultation.",
       },
       {
         label: "Instruments",
@@ -152,6 +164,12 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         href: "/admin/service-points",
         permissions: ["clinic.configure"],
         description: "Where a triaged patient can be sent at each facility: the consultation line, the emergency room, X-ray and other stations.",
+      },
+      {
+        label: "Assistant",
+        href: "/admin/assistant",
+        permissions: ["assistant.configure"],
+        description: "Which suggestion rules staff see, at which facilities, with your own thresholds.",
       },
       {
         label: "Guided tour",

@@ -8,7 +8,9 @@ services:
       POSTGRES_USER: healthcare
       POSTGRES_PASSWORD: healthcare
       POSTGRES_DB: healthcare
-    ports: ["5432:5432"]
+    # Host port: POSTGRES_PORT in infrastructure/docker/.env (gitignored) when 5432 is taken by another database; the
+    # DATABASE_URL / TEST_DATABASE_URL / E2E_DATABASE_URL in the root .env then use the same port.
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes: [postgres-data:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U healthcare"]

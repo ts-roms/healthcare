@@ -1,3 +1,4 @@
+import { BillingAssistantQueries } from "./assistant/billing-assistant.queries";
 import { type DynamicModule, Module, type ModuleMetadata, type Provider, type Type } from "@nestjs/common";
 import { OrganizationModule } from "@healthcare/organization";
 import { BillingRecordQueries } from "./billing-record.queries";
@@ -35,6 +36,7 @@ export class BillingModule {
       imports: [OrganizationModule, ...(options.imports ?? [])],
       controllers: [BillingCatalogController, BillingController, OnlinePaymentNotificationController],
       providers: [
+        BillingAssistantQueries,
         BillingCatalogService,
         BillingDocuments,
         BillingRecordQueries,
@@ -54,9 +56,11 @@ export class BillingModule {
         { provide: BILLING_PATIENTS, useClass: options.patients },
       ],
       exports: [
+        BillingAssistantQueries,
         BillingDocuments,
         BillingRecordQueries,
         BillingReportingQueries,
+        PaymentService,
         ChargeService,
         DepositService,
         InvoiceService,

@@ -197,6 +197,19 @@ Each result moves through three sign-offs:
 Each result shows who entered, verified, approved and released it. If your facility turned on **Release results automatically when approved**,
 approving also releases.
 
+**A result far from the patient's last one (suggestions):** when your organization has turned on the assistant's rule **A result differs
+sharply from the patient's last one** (**Settings → Assistant**), a **Suggestions** box (marked **Decision support**) above the worklist lists
+numeric results waiting to be verified, approved or released that changed from the same patient's last released result of the same test (same
+unit) by at least your organization's percentage, for example "Creatinine, order LO00000123: 2.4 mg/dL (+140% from the last released 1 mg/dL)".
+It names the order, not the patient. Consider checking the specimen's labelling and the entry, and whether a repeat is needed; a real change
+stays as it is. It changes no result, flag or step. Medical technologists, pathologists and organization administrators see it.
+
+**Orders past their usual turnaround (suggestions):** with the rule **Orders past their usual turnaround** on, the same box lists, per test,
+orders collected but not yet released that have waited longer than usual here, for example "Glucose: 2 orders past the usual turnaround
+(longest 3 h since collection)". "Usual" is the median time from collection to release of the test's recent results at this facility (STAT
+orders apart), plus your organization's margin; for a test with few results, the catalog's **Turnaround (minutes)** is used. **Why?** lists
+each order with how long it has waited and where it waits; **Open the worklist** opens that stage. It moves nothing.
+
 **Separation of duties:** by default, the person who entered a result cannot verify or approve it. The facility policy can allow it; such a sign-off
 shows "(self, by facility policy)" on the result.
 
@@ -377,6 +390,22 @@ In the **Reference laboratories** card (you need `lab.catalog.manage`):
 Under **Tests referred out from _facility_**, choose the **Test**, the **Reference laboratory** and optionally a **Turnaround (hours)** (counted
 from dispatch; blank uses the test's own), then click **Refer out**. To perform a test in-house again, click **Stop referring…**, give a reason, and
 click **Stop**.
+
+### Keep order sets
+
+Order sets are tests and panels your organization orders together, offered to doctors in the consultation's lab order form. Open **Settings →
+Laboratory → Order sets** (`/laboratory/order-sets`; you need `lab.catalog.manage`).
+
+1. Click **New order set**. Enter a **Code** (lowercase letters, digits and dashes; it never changes), a **Name** and, if you like, a **Note**
+   saying what the set is for.
+2. Tick its tests and panels (**Filter tests and panels** narrows the list). Only active tests and panels can be chosen.
+3. Under **Offer it for**, optionally type **Diagnosis codes starting with** (for example `E11, E10`) and choose the **coding system**, or **Any
+   coding system**, and tick **Visit types**. A set with neither is chosen by hand only.
+4. Click **Create**.
+
+**Edit** changes the name, note, tests, triggers or status; **Inactive** stops a set from being offered without losing it. If someone else changed
+the set meanwhile, the screen says so and shows their version: make your change again. Every change is recorded in the audit trail. Which tests belong together is your clinicians' decision;
+the platform ships no order sets. Doctors see a matching set as a suggestion only once the assistant's rule is turned on (**Settings → Assistant**).
 
 ## Rules the system enforces
 

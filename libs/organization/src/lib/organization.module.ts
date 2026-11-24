@@ -1,3 +1,4 @@
+import { OrganizationAssistantQueries } from "./assistant/organization-assistant.queries";
 import { Module } from "@nestjs/common";
 import { ComplianceController } from "./compliance/compliance.controller";
 import { ComplianceReviewService } from "./compliance/compliance-review.service";
@@ -10,7 +11,7 @@ import { PrivacyIncidentService } from "./privacy/privacy-incident.service";
 
 @Module({
   controllers: [OrganizationController, ComplianceController, PrivacyController, StaffTourSettingController],
-  providers: [OrganizationService, ComplianceReviewService, PrivacyIncidentService, StaffTourSettingService],
-  exports: [OrganizationService, ComplianceReviewService, PrivacyIncidentService],
+  providers: [OrganizationService, ComplianceReviewService, PrivacyIncidentService, StaffTourSettingService, OrganizationAssistantQueries],
+  exports: [OrganizationService, ComplianceReviewService, PrivacyIncidentService, OrganizationAssistantQueries],
 })
 export class OrganizationModule {}

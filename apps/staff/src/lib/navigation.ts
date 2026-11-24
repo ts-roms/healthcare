@@ -1,4 +1,5 @@
 import type { StaffBadges } from "./api/types";
+import { Building2Icon } from "lucide-react";
 import { STAFF_NAVIGATION, type NavItem } from "@healthcare/ui/layouts";
 import { isSettingsPath, SETTINGS_HOME, settingsForPermissions } from "./settings-navigation";
 
@@ -33,17 +34,30 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
     "outside-result.submission.manage",
   ],
   "/messages": ["patient.message.read"],
+  // The Assistant section; each area tab also needs that area's own permission (module-tabs.ts), and each question of
+  // Ask its own figures' permissions (checked by the API).
+  "/assistant/ask": ["assistant.ask"],
+  "/assistant/suggestions": ["assistant.use"],
 };
+
+/** The platform console's entry, pinned to the sidebar's foot for platform administrators. */
+export const PLATFORM_ITEM: NavItem = { label: "Platform", href: "/platform", icon: Building2Icon, placement: "footer" };
 
 /**
  * Navigation for the signed-in user, from the permissions the API grants (not a client-side role). A module whose
  * pages are all out of reach is left out; Settings appears when at least one settings page is open to the user.
  */
-export function navigationForPermissions(permissions: readonly string[], items: NavItem[] = STAFF_NAVIGATION): NavItem[] {
+export function navigationForPermissions(
+  permissions: readonly string[],
+  items: NavItem[] = STAFF_NAVIGATION,
+  options: { platformAdmin?: boolean } = {},
+): NavItem[] {
   const granted = new Set(permissions);
   const allowed = (required: string[] | undefined) => !required || required.some((p) => granted.has(p));
   const hasSettings = settingsForPermissions(permissions).length > 0;
-  return items
+  // The platform console (every tenant) is for platform administrators only; the API refuses everyone else.
+  const withPlatform = options.platformAdmin ? [...items, PLATFORM_ITEM] : items;
+  return withPlatform
     .filter((item) => (item.href === SETTINGS_HOME ? hasSettings : allowed(MODULE_PERMISSIONS[item.href])))
     .map((item) => {
       // Per-role filtering is a demo concept; the permissions above decide.
