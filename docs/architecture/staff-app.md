@@ -61,7 +61,9 @@ screen** link to the chapter for the current route (`chapterForPath` in `lib/man
 fits, e.g. on `/help`), every chapter (the `(staff)` layout passes slugs and titles from `loadManual()` through `StaffShell`), and a button
 to `/help`; links close the dialog. The content area is padded at the bottom (`contentClassName` on `StaffLayout`) so the button never covers
 a form's last controls. Below `md` the same dialog opens from a lifebuoy icon button in the top bar instead (`placement="topbar"`), because a
-floating button sits on tables' right-hand column and row actions on a phone. The waiting-room display and the signed-out pages have their own layouts and never show it.
+floating button sits on tables' right-hand column and row actions on a phone. For holders of `assistant.ask` the corner holds the assistant's
+**Ask** chat instead (`components/ask-chat.tsx`; docs/domains/assistant.md, "Chat") and the lifebuoy stays in the top bar at every width
+(`topbarOnPhonesOnly={false}`). The waiting-room display and the signed-out pages have their own layouts and never show it.
 
 ## Notifications
 

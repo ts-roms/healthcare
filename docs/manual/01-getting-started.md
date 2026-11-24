@@ -56,7 +56,7 @@ sidebar's edge narrows it to icons; your choice is remembered in this browser.
 - A menu entry for a module that is not built yet would lead to a page that says "This module is part of the platform roadmap and is not built
   yet." No entry in the current menu leads there.
 - **Help** at the bottom of the menu opens this manual. A search box at the top of every Help page finds the sections whose heading or text
-  contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page (on a phone, the lifebuoy button in the top bar) opens a small **Need a hand?**
+  contains all the words you type, best matches first, each with the chapter and a passage; select one to open it. The round help button at the bottom-right corner of every page (on a phone, and for everyone who can use the assistant's **Ask**, the lifebuoy button in the top bar) opens a small **Need a hand?**
   window instead: the chapter about the screen you are on comes first (**About this screen**), then every chapter, and **Open the user manual**
   opens the manual's contents page. Press Escape or the × to close it. Hover over the button or move to it with the keyboard to see its name.
 
@@ -139,12 +139,20 @@ the screens that already show them.
 1. In the menu, under **Assistant**, choose **Ask** (`/assistant/ask`).
 2. Type your question in your own words, for example _No-shows last week_, _Revenue this month vs last month_ or _What is running low?_, and select
    **Ask**. You can name a period (_today_, _yesterday_, _last week_, _this month_, _in October_, _last 30 days_, _from Nov 1 to 15_; also _ngayon_,
-   _kahapon_, _noong Oktubre_) and a comparison (_vs last month_, _compared to last year_). Or select one of the examples under **Questions you can
-   ask**.
+   _kahapon_, _noong Oktubre_) and a comparison (_vs last month_, _compared to last year_). Or select one of the examples above the box (one per
+   question you can ask). The box stays at the bottom of the screen while you read a long answer.
 3. Read the answer. It repeats the question, the dates and the facility it used — check them — then gives one sentence, the figures (with the period
    compared and how each changed, by an arrow and in words), **How this was calculated**, and a link to the screen with the full figures.
-4. To keep a question, select **Save**. **Your questions** lists your saved questions and the ones you asked lately; select one to ask it again with
-   fresh figures. The star saves or stops saving, × removes one, and **Clear recent** forgets the recent ones (saved ones stay).
+4. To keep a question, select **Save** beside **Ask**. **Your questions**, on the left, lists your saved questions and the ones you asked lately;
+   select one to ask it again with fresh figures. The star saves or stops saving, × removes one, **Clear recent** forgets the recent ones (saved ones
+   stay) and **New question** clears the answer for the next question.
+
+You can also ask from any screen, like a chat: select the round **Ask** button at the bottom-right corner (on a computer or tablet; it takes the
+place of the help button, which is then in the top bar). Type your question and press Enter, or select one of the examples. Your question appears on
+the right and the answer below it, as on the Ask page; select a link in an answer to open its screen (the chat closes and keeps the conversation
+until you open it again). **New chat** starts over, the arrows make the chat larger (and smaller again), **Open the Ask page** at its foot opens the
+Ask page (for saved questions and **Answer for all facilities I report on**), and × or Escape closes the chat. The conversation is forgotten when you reload the page; questions answered are kept in **Your questions** as
+usual.
 
 Good to know:
 

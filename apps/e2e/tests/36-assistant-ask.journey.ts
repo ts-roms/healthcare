@@ -93,7 +93,8 @@ test("an administrator asks in their own words from Assistant → Ask; the addre
 
 test("the question is kept under Your questions, saved, and asked again from there", async () => {
   await expect(yours(admin).getByRole("link", { name: KEPT })).toBeVisible();
-  await admin.getByRole("region", { name: "No-shows" }).getByRole("button", { name: "Save this question" }).click();
+  // Save sits beside Ask, for the answer on screen.
+  await admin.getByRole("button", { name: "Save this question" }).click();
   await toast(admin, "Question saved.");
   await expect(admin.getByRole("button", { name: "Saved: stop saving this question" })).toBeVisible();
   await expect(yours(admin).getByRole("region", { name: "Saved" }).getByRole("link", { name: KEPT })).toBeVisible();
@@ -107,7 +108,11 @@ test("the question is kept under Your questions, saved, and asked again from the
 });
 
 test("a question about a patient is not recognised: nothing is answered or kept, and the words stay in the box", async () => {
-  await admin.goto("/assistant/ask");
+  // New question leaves the answer on screen for an empty conversation.
+  await yours(admin).getByRole("link", { name: "New question" }).click();
+  await admin.waitForURL(/\/assistant\/ask$/);
+  await expect(admin.getByRole("region", { name: "No-shows" })).toHaveCount(0);
+  await expect(admin.getByRole("button", { name: "Save this question" })).toBeDisabled();
   await box(admin).fill(ABOUT_A_PATIENT);
   await askButton(admin).click();
   await expect(admin.getByText("I did not recognise that question.")).toBeVisible();
@@ -140,7 +145,8 @@ test("a receptionist is told plainly when a question reads figures their role ca
   await expect(withheld).toContainText("This answer comes from figures your role cannot open (the management dashboard), so it is not shown.");
   await expect(withheld.getByRole("table")).toHaveCount(0);
   await expect(withheld.getByText("From your own records")).toHaveCount(0);
-  await expect(withheld.getByRole("button", { name: "Save this question" })).toHaveCount(0);
+  // Not kept, so there is nothing to save.
+  await expect(desk.getByRole("button", { name: "Save this question" })).toBeDisabled();
   // Not answered, so not kept.
   await expect(yours(desk)).not.toContainText("Revenue");
 
@@ -167,6 +173,48 @@ test("the audit trail records each question asked and its outcome, never the wor
   const recorded = JSON.stringify(page.items);
   expect(recorded).not.toContain("Placeholder");
   expect(recorded).not.toMatch(/how many|did we have|blood pressure/i);
+});
+
+test("Ask is also a chat at the bottom-right of every page; help moves to the top bar", async () => {
+  await admin.goto("/");
+  // Help stays one click away, in the top bar.
+  await expect(admin.getByRole("button", { name: "Open the user manual" })).toBeVisible();
+  await admin.getByRole("button", { name: "Ask a question" }).click();
+  const chat = admin.getByRole("dialog", { name: "Ask" });
+  await expect(chat.getByRole("list", { name: "Questions you can ask" }).getByRole("button", { name: "No-shows last week" })).toBeVisible();
+
+  await chat.getByRole("textbox", { name: "Question for Ask" }).fill("No-shows last week");
+  await chat.getByRole("button", { name: "Send" }).click();
+  // The question shows as the person's message, the answer as on the Ask page; the address does not change.
+  await expect(chat.getByRole("log")).toContainText("No-shows last week");
+  const answer = chat.getByRole("region", { name: "No-shows" });
+  await expect(answer).toContainText("Last week · ");
+  await expect(answer).toContainText(FACILITY);
+  expect(new URL(admin.url()).pathname).toBe("/");
+
+  // An answer's link opens its screen and closes the chat; the conversation is still there when it opens again.
+  await answer.getByRole("link", { name: "Open the management dashboard" }).click();
+  await admin.waitForURL(/\/management$/);
+  await expect(chat).toHaveCount(0);
+  await admin.getByRole("button", { name: "Ask a question" }).click();
+  await expect(admin.getByRole("dialog", { name: "Ask" }).getByRole("region", { name: "No-shows" })).toBeVisible();
+  await admin.keyboard.press("Escape");
+  await expect(admin.getByRole("dialog", { name: "Ask" })).toHaveCount(0);
+
+  // The arrows make the chat larger, and smaller again.
+  await admin.getByRole("button", { name: "Ask a question" }).click();
+  const reopened = admin.getByRole("dialog", { name: "Ask" });
+  const width = async () => (await reopened.boundingBox())?.width ?? 0;
+  const narrow = await width();
+  await reopened.getByRole("button", { name: "Make the chat larger" }).click();
+  await expect.poll(width).toBeGreaterThan(narrow + 200);
+  await reopened.getByRole("button", { name: "Make the chat smaller" }).click();
+  await expect.poll(width).toBeLessThan(narrow + 50);
+  // The link at its foot opens the whole Ask page, where the chat button steps aside.
+  await reopened.getByRole("link", { name: "Open the Ask page" }).click();
+  await admin.waitForURL(/\/assistant\/ask$/);
+  await expect(admin.getByRole("heading", { name: "Ask", level: 1 })).toBeVisible();
+  await expect(admin.getByRole("button", { name: "Ask a question" })).toHaveCount(0);
 });
 
 test("clearing recent questions keeps the saved one, and nothing broke along the way", async () => {

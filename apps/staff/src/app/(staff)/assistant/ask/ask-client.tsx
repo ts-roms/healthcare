@@ -11,10 +11,11 @@ import { useServerAction } from "@/lib/use-server-action";
 import { askQuestion, type AskFormState, changeAskedQuestion, clearAskedQuestions } from "./actions";
 
 /**
- * The question box of the assistant's Ask. The words typed go to a server action in the request body and never into
- * the address; a question that was not recognised keeps them in the box so it can be asked another way.
+ * The question box of the assistant's Ask, at the foot of the conversation (it stays in view while a long answer
+ * scrolls), with Save for the answer on screen. The words typed go to a server action in the request body and never
+ * into the address; a question that was not recognised keeps them in the box so it can be asked another way.
  */
-export function AskForm({ organization, allFacilities }: { organization: boolean; allFacilities: boolean }) {
+export function AskForm({ organization, allFacilities, entryId }: { organization: boolean; allFacilities: boolean; entryId: string | null }) {
   const [state, dispatch, pending] = React.useActionState(askQuestion, {} as AskFormState);
   // Dispatched by hand rather than as the form's action, so a question not recognised keeps its words and ticks.
   const submit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -23,45 +24,46 @@ export function AskForm({ organization, allFacilities }: { organization: boolean
     React.startTransition(() => dispatch(data));
   };
   return (
-    <form onSubmit={submit} className="grid gap-3">
-      <div className="grid gap-1.5">
-        <Label htmlFor="ask-text">Your question</Label>
-        <div className="flex flex-wrap gap-2">
-          <Input
-            id="ask-text"
-            name="text"
-            maxLength={200}
-            required
-            autoComplete="off"
-            placeholder="e.g. No-shows last week"
-            aria-describedby="ask-hint"
-            className="h-10 min-w-64 flex-1"
-          />
-          <Button type="submit" size="lg" disabled={pending}>
-            <MessageCircleQuestionMarkIcon /> {pending ? "Reading…" : "Ask"}
-          </Button>
-        </div>
-        <p id="ask-hint" className="text-meta text-muted-foreground">
-          Ask about figures, not patients. Your words are read and dropped: only the question found and its dates are kept.
-        </p>
-      </div>
-      {organization ? (
-        <div className="flex items-center gap-2">
-          <Checkbox id="ask-all-facilities" name="allFacilities" value="1" defaultChecked={allFacilities} />
-          <Label htmlFor="ask-all-facilities" className="text-body font-normal">
-            Answer for all facilities I report on
-          </Label>
-        </div>
-      ) : null}
+    <form onSubmit={submit} className="sticky bottom-0 -mx-4 -mb-4 grid gap-2.5 rounded-b-xl border-t bg-card px-4 pt-4 pb-4 sm:-mx-5 sm:-mb-5 sm:px-5 sm:pb-5">
       {state.unrecognised ? (
         <Callout tone="info" title="I did not recognise that question.">
-          Ask answers the questions listed below, asked in your own words. It does not look up patients: find a patient under Patients.
+          Ask answers the questions offered above, asked in your own words. It does not look up patients: find a patient under Patients.
         </Callout>
       ) : null}
       {state.message ? (
         <Callout tone="warning" title="That question could not be read just now.">
           {state.message}
         </Callout>
+      ) : null}
+      <Label htmlFor="ask-text" className="sr-only">
+        Your question
+      </Label>
+      <div className="flex gap-2">
+        <Input
+          id="ask-text"
+          name="text"
+          maxLength={200}
+          required
+          autoComplete="off"
+          placeholder="e.g. No-shows last week"
+          aria-describedby="ask-hint"
+          className="h-10 min-w-0 flex-1"
+        />
+        <Button type="submit" size="lg" disabled={pending}>
+          <MessageCircleQuestionMarkIcon /> {pending ? "Reading…" : "Ask"}
+        </Button>
+        <SaveAnswer entryId={entryId} />
+      </div>
+      <p id="ask-hint" className="text-meta text-muted-foreground">
+        Ask about figures, not patients. Your words are read and dropped: only the question found and its dates are kept.
+      </p>
+      {organization ? (
+        <div className="flex items-center gap-2">
+          <Checkbox id="ask-all-facilities" name="allFacilities" value="1" defaultChecked={allFacilities} />
+          <Label htmlFor="ask-all-facilities" className="text-table font-normal">
+            Answer for all facilities I report on
+          </Label>
+        </div>
       ) : null}
     </form>
   );
@@ -108,16 +110,25 @@ function useHistoryChange() {
 const SAVED = "Question saved.";
 const UNSAVED = "Removed from your saved questions.";
 
-/** Saves the question answered on screen among the person's questions, or stops saving it. */
-export function SaveAnswer({ entryId }: { entryId: string }) {
+/**
+ * Saves the question answered on screen among the person's questions, or stops saving it. Disabled while there is
+ * nothing to save: no answer yet, one that was not kept (withheld or unavailable), or one removed from the list meanwhile.
+ */
+function SaveAnswer({ entryId }: { entryId: string | null }) {
   const { history } = useAskHistory();
   const { pending, change } = useHistoryChange();
-  const saved = history.saved.some((e) => e.id === entryId);
-  // Removed from the list meanwhile: nothing to save.
-  if (!saved && !history.recent.some((e) => e.id === entryId)) return null;
+  const saved = entryId !== null && history.saved.some((e) => e.id === entryId);
+  if (entryId === null || (!saved && !history.recent.some((e) => e.id === entryId))) {
+    return (
+      <Button type="button" size="lg" variant="outline" disabled aria-label="Save this question" title="Ask a question to save it">
+        <StarIcon aria-hidden /> Save
+      </Button>
+    );
+  }
   return (
     <Button
-      size="sm"
+      type="button"
+      size="lg"
       variant="outline"
       aria-label={saved ? "Saved: stop saving this question" : "Save this question"}
       disabled={pending}

@@ -334,17 +334,33 @@ answer names that entry (`entry.id`); `GET /assistant/ask/history` lists saved a
 month, vs the period before"); `POST …/history/:id/save | unsave | remove` (the person's own rows only, `404` otherwise; at most 20 saved,
 `422 saved_question_limit`) and `POST …/history/clear` (recent only). Withheld and unavailable answers are not kept. Nothing is shared between people.
 
-**Screen** (`apps/staff/src/app/(staff)/assistant/ask/`): the question box (with **Answer for all facilities I report on** when a question offered
-can be), the answer (`AskAnswerCard` in `@healthcare/ui/healthcare`, Storybook "Healthcare/Assistant/Ask answer": the question, its dates and
+**Screen** (`apps/staff/src/app/(staff)/assistant/ask/`), laid out like a conversation: **Your questions** on the left (with **New question**,
+which clears the answer), and on the right **Questions you can ask** as example chips (one per question the person may see, each a link to its
+answer; the others counted), then the answer, then the question box at the foot, kept in view while a long answer scrolls, with **Save** for the
+answer on screen (disabled when there is none, or it was not kept) and **Answer for all facilities I report on** when a question offered can be. The
+parts: the answer (`AskAnswerCard` in `@healthcare/ui/healthcare`, Storybook "Healthcare/Assistant/Ask answer": the question, its dates and
 facility, the sentence, the figures with the comparison as an arrow, words and colour — never colour alone —, notes, **How this was calculated** and
-the screen's link; "From your own records"), **Which did you mean?** after a tie, **Questions you can ask** (the questions the person may see, each
-example a link to its answer; the others counted) and **Your questions** (saved, then recent; save, stop saving, remove, **Clear recent**). The
+the screen's link; "From your own records"), **Which did you mean?** after a tie, and **Your questions** (saved, then recent; save, stop saving,
+remove, **Clear recent**). The
 typed words go to a server action in the request body (`askQuestion`), which interprets them and opens the answer's address
 (`/assistant/ask?question=&period=&compare=&scope=all&notes=`, built and read by `apps/staff/src/lib/assistant-ask.ts`): the address, the audit
 trail and the history never hold them; a question not recognised stays in the box with "I did not recognise that question" and a pointer to
 Patients for people. Links to answers are never prefetched (opening an answer asks its question), and saving or removing changes the list without
 refreshing the page (which would ask again). Journey `apps/e2e/tests/36-assistant-ask.journey.ts`. Manual: chapter 1, "How to ask the assistant a
 question".
+
+**Chat** (`apps/staff/src/components/ask-chat.tsx`, mounted in `StaffShell`): for holders of `assistant.ask`, the bottom-right corner of every staff
+page (from `md` up; not on the Ask page itself) holds a round **Ask** button with the assistant's mark (`components/assistant-mark.tsx`: sparkles on
+the brand gradient, decorative; never labelled "AI") instead of the help button, which moves to the top bar at every width for them. It opens a
+panel shaped like a chat: an empty conversation shows the mark, "Ask" and up to six example chips (`loadAskExamples`: the first example of each
+question the person may see); the person's question appears as their own message and Ask's reply beside the mark — the same `AskAnswerCard`, a
+**Which did you mean?** choice, "I did not recognise that question" (the words go back in the box, with the examples), or an error. Server actions
+`askInChat` (the words to `/assistant/ask/interpret` only, then the answer by question id and period) and `answerInChat` (examples and choices)
+reuse the page's routes, so each answer is rate-limited, audited and kept among **Your questions** exactly as on the page; the chat answers for the
+selected facility only (all facilities stay on the page, behind the panel's **Open the Ask page** link, with a spinner from `useLinkStatus` while it
+opens); the header's arrows make the panel larger or smaller in place. The conversation is held in the component's
+memory: it survives moving between pages, is never written to browser storage, and goes with a reload or **New chat**; following an answer's link
+closes the panel. No API or migration.
 
 ## Command bar
 

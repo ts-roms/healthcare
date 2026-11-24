@@ -1,5 +1,46 @@
 import { describe, expect, it } from "vitest";
-import { askHref, hrefForEntry, hrefForInterpretation, readAskParams, readChoice } from "./assistant-ask";
+import { askAnswerView, askHref, hrefForEntry, hrefForInterpretation, readAskParams, readChoice } from "./assistant-ask";
+
+describe("askAnswerView", () => {
+  it("shows the dates, comparison and facility the answer used, as the page and the chat both show them", () => {
+    const view = askAnswerView({
+      question: { id: "clinic.no-shows", version: 1, title: "No-shows" },
+      status: "answered",
+      sentence: "4 of 120 booked appointments were no-shows.",
+      period: { key: "last-week", label: "Last week", from: "2026-11-16", to: "2026-11-22", text: "16–22 November 2026" },
+      comparison: { mode: "previous", label: "the period before", from: "2026-11-09", to: "2026-11-15", text: "9–15 November 2026" },
+      scope: { kind: "facility", name: "Main Clinic" },
+      rows: [{ label: "No-shows", value: "4", previous: "6" }],
+      notes: [],
+      definition: "No-shows ÷ appointments booked",
+      link: { label: "Open the management dashboard", href: "/management" },
+      entry: { id: "11111111-1111-4111-8111-111111111111" },
+    });
+    expect(view).toMatchObject({
+      title: "No-shows",
+      periodText: "Last week · 16–22 November 2026",
+      comparisonText: "the period before · 9–15 November 2026",
+      scopeName: "Main Clinic",
+      link: { href: "/management" },
+    });
+    // A question without a period (stock now) names none.
+    expect(askAnswerView(withoutPeriod)).toMatchObject({ periodText: null, comparisonText: null });
+  });
+});
+
+const withoutPeriod = {
+  question: { id: "inventory.low", version: 1, title: "Low stock" },
+  status: "answered" as const,
+  sentence: "2 items are at or below their reorder level.",
+  period: null,
+  comparison: null,
+  scope: { kind: "facility" as const, name: "Main Clinic" },
+  rows: [],
+  notes: [],
+  definition: null,
+  link: null,
+  entry: null,
+};
 
 describe("Ask addresses", () => {
   it("name the question, period, comparison and scope, never the words typed", () => {

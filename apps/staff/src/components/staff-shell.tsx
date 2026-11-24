@@ -26,6 +26,7 @@ import { isDemoPath, navigationForPermissions, withBadgeCounts } from "@/lib/nav
 import { TOUR_START_EVENT } from "@/lib/tour";
 import { isSettingsPath, settingsForPermissions } from "@/lib/settings-navigation";
 import type { ManualSection } from "@healthcare/ui/primitives";
+import { AskChat } from "./ask-chat";
 import { CommandBar } from "./command-bar";
 import { GuidedTour } from "./guided-tour";
 import { HelpFab, type HelpChapter } from "./help-fab";
@@ -118,6 +119,7 @@ export function StaffShell({
   const settingsGroups = React.useMemo(() => settingsForPermissions(permissions), [permissions]);
   const moduleTabs = moduleTabsFor(pathname, permissions, counts);
   const inSettings = isSettingsPath(pathname);
+  const canAsk = permissions.includes("assistant.ask");
   const canOpenCompanySettings = settingsGroups.some((g) => g.pages.some((p) => p.href === "/admin/organization"));
 
   return (
@@ -162,8 +164,8 @@ export function StaffShell({
           ) : null}
           {/* Ctrl+K: go to a screen or a patient by typing what you want. */}
           <CommandBar permissions={permissions} platformAdmin={platformAdmin} timeZone={timeZone} manualSections={manualSections} />
-          {/* On phones the help button lives here instead of floating over the page. */}
-          <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" />
+          {/* On phones the help button lives here instead of floating over the page; at every width when Ask takes the corner. */}
+          <HelpFab chapters={manualChapters} sections={manualSections} placement="topbar" topbarOnPhonesOnly={!canAsk} />
           <NotificationBell unread={unread} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -217,7 +219,12 @@ export function StaffShell({
       ) : (
         children
       )}
-      <HelpFab chapters={manualChapters} sections={manualSections} />
+      {/* The bottom-right corner: the Ask chat for those who may ask (help is then in the top bar), else the help button. */}
+      {canAsk ? (
+        <AskChat facilityName={facilities.find((f) => f.id === facilityId)?.name ?? null} />
+      ) : (
+        <HelpFab chapters={manualChapters} sections={manualSections} />
+      )}
       {tourEnabled ? <GuidedTour /> : null}
     </StaffLayout>
   );

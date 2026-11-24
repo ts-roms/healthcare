@@ -1,7 +1,8 @@
 import type * as React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AskAnswerCard, type AskAnswerView } from "@healthcare/ui/healthcare";
+import { MessagesSquareIcon, PlusIcon } from "lucide-react";
+import { AskAnswerCard } from "@healthcare/ui/healthcare";
 import { Button, Callout, Card, CardContent, CardHeader, CardTitle } from "@healthcare/ui/primitives";
 import { FacilityRequired } from "@/components/facility-required";
 import { ModulePage } from "@/components/module-page";
@@ -11,8 +12,8 @@ import { api } from "@/lib/api/client";
 import { can, getSelectedFacility, getSession } from "@/lib/api/session";
 import type { AskAnswer, AskHistory, AskQuestion } from "@/lib/api/types";
 import { ASSISTANT_HOME } from "@/lib/assistant-areas";
-import { askHref, readAskParams, readChoice } from "@/lib/assistant-ask";
-import { AskForm, AskHistoryProvider, SaveAnswer, YourQuestions } from "./ask-client";
+import { ASK_HOME, askAnswerView, askHref, readAskParams, readChoice } from "@/lib/assistant-ask";
+import { AskForm, AskHistoryProvider, YourQuestions } from "./ask-client";
 
 export const metadata = { title: "Ask" };
 
@@ -57,6 +58,9 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
   const notOffered = catalogue.length - offered.length;
   const choices = choice.questionIds.filter((id) => titles.has(id));
 
+  // The answer on screen, when it was kept among the person's questions (withheld and unavailable answers are not).
+  const entryId = answer?.ok ? (answer.data.entry?.id ?? null) : null;
+
   return (
     <ModulePage
       title="Ask"
@@ -64,60 +68,52 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
       details={DETAILS}
     >
       <AskHistoryProvider initial={history.ok ? history.data : NO_HISTORY} unavailable={!history.ok}>
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          <div className="grid min-w-0 gap-4">
-            <Card>
-              <CardContent>
-                {/* A new question asked starts the box afresh. */}
-                <AskForm
-                  key={JSON.stringify(search)}
-                  organization={offered.some((q) => q.organization)}
-                  allFacilities={asked?.scope === "organization" || choice.reading.scope === "organization"}
-                />
-              </CardContent>
-            </Card>
+        {/* Like a conversation: your questions on the left; examples, the answer and the question box on the right. */}
+        <div className="grid items-start gap-4 lg:grid-cols-[17rem_minmax(0,1fr)]">
+          <Card aria-labelledby="ask-yours" className="order-last lg:order-first">
+            <CardHeader className="border-b-0 px-4 pt-4 pb-1">
+              <CardTitle id="ask-yours" className="text-section">
+                Your questions
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 px-4 pb-4">
+              <Button asChild variant="outline" className="w-full">
+                <Link href={ASK_HOME}>
+                  <PlusIcon aria-hidden /> New question
+                </Link>
+              </Button>
+              <YourQuestions />
+            </CardContent>
+          </Card>
 
-            {choices.length > 0 ? (
-              <Card aria-labelledby="ask-choose">
-                <CardHeader>
-                  <CardTitle id="ask-choose">Which did you mean?</CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {choices.map((id) => (
-                    <Button key={id} asChild size="sm" variant="outline">
-                      <AnswerLink href={askHref({ questionId: id, ...choice.reading })}>{titles.get(id)}</AnswerLink>
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {answer ? <Answer answer={answer} /> : null}
-
-            <Card aria-labelledby="ask-questions">
-              <CardHeader>
-                <CardTitle id="ask-questions">Questions you can ask</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3">
+          <Card className="min-w-0">
+            <CardContent className="flex min-h-[32rem] flex-col gap-5 p-4 sm:p-5">
+              <section aria-label="Questions you can ask" className="grid gap-2.5">
                 {!questions.ok ? (
                   <p className="text-table text-muted-foreground">The list of questions could not be loaded just now.</p>
                 ) : offered.length === 0 ? (
                   <p className="text-table text-muted-foreground">None of Ask&apos;s questions read figures your role can open.</p>
                 ) : (
-                  <ul className="grid gap-2.5">
-                    {offered.map((q) => (
-                      <li key={q.id} className="grid gap-1 sm:grid-cols-[11rem_minmax(0,1fr)] sm:items-baseline sm:gap-3">
-                        <span className="text-table font-medium">{q.title}</span>
-                        <span className="flex flex-wrap gap-1.5">
-                          {q.examples.map((example) => (
-                            <Button key={example.text} asChild size="xs" variant="outline">
-                              <AnswerLink href={askHref({ questionId: q.id, period: example.period, compare: example.compare })}>{example.text}</AnswerLink>
+                  <>
+                    <p className="text-body text-muted-foreground">Ask about your clinic&apos;s figures in your own words. Try one of these:</p>
+                    <ul className="flex flex-wrap gap-2">
+                      {offered.map((q) => {
+                        const example = q.examples[0];
+                        return (
+                          <li key={q.id}>
+                            <Button asChild variant="outline">
+                              <AnswerLink
+                                href={askHref({ questionId: q.id, period: example?.period, compare: example?.compare })}
+                                title={example ? q.title : undefined}
+                              >
+                                {example?.text ?? q.title}
+                              </AnswerLink>
                             </Button>
-                          ))}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
                 )}
                 {notOffered > 0 ? (
                   <p className="text-table text-muted-foreground">
@@ -125,16 +121,41 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
                     {notOffered === 1 ? "it is" : "they are"} not offered.
                   </p>
                 ) : null}
-              </CardContent>
-            </Card>
-          </div>
+              </section>
 
-          <Card aria-labelledby="ask-yours">
-            <CardHeader>
-              <CardTitle id="ask-yours">Your questions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <YourQuestions />
+              <div className="flex flex-1 flex-col gap-4">
+                {choices.length > 0 ? (
+                  <section aria-labelledby="ask-choose" className="grid gap-2 rounded-lg border border-border/70 p-4">
+                    <h2 id="ask-choose" className="text-body font-semibold">
+                      Which did you mean?
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                      {choices.map((id) => (
+                        <Button key={id} asChild size="sm" variant="outline">
+                          <AnswerLink href={askHref({ questionId: id, ...choice.reading })}>{titles.get(id)}</AnswerLink>
+                        </Button>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+                {answer ? <Answer answer={answer} /> : null}
+                {!answer && choices.length === 0 ? (
+                  <div className="grid flex-1 place-items-center px-4 py-10 text-center">
+                    <p className="flex max-w-sm flex-col items-center gap-2 text-table text-muted-foreground">
+                      <MessagesSquareIcon className="size-6" aria-hidden />
+                      Your answer appears here, with the dates, the facility and how the figures were worked out.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* A new question asked starts the box afresh. */}
+              <AskForm
+                key={JSON.stringify(search)}
+                organization={offered.some((q) => q.organization)}
+                allFacilities={asked?.scope === "organization" || choice.reading.scope === "organization"}
+                entryId={entryId}
+              />
             </CardContent>
           </Card>
         </div>
@@ -147,7 +168,7 @@ export default async function AskPage({ searchParams }: { searchParams: Promise<
  * A link to an answer of Ask, never prefetched: opening an answer asks its question (audited and kept among the
  * person's questions), which only following the link should do.
  */
-function AnswerLink(props: { href: string; className?: string; children?: React.ReactNode }) {
+function AnswerLink(props: { href: string; className?: string; title?: string; children?: React.ReactNode }) {
   return <Link {...props} prefetch={false} />;
 }
 
@@ -160,18 +181,5 @@ function Answer({ answer }: { answer: ActionResult<AskAnswer> }) {
       </Callout>
     );
   }
-  const a = answer.data;
-  const view: AskAnswerView = {
-    title: a.question.title,
-    status: a.status,
-    sentence: a.sentence,
-    periodText: a.period ? `${a.period.label} · ${a.period.text}` : null,
-    comparisonText: a.comparison ? `${a.comparison.label} · ${a.comparison.text}` : null,
-    scopeName: a.scope.name,
-    rows: a.rows,
-    notes: a.notes,
-    definition: a.definition,
-    link: a.link,
-  };
-  return <AskAnswerCard answer={view} Link={NextLink} actions={a.entry ? <SaveAnswer entryId={a.entry.id} /> : null} />;
+  return <AskAnswerCard answer={askAnswerView(answer.data)} Link={NextLink} />;
 }

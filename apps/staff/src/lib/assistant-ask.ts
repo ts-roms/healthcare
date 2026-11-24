@@ -1,4 +1,5 @@
-import type { AskCompare, AskHistoryItem, AskInterpretation, AskNoteCode, AskScope } from "./api/types";
+import type { AskAnswerView } from "@healthcare/ui/healthcare";
+import type { AskAnswer, AskCompare, AskHistoryItem, AskInterpretation, AskNoteCode, AskScope } from "./api/types";
 
 /**
  * Addresses of the assistant's Ask page (docs/domains/assistant.md, "Ask"; ADR-0019). An answer's address names the
@@ -80,6 +81,22 @@ export function readChoice(search: Search): { questionIds: string[]; reading: As
     .filter((id) => QUESTION_ID.test(id))
     .slice(0, MAX_CHOICES);
   return { questionIds, reading: readReading(search) };
+}
+
+/** An answer as `AskAnswerCard` shows it, on the Ask page and in the Ask chat. */
+export function askAnswerView(a: AskAnswer): AskAnswerView {
+  return {
+    title: a.question.title,
+    status: a.status,
+    sentence: a.sentence,
+    periodText: a.period ? `${a.period.label} · ${a.period.text}` : null,
+    comparisonText: a.comparison ? `${a.comparison.label} · ${a.comparison.text}` : null,
+    scopeName: a.scope.name,
+    rows: a.rows,
+    notes: a.notes,
+    definition: a.definition,
+    link: a.link,
+  };
 }
 
 /** The address an entry of "Your questions" asks again. */
